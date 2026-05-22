@@ -1,0 +1,122 @@
+[
+  {
+    "input": "TELFCOMUNICACION Y MERCADOTECNIA DE MONTERREY, S.A DE C.V.",
+    "matches": [
+      {
+        "score": 0.9756,
+        "idBp": "518998",
+        "concesionario": "TELECOMUNICACIÓN Y MERCADOTECNIA DE MONTERREY, S.A. DE C.V.",
+        "estatus": "VIGENTE",
+        "folio": "FET099560AU-518998"
+      },
+      {
+        "score": 0.6757,
+        "idBp": "100871",
+        "concesionario": "TELECOMUNICACIONES CENTRO OCCIDENTE, S.A. DE C.V.",
+        "estatus": "TERMINADO POR RENUNCIA",
+        "folio": "FET007540CO-100871"
+      },
+      {
+        "score": 0.64,
+        "idBp": "106244",
+        "concesionario": "TELECOMUNICACIONES DE CHINA NUEVO LEON, S.A. DE C.V.",
+        "estatus": "TERMINADO POR RENUNCIA",
+        "folio": "FET003742CO-106244"
+      },
+      {
+        "score": 0.6377,
+        "idBp": "100694",
+        "concesionario": "TELECOMUNICACIONES DE CERRITOS, S.A. DE C.V.",
+        "estatus": "TERMINADO POR RENUNCIA",
+        "folio": "FET006132CO-100694"
+      },
+      {
+        "score": 0.6329,
+        "idBp": "521893",
+        "concesionario": "TELECOMUNICACIONES Y TECNOLOGÍAS CONEXIÓN, S.A. DE C.V.",
+        "estatus": "VIGENTE",
+        "folio": "FET103655CO-521893"
+      }
+    ]
+  },
+  {
+    "input": "ROSARIOSÁNCHEZ",
+    "matches": [
+      {
+        "score": 0.78,
+        "idBp": "100279",
+        "concesionario": "MARÍA DEL ROSARIO SÁNCHEZ MEZA",
+        "estatus": "VIGENTE",
+        "folio": "FET007275CO-100279"
+      },
+      {
+        "score": 0.7778,
+        "idBp": "517289",
+        "concesionario": "ROSARIO BARRANCO SÁNCHEZ",
+        "estatus": "TERMINADO POR VENCIMIENTO",
+        "folio": "FET097252CO-517289"
+      },
+      {
+        "score": 0.7222,
+        "idBp": "517566",
+        "concesionario": "ROSA MARÍA SÁNCHEZ TORRES",
+        "estatus": "VIGENTE",
+        "folio": "FET097769CO-517566"
+      },
+      {
+        "score": 0.6875,
+        "idBp": "516854",
+        "concesionario": "ALFREDO ARCE SÁNCHEZ",
+        "estatus": "VIGENTE",
+        "folio": "FET096455CO-516854"
+      },
+      {
+        "score": 0.6667,
+        "idBp": "100093",
+        "concesionario": "CARMEN SANCHEZ",
+        "estatus": "TERMINADO POR VENCIMIENTO",
+        "folio": "FET003597CO-100093"
+      }
+    ]
+  },
+  {
+    "input": "DANIELLOERASANTILLAN_",
+    "matches": [
+      {
+        "score": 1.0,
+        "idBp": "521463",
+        "concesionario": "DANIEL LOERA SANTILLÁN",
+        "estatus": "VIGENTE",
+        "folio": "FET102874CO-521463"
+      },
+      {
+        "score": 0.6667,
+        "idBp": "520316",
+        "concesionario": "DANIEL CASTILLO MARTÍNEZ",
+        "estatus": "VIGENTE",
+        "folio": "FET101223CO-520316"
+      },
+      {
+        "score": 0.6667,
+        "idBp": "522309",
+        "concesionario": "ROLANDO HERNÁNDEZ SANTILLÁN",
+        "estatus": "VIGENTE",
+        "folio": "FET104194CO-522309"
+      },
+      {
+        "score": 0.6522,
+        "idBp": "521532",
+        "concesionario": "DANIEL PABLO OCEGUERA CANCINO",
+        "estatus": "VIGENTE",
+        "folio": "FET103049CO-521532"
+      },
+      {
+        "score": 0.6512,
+        "idBp": "517236",
+        "concesionario": "DANIEL GUTIÉRREZ CASILLAS",
+        "estatus": "TERMINADO POR VENCIMIENTO",
+        "folio": "FET097115CO-517236"
+      }
+    ]
+  }
+]

@@ -1,0 +1,46 @@
+{
+  "CRT26-009493.pdf": {
+    "archivo": "CRT26-009493.pdf",
+    "campos": {
+      "Nombre o razón social del Operador": "TELECOMUNICACIÓN Y MERCADOTECNIA DE MONTERREY, S.A DE C.V",
+      "Tipo de documento": "R002",
+      "Folio": "CRT26-009493"
+    },
+    "texto_detectado": true
+  },
+  "CRT26-009907.pdf": {
+    "archivo": "CRT26-009907.pdf",
+    "campos": {
+      "Tipo de documento": "R024",
+      "Trimestre": "Lección 2. latos dcl opeé",
+      "Nombre o razón social del Operador": "DANIEL LOERA SANTILLAN",
+      "Municipio": "TEPEZALÁ",
+      "Entidad Federativa": "AGUASCALIENTES",
+      "Correo electrónico": "Mivinne.05@qmail.com",
+      "Teléfono fijo": "Teléfono celular 5526690329",
+      "Nombre": "DANIEL ETOERA SANTILLÁN",
+      "Folio": "CRT26-009907"
+    },
+    "texto_detectado": true
+  },
+  "CRT26-009909.pdf": {
+    "archivo": "CRT26-009909.pdf",
+    "campos": {
+      "Tipo de documento": "R025",
+      "Lugar y Fecha": "TAMPICO, TAMPS., A 15 DE FEBRERO DE 2026",
+      "Oficio IFT": "Entrega",
+      "Folio de Acuse": "Entrega",
+      "Fecha de Acuse": "DD/MM/AAAA DOMMZAAAA OD?MM/AAAA",
+      "Fecha Oficio IFT": "DD/MM/AAAA DOMMZAAAA OD?MM/AAAA",
+      "Trimestre": "SECCIÓN 2. DATOS GENERALES DEL OPERADOR",
+      "Nombre o razón social del Operador": "MARÍA DEL ROSARIO SÁNCHEZ MEZA",
+      "Operador": "Representante legal",
+      "Munidpio": "Mivinne05@qmail.com",
+      "Código Postal": "89210",
+      "Correo electrónico": "adminisirativo@cable-sur.com.mx",
+      "Teléfono fijo": "833 2134167 Teléfono celular",
+      "Folio": "CRT26-009909"
+    },
+    "texto_detectado": true
+  }
+}
