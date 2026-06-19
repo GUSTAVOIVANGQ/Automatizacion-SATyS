@@ -52,7 +52,7 @@ AZURE_KEY = os.environ.get(
 )
 
 # Carpeta donde se guardan las imágenes de sellos (fuera de las carpetas de folio)
-SELLOS_DIR = Path(r"C:\Users\ps.dei\Downloads\SATyS\sellos")
+SELLOS_DIR = Path.home() / "Downloads" / "SATyS" / "sellos"
 
 # Formatos R001–R027 que se buscan en el PDF
 FORMATOS = [f"R{str(i).zfill(3)}" for i in range(1, 28)]

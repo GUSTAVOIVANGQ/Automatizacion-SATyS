@@ -1,0 +1,112 @@
+{
+  "fecha": "2026-06-19T12:36:04.545636",
+  "total": 8,
+  "ok": 8,
+  "errores": 0,
+  "resultados": [
+    {
+      "folio": "181985",
+      "archivo": "17812179224349r001-06.xlsx",
+      "nombre_original": "documento_181985_1",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181985\\17812179224349r001-06.xlsx",
+      "tamano_kb": 11.2,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17812179224349r001-06.xlsx",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181985",
+      "archivo": "17812179053039r001-05.xlsx",
+      "nombre_original": "documento_181985_2",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181985\\17812179053039r001-05.xlsx",
+      "tamano_kb": 10.8,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17812179053039r001-05.xlsx",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181985",
+      "archivo": "17812178408871r001-04.xlsx",
+      "nombre_original": "documento_181985_3",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181985\\17812178408871r001-04.xlsx",
+      "tamano_kb": 9.2,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17812178408871r001-04.xlsx",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181985",
+      "archivo": "17812178058497r001-03.xlsx",
+      "nombre_original": "documento_181985_4",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181985\\17812178058497r001-03.xlsx",
+      "tamano_kb": 10.8,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17812178058497r001-03.xlsx",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181985",
+      "archivo": "1781217778124r001-02.xlsx",
+      "nombre_original": "documento_181985_5",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181985\\1781217778124r001-02.xlsx",
+      "tamano_kb": 9.1,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/1781217778124r001-02.xlsx",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181985",
+      "archivo": "17812177054739r001-01.xlsx",
+      "nombre_original": "documento_181985_6",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181985\\17812177054739r001-01.xlsx",
+      "tamano_kb": 9.2,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17812177054739r001-01.xlsx",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181985",
+      "archivo": "17812176294979anexor001.informacionestadisticageneraldeserviciosdetelecomunicaciones.pdf",
+      "nombre_original": "documento_181985_7",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181985\\17812176294979anexor001.informacionestadisticageneraldeserviciosdetelecomunicaciones.pdf",
+      "tamano_kb": 3358.9,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17812176294979anexor001.informacionestadisticageneraldeserviciosdetelecomunicaciones.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181985",
+      "archivo": "solicitud181985.pdf",
+      "nombre_original": "documento_181985_8",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181985\\solicitud181985.pdf",
+      "tamano_kb": 940.5,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/181985/solicitud181985.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    }
+  ]
+}

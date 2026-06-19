@@ -1,0 +1,31 @@
+{
+  "fecha_ejecucion": "2026-06-17T18:14:08.738668",
+  "modo_extraccion": "azure",
+  "total_folios": 1,
+  "total_exitosos": 1,
+  "resultados": [
+    {
+      "folio": "6407",
+      "pdf_encontrado": true,
+      "nombre_operador": "TELECOMUNICACIÓN Y MERCADOTECNIA DE MONTERREY, S.A. DE C.V.",
+      "representante_legal": "JOSE JORGE MENA ORTIZ",
+      "formatos": {
+        "R002": true
+      },
+      "imagen_sello": "C:\\Users\\gustavo.garcia\\Downloads\\SATyS\\sellos\\sello_CRT26-009493.png",
+      "fecha_sello": null,
+      "rpc_ok": true,
+      "excel_ok": true,
+      "organizado_ok": true,
+      "modo_extraccion": "pdfplumber",
+      "rpc_resultado": {
+        "nombre_completo": "TELECOMUNICACIÓN Y MERCADOTECNIA DE MONTERREY, S.A. DE C.V.",
+        "numero_rpc": "518998",
+        "idBp": "518998",
+        "ruta": "518998_telecomunicación_y_mercadotecnia_de_monterrey_s_a_de_c_v\\01 EN\\VE",
+        "score": 1.0,
+        "ok": true
+      }
+    }
+  ]
+}

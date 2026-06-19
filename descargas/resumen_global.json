@@ -1,0 +1,17 @@
+{
+  "fecha_generacion": "2026-06-19T12:36:04.552800",
+  "total_folios": 1,
+  "total_archivos": 8,
+  "total_ok": 8,
+  "total_errores": 0,
+  "folios": [
+    {
+      "folio": "181985",
+      "fuente_descarga": "DOCUMENTOS_ANEXOS",
+      "archivos_ok": 8,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\181985"
+    }
+  ]
+}
