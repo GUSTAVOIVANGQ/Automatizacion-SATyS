@@ -1,0 +1,29 @@
+{
+  "folio": "1923",
+  "folio_raw": "CORREO-1923",
+  "fecha_proceso": "2026-06-19T14:32:54.558588",
+  "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+  "estado": "OK",
+  "metadatos_satys": {
+    "representante_legal": "ARACELI RIOS",
+    "nombre_operador": "ARACELI RIOS",
+    "asunto": "PRESENTA DUDAS EN RELACION AL REGISTRO DE SU LINEA TELEFONICA. (Se recibió vía correo electrónico oficialiadepartes@crt.gob.mx) (10:22 a. m.) (AC)"
+  },
+  "metadatos_tramite": {},
+  "total_archivos_encontrados": 1,
+  "total_archivos_ok": 1,
+  "total_archivos_error": 0,
+  "coincide": true,
+  "archivos": [
+    {
+      "folio": "1923",
+      "archivo": "MEMORANDUM.pdf",
+      "tipo": "PDF",
+      "ruta": "descargas\\1923\\MEMORANDUM.pdf",
+      "tamano_kb": 744.7,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/167388_20260610_184658_1781138818825.pdf",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    }
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "folio": "181514",
+  "folio_raw": "VE-181514",
+  "fecha_proceso": "2026-06-19T14:15:14.377633",
+  "fuente_descarga": "DOCUMENTOS_ANEXOS",
+  "estado": "OK",
+  "metadatos_satys": {
+    "representante_legal": "FRANCISCO JAVIER TABOADA GARCÍA",
+    "nombre_operador": "RADIO FRECUENCIAS CONCESIONADAS",
+    "asunto": "Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios"
+  },
+  "metadatos_tramite": {
+    "tipo_tramite": "CGPE-01-008: Entrega periódica de Información General Estadística para efectos del Acervo Estadístico del Instituto Federal de Telecomunicaciones.",
+    "fecha_registro": "09/06/2026",
+    "solicitante": "",
+    "nombre_operador": "FRANCISCO JAVIER TABOADA GARCÍA",
+    "representante_legal": "RADIO FRECUENCIAS CONCESIONADAS, S.A. DE C.V.",
+    "asunto": "CUMPLIMIENTO PERIÓDICO DE ENTREGA DE INFORMACIÓN CONFORME A LOS LINEAMIENTOS DE ACERVO ESTADÍSTICO",
+    "descripcion": "",
+    "folio": "181514"
+  },
+  "total_archivos_encontrados": 7,
+  "total_archivos_ok": 7,
+  "total_archivos_error": 0,
+  "coincide": true,
+  "archivos": [
+    {
+      "folio": "181514",
+      "archivo": "17810325285405r001-06.csv",
+      "nombre_original": "documento_181514_1",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181514\\17810325285405r001-06.csv",
+      "tamano_kb": 0.0,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17810325285405r001-06.csv",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181514",
+      "archivo": "17810325192725r001-05.csv",
+      "nombre_original": "documento_181514_2",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181514\\17810325192725r001-05.csv",
+      "tamano_kb": 0.1,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17810325192725r001-05.csv",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181514",
+      "archivo": "17810325084706r001-04.csv",
+      "nombre_original": "documento_181514_3",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181514\\17810325084706r001-04.csv",
+      "tamano_kb": 0.2,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17810325084706r001-04.csv",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181514",
+      "archivo": "17810324979770r001-03.csv",
+      "nombre_original": "documento_181514_4",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181514\\17810324979770r001-03.csv",
+      "tamano_kb": 1.1,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17810324979770r001-03.csv",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181514",
+      "archivo": "17810324843996r001-02.csv",
+      "nombre_original": "documento_181514_5",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181514\\17810324843996r001-02.csv",
+      "tamano_kb": 0.1,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17810324843996r001-02.csv",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181514",
+      "archivo": "17810324738459r001-01.csv",
+      "nombre_original": "documento_181514_6",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181514\\17810324738459r001-01.csv",
+      "tamano_kb": 0.1,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17810324738459r001-01.csv",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181514",
+      "archivo": "solicitud181514.pdf",
+      "nombre_original": "documento_181514_7",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181514\\solicitud181514.pdf",
+      "tamano_kb": 428.3,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/181514/solicitud181514.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    }
+  ]
+}

@@ -23,10 +23,27 @@ import re
 import time
 import json
 import logging
+import argparse
+import threading
+import concurrent.futures
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_result, before_sleep_log
+from logging.handlers import RotatingFileHandler
+
 from urllib.parse import urljoin, urlparse
 from pathlib import Path
 from datetime import datetime
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+
+# --- Cargar .env manualmente (para no depender de dotenv) ---
+env_path = Path(".env")
+if env_path.exists():
+    with open(env_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                os.environ[k.strip()] = v.strip().strip("'\"")
+
 
 # Forzar UTF-8 en consola Windows (evita UnicodeEncodeError)
 if hasattr(sys.stdout, "buffer") and getattr(sys.stdout, 'encoding', '') != 'utf-8':
@@ -39,42 +56,67 @@ if hasattr(sys.stderr, "buffer") and getattr(sys.stderr, 'encoding', '') != 'utf
 # ============================================================
 USUARIO       = os.getenv("SATYS_USER", "david.palestina@ift.org.mx")
 PASSWORD      = os.getenv("SATYS_PASS", "Crt20261234*")
-BASE_URL      = "https://satys.ift.org.mx/"
-DESCARGA_BASE = Path("descargas")
+BASE_URL      = os.getenv("SATYS_BASE_URL", "https://satys.ift.org.mx/")
+DESCARGA_BASE = Path(os.getenv("SATYS_DIR", "descargas"))
+SESION_FILE   = Path("sesion_guardada.json")
 
 # False = ver el navegador (recomendado para depurar)
 # True  = sin ventana (modo produccion)
-HEADLESS = False
+HEADLESS = os.getenv("SATYS_HEADLESS", "False").lower() in ("true", "1", "yes")
 
-TIMEOUT_NAV   = 60_000   # ms -- carga de paginas (red intranet IFT)
-TIMEOUT_CORTO = 10_000   # ms -- esperas de elementos
-TIMEOUT_DL    = 90_000   # ms -- espera de descarga
-TIMEOUT_DETALLE = 120_000  # ms -- espera de carga en Ver detalle
+TIMEOUT_NAV   = int(os.getenv("SATYS_TIMEOUT_NAV", "60000"))   # ms -- carga de paginas (red intranet IFT)
+TIMEOUT_CORTO = int(os.getenv("SATYS_TIMEOUT_CORTO", "10000"))   # ms -- esperas de elementos
+TIMEOUT_DL    = int(os.getenv("SATYS_TIMEOUT_DL", "90000"))   # ms -- espera de descarga
+TIMEOUT_DETALLE = int(os.getenv("SATYS_TIMEOUT_DETALLE", "120000"))  # ms -- espera de carga en Ver detalle
 
 # API discovery y descarga directa (experimental)
-API_DISCOVERY = True
-DIRECT_DOWNLOAD = True
+API_DISCOVERY = os.getenv("SATYS_API_DISCOVERY", "True").lower() in ("true", "1", "yes")
+DIRECT_DOWNLOAD = os.getenv("SATYS_DIRECT_DOWNLOAD", "True").lower() in ("true", "1", "yes")
 API_LOG_PATH = Path("debug") / "api_log.jsonl"
 
 # Folios a procesar (se normalizan automaticamente)
 FOLIOS_DEFAULT = ["6407", "6801", "6802"]
 # ============================================================
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s  %(levelname)-8s  %(message)s",
-    datefmt="%H:%M:%S",
-)
+# Configurar Logging con RotatingFileHandler
+log_dir = Path("logs")
+log_dir.mkdir(exist_ok=True)
+log_file = log_dir / "satys_execution.log"
+
+logger_format = "%(asctime)s  %(levelname)-8s  %(message)s"
+logging.basicConfig(level=logging.INFO, format=logger_format, datefmt="%H:%M:%S")
+
 log = logging.getLogger("SATyS-P1")
+log.propagate = False
+if not log.handlers:
+    # Handler para consola
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(logging.Formatter(logger_format, datefmt="%H:%M:%S"))
+    log.addHandler(console_handler)
+    
+    # Handler rotativo para archivo (Max 5 MB, hasta 5 respaldos)
+    file_handler = RotatingFileHandler(log_file, maxBytes=5*1024*1024, backupCount=5, encoding="utf-8")
+    file_handler.setFormatter(logging.Formatter(logger_format, datefmt="%H:%M:%S"))
+    log.addHandler(file_handler)
 
 # URL del tablero (se asigna durante la navegacion)
 URL_TABLERO = ""
+
+# ============================================================
+#  LOCKS DE THREAD-SAFETY (Fase 3 -- Concurrencia)
+# ============================================================
+_sesion_lock = threading.Lock()   # Protege escrituras a sesion_guardada.json
+_api_log_lock = threading.Lock()  # Protege escrituras a api_log.jsonl
 
 
 # ------------------------------------------------------------
 #  AUXILIARES
 # ------------------------------------------------------------
+def _retry_if_false(result):
+    return result is False
+
 def normalizar_folio(folio: str) -> str:
+
     """'006407' -> '6407',  'CRT26-009493' -> '9493'."""
     m = re.search(r"(\d+)$", str(folio).strip())
     return str(int(m.group(1))) if m else str(folio).strip()
@@ -104,9 +146,10 @@ def screenshot(page, nombre: str):
 
 def _write_jsonl(path: Path, data: dict):
     path.parent.mkdir(exist_ok=True)
-    with open(path, "a", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=True)
-        f.write("\n")
+    with _api_log_lock:
+        with open(path, "a", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=True)
+            f.write("\n")
 
 
 def _url_relevante(url: str) -> bool:
@@ -190,6 +233,7 @@ def _extraer_url_from_onclick(onclick: str) -> str:
     return m.group(1) if m else ""
 
 
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), retry=retry_if_result(_retry_if_false))
 def _descargar_directo(context, page, url: str, dest: Path) -> bool:
     if not DIRECT_DOWNLOAD or not url:
         return False
@@ -205,6 +249,31 @@ def _descargar_directo(context, page, url: str, dest: Path) -> bool:
         return True
     except Exception:
         return False
+
+def _retry_if_both_none(res):
+    return res[0] is None and res[1] is None
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), retry=retry_if_result(_retry_if_both_none))
+def _click_y_esperar_descarga(page, context, boton_ver_doc):
+    dl_obj = None
+    np_obj = None
+    def on_dl(d): nonlocal dl_obj; dl_obj = d
+    def on_pg(p): nonlocal np_obj; np_obj = p
+    page.on("download", on_dl)
+    context.on("page", on_pg)
+    try:
+        boton_ver_doc.click()
+    except Exception:
+        boton_ver_doc.click(force=True)
+    import time
+    start_t = time.time()
+    while time.time() - start_t < (TIMEOUT_DL / 1000.0):
+        if dl_obj or np_obj:
+            break
+        page.wait_for_timeout(200)
+    page.remove_listener("download", on_dl)
+    context.remove_listener("page", on_pg)
+    return dl_obj, np_obj
 
 
 def _click_menu_text(root, pattern, timeout=TIMEOUT_CORTO) -> bool:
@@ -414,6 +483,13 @@ def _verificar_sesion(page) -> bool:
         if not ok_login:
             log.error("[V03] Re-login fallido")
             return False
+            
+        try:
+            with _sesion_lock:
+                page.context.storage_state(path=SESION_FILE)
+            log.info("[V03] Nueva sesión guardada tras re-login automático")
+        except Exception:
+            pass
 
         ok_nav = navegar_a_tablero(page)
         if not ok_nav:
@@ -426,74 +502,53 @@ def _verificar_sesion(page) -> bool:
         log.error("[V03] Error verificando sesion: %s", e)
         return False
 
-
 # ------------------------------------------------------------
 #  PASO 1 -- LOGIN
 # ------------------------------------------------------------
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=3, min=3, max=48),
+    before_sleep=before_sleep_log(log, logging.WARNING),
+    reraise=True
+)
 def login(page) -> bool:
     log.info("[LOGIN] Iniciando sesion...")
     try:
-        # V-01: Reintentar hasta 5 veces con backoff exponencial si el servidor esta caido
-        # Esperas: 3s, 6s, 12s, 24s, 48s
-        for intento in range(1, 6):
-            try:
-                log.info("[NET] Cargando pagina (intento %d/5)...", intento)
-                page.goto(BASE_URL, wait_until="domcontentloaded", timeout=TIMEOUT_NAV)
-                break  # exito
-            except PWTimeout:
-                if intento == 5:
-                    raise
-                espera = 3 * (2 ** (intento - 1))  # 3, 6, 12, 24s
-                log.warning("[NET] Timeout intento %d/5 -- esperando %ds antes de reintentar",
-                            intento, espera)
-                page.wait_for_timeout(espera * 1_000)
-            except Exception as eg:
-                if intento == 5:
-                    raise
-                espera = 3 * (2 ** (intento - 1))
-                log.warning("[NET] Error intento %d/5 (%s) -- esperando %ds",
-                            intento, type(eg).__name__, espera)
-                page.wait_for_timeout(espera * 1_000)
+        log.info("[NET] Cargando pagina login...")
+        page.goto(BASE_URL, wait_until="domcontentloaded", timeout=TIMEOUT_NAV)
 
-        # Esperar campo de usuario
-        user_sel = "input[name='username'], input[id='username'], input[type='email'], input[type='text']"
-        page.wait_for_selector(user_sel, timeout=TIMEOUT_NAV)
-        page.locator(user_sel).first.fill(USUARIO)
+        log.info("[LOGIN] Llenando credenciales...")
+        page.fill("input[name='usuario'], input[name='username']", USUARIO)
+        page.fill("input[type='password']", PASSWORD)
+        
+        # Click login
+        with page.expect_navigation(timeout=TIMEOUT_NAV):
+            page.click("button[type='submit'], input[type='submit'], a:has-text('Ingresar'), button:has-text('Entrar')")
 
-        # Contrasena -- la pagina tiene typo 'passowrd' en el HTML original
-        pass_sel = (
-            "input[name='passowrd'], input[id='passowrd'], "
-            "input[name='password'], input[id='password'], "
-            "input[type='password']"
-        )
-        page.locator(pass_sel).first.fill(PASSWORD)
-
-        # Submit
-        page.locator("button[type='submit'], input[type='submit']").first.click()
-        page.wait_for_load_state("domcontentloaded", timeout=TIMEOUT_NAV)
-        # V-02: watchdog en lugar de espera fija -- nunca bloquear indefinidamente
-        _esperar_carga_segura(page, timeout_networkidle=10_000)
-
-        url = page.url
-        log.info("[URL] Post-login: %s", url)
-
-        if "login" in url.lower() or "verifylogin" in url.lower():
-            log.error("[ERROR] Login fallido -- credenciales incorrectas")
-            screenshot(page, "login_fallido")
-            return False
-
-        log.info("[OK] Login exitoso")
-        return True
+        # Verificar dashboard
+        try:
+            page.wait_for_selector("text=Tablero de Control", timeout=10_000)
+            log.info("[OK] Sesion iniciada correctamente")
+            return True
+        except PWTimeout:
+            if "login" in page.url.lower():
+                log.error("[ERROR] Credenciales invalidas o error en el portal")
+                screenshot(page, "error_login")
+                return False
+            log.warning("[WARN] Tablero no encontrado tras login, asumiendo exito...")
+            return True
 
     except Exception as e:
-        log.error("[ERROR] En login: %s", e)
-        screenshot(page, "login_error")
-        return False
+        log.error("[ERROR] Fallo critico en login: %s", e)
+        screenshot(page, "exception_login")
+        raise
+
 
 
 # ------------------------------------------------------------
 #  PASO 2 -- NAVEGAR A ENLACE OFICIALIA DE PARTES
 # ------------------------------------------------------------
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), retry=retry_if_result(_retry_if_false))
 def navegar_a_tablero(page) -> bool:
     """
     Hace clic en 'Enlace/SIGEDO' y luego en 'Enlace Oficialia de Partes'.
@@ -732,6 +787,11 @@ def buscar_y_abrir_folio(page, folio: str) -> bool:
 # ------------------------------------------------------------
 #  PASO 3.5 -- EXTRAER METADATOS WEB
 # ------------------------------------------------------------
+def _retry_if_faltan_metadatos(res):
+    # Reintenta si faltan los metadatos importantes
+    return not res.get("representante_legal") or not res.get("asunto")
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), retry=retry_if_result(_retry_if_faltan_metadatos))
 def extraer_metadatos_satys(page, folio: str, carpeta: Path) -> dict:
     log.info("[WEB] Extrayendo metadatos web de SATyS para folio %s", folio)
     metadatos = {
@@ -2309,31 +2369,8 @@ def descargar_via_documentos_anexos(context, page, folio: str, carpeta: Path) ->
                 # Fallback: si el boton abre nueva pestana (PDF en viewer), capturar URL
                 if not descargado:
                     boton_ver_doc.scroll_into_view_if_needed()
-                    
                     try:
-                        dl_obj = None
-                        np_obj = None
-                        
-                        def on_dl(d): nonlocal dl_obj; dl_obj = d
-                        def on_pg(p): nonlocal np_obj; np_obj = p
-                    
-                        page.on("download", on_dl)
-                        context.on("page", on_pg)
-                        
-                        try:
-                            boton_ver_doc.click()
-                        except Exception:
-                            boton_ver_doc.click(force=True)
-                            
-                        import time
-                        start_t = time.time()
-                        while time.time() - start_t < (TIMEOUT_DL / 1000.0):
-                            if dl_obj or np_obj:
-                                break
-                            page.wait_for_timeout(200)
-                            
-                        page.remove_listener("download", on_dl)
-                        context.remove_listener("page", on_pg)
+                        dl_obj, np_obj = _click_y_esperar_descarga(page, context, boton_ver_doc)
 
                         if dl_obj:
                             fname_sugerido = dl_obj.suggested_filename or fname
@@ -2356,7 +2393,6 @@ def descargar_via_documentos_anexos(context, page, folio: str, carpeta: Path) ->
 
                         elif np_obj:
                             log.info("  [POPUP] Nueva pestana capturada al instante (PDF)")
-                            url_popup = ""
                             try:
                                 np_obj.wait_for_load_state("domcontentloaded", timeout=10_000)
                                 url_popup = np_obj.url
@@ -2688,115 +2724,336 @@ def guardar_log_json(todos: list):
 
 
 # ============================================================
+#  WORKER -- FASE 3: Procesamiento concurrente por folio
+# ============================================================
+def _worker_folio(folio: str, folio_raw: str) -> tuple:
+    """
+    Procesa un único folio en un contexto Playwright COMPLETAMENTE independiente.
+
+    Cada worker lanza su propio sync_playwright() + chromium browser.
+    Esto es obligatorio para el API síncrono de Playwright (no es thread-safe
+    compartir un Browser entre hilos). El estado de sesión se carga desde
+    sesion_guardada.json, que el hilo principal validó/actualizó antes de
+    lanzar los workers.
+
+    Retorna: (folio: str, resultados: list)
+    """
+    tname = threading.current_thread().name
+    log.info("[W:%s] ── Iniciando folio %s ──", tname, folio)
+    resultados = []
+
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(
+                headless=HEADLESS,
+                slow_mo=50,          # Reducido vs 100 del hilo principal: N browsers en paralelo
+            )
+            context_args = {
+                "accept_downloads": True,
+                "viewport": {"width": 1400, "height": 900},
+                "locale": "es-MX",
+            }
+            if SESION_FILE.exists():
+                context_args["storage_state"] = str(SESION_FILE)
+
+            context = browser.new_context(**context_args)
+            habilitar_api_discovery(context)
+            page = context.new_page()
+            page.set_default_timeout(TIMEOUT_NAV)
+
+            # ── Validar sesión en este contexto ──────────────────────
+            sesion_ok = False
+            try:
+                test_url = urljoin(BASE_URL, "Sarccontroller")
+                page.goto(test_url, wait_until="domcontentloaded", timeout=TIMEOUT_NAV)
+                url_actual = page.url.lower()
+                en_login = (
+                    "login" in url_actual
+                    or "verifylogin" in url_actual
+                    or page.locator("input[type='password']").count() > 0
+                )
+                if not en_login:
+                    sesion_ok = True
+                    log.info("[W:%s] Sesión activa (folio %s)", tname, folio)
+                else:
+                    # Sesión expiró entre el chequeo principal y el arranque del worker
+                    log.warning("[W:%s] Sesión expirada — re-login (folio %s)", tname, folio)
+                    if login(page):
+                        with _sesion_lock:
+                            try:
+                                context.storage_state(path=SESION_FILE)
+                            except Exception:
+                                pass
+                        sesion_ok = True
+                    else:
+                        log.error("[W:%s] Re-login fallido (folio %s)", tname, folio)
+            except Exception as e:
+                log.warning("[W:%s] Error validando sesión: %s", tname, e)
+
+            if not sesion_ok:
+                browser.close()
+                return folio, [{
+                    "folio": folio, "archivo": "ERROR_SESION",
+                    "tipo": "ERROR", "ruta": "Sesión inválida o re-login fallido",
+                    "tamano_kb": 0, "ok": False,
+                }]
+
+            # ── Navegar al tablero ────────────────────────────────────
+            if not navegar_a_tablero(page):
+                log.error("[W:%s] No se pudo navegar al tablero (folio %s)", tname, folio)
+                browser.close()
+                return folio, [{
+                    "folio": folio, "archivo": "ERROR_TABLERO",
+                    "tipo": "ERROR", "ruta": "No se pudo navegar al tablero",
+                    "tamano_kb": 0, "ok": False,
+                }]
+
+            # ── Procesar el folio ─────────────────────────────────────
+            carpeta = crear_carpeta(folio)
+            try:
+                res = procesar_folio_completo(
+                    context, page, folio, carpeta, folio_raw=folio_raw
+                )
+                resultados = res if res else [{
+                    "folio": folio, "archivo": "FOLIO_NO_ENCONTRADO",
+                    "tipo": "N/A", "ruta": "", "tamano_kb": 0, "ok": False,
+                }]
+            except Exception as e:
+                log.error("[W:%s] Error procesando folio %s: %s", tname, folio, e)
+                screenshot(page, f"fatal_{folio}")
+                resultados = [{
+                    "folio": folio, "archivo": "ERROR_FATAL",
+                    "tipo": "ERROR", "ruta": str(e)[:120], "tamano_kb": 0, "ok": False,
+                }]
+
+            browser.close()
+            ok_c = sum(1 for r in resultados if r.get("ok"))
+            log.info("[W:%s] ── Folio %s OK (%d/%d archivos) ──",
+                     tname, folio, ok_c, len(resultados))
+
+    except Exception as e:
+        log.error("[W:%s] Error crítico en worker para folio %s: %s", tname, folio, e)
+        resultados = resultados or [{
+            "folio": folio, "archivo": "ERROR_WORKER_CRITICO",
+            "tipo": "ERROR", "ruta": str(e)[:120], "tamano_kb": 0, "ok": False,
+        }]
+
+    return folio, resultados
+
+
+# ============================================================
 #  FUNCION PRINCIPAL
 # ============================================================
 def main():
+    parser = argparse.ArgumentParser(description="SATyS - Descarga Automática de Archivos (Parte 1)")
+    parser.add_argument("--folios",   nargs="+",     help="Lista de folios a procesar")
+    parser.add_argument("--archivo",  type=str,       help="Archivo de texto con folios (uno por línea)")
+    parser.add_argument("--headless", action="store_true", help="Ejecutar en modo sin ventana")
+    parser.add_argument("--visible",  action="store_true", help="Forzar modo visible (desactiva headless)")
+    parser.add_argument("--limite",   type=int, default=0,  help="Límite máximo de folios a procesar")
+    parser.add_argument(
+        "--workers", type=int, default=0,
+        help="Máximo de workers en paralelo (default: 0 = todos los folios a la vez). "
+             "Cada worker abre su propio navegador Chromium. "
+             "Usa --workers 3 si quieres limitar a 3 simultáneos.",
+    )
+    args = parser.parse_args()
+
+    global HEADLESS
+    if args.headless:
+        HEADLESS = True
+    if args.visible:
+        HEADLESS = False
+
+    num_workers = args.workers  # 0 = sin límite (todos a la vez)
+
     print("\n+" + "-" * 68 + "+")
     print("|" + "  SATyS - DESCARGA AUTOMATICA DE ARCHIVOS (PARTE 1)  ".center(68) + "|")
+    print("+" + "-" * 68 + "+")
+    print(f"|  Modo: {'HEADLESS' if HEADLESS else 'VISIBLE (GUI)'}   Workers: {'TODOS' if num_workers == 0 else num_workers}".ljust(69) + "|")
     print("+" + "-" * 68 + "+\n")
 
-    folios_raw = sys.argv[1:] if len(sys.argv) > 1 else FOLIOS_DEFAULT
-    # Mapeo folio_normalizado -> folio_raw original (para metadata y logs)
+    if not HEADLESS and num_workers != 1:
+        log.warning(
+            "[WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. "
+            "Usa --workers 1 para una sola ventana."
+        )
+
+    # ──────────────────────────────────────────────────────────────
+    # Construcción de lista de folios
+    # ──────────────────────────────────────────────────────────────
+    folios_raw = []
+    if args.folios:
+        folios_raw.extend(args.folios)
+    if args.archivo:
+        try:
+            with open(args.archivo, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip() and not line.startswith("#"):
+                        folios_raw.append(line.strip())
+        except Exception as e:
+            log.error("[ERROR] No se pudo leer el archivo de folios: %s", e)
+            return
+
+    if not folios_raw:
+        folios_raw = FOLIOS_DEFAULT
+
     folio_raw_map = {normalizar_folio(f): f for f in folios_raw}
     folios = list(dict.fromkeys(normalizar_folio(f) for f in folios_raw))
+
+    limite_folios = args.limite
+    if limite_folios > 0:
+        folios = folios[:limite_folios]
+        log.info("[LIST] Límite aplicado: primeros %d folios", limite_folios)
+
     log.info("[LIST] Folios a procesar (%d): %s", len(folios), ", ".join(folios))
 
-    todos_resultados = []
-
+    # ──────────────────────────────────────────────────────────────
+    # FASE 1: Validación / renovación de sesión en hilo principal
+    # (un único navegador temporal que se cierra antes de lanzar workers)
+    # ──────────────────────────────────────────────────────────────
+    log.info("[MAIN] ── FASE 1: Validación de sesión ──")
     with sync_playwright() as pw:
-        browser = pw.chromium.launch(
-            headless=HEADLESS,
-            slow_mo=100,
-        )
-        context = browser.new_context(
-            accept_downloads=True,
-            viewport={"width": 1400, "height": 900},
-            locale="es-MX",
-        )
-        habilitar_api_discovery(context)
-        page = context.new_page()
+        browser = pw.chromium.launch(headless=HEADLESS, slow_mo=100)
+        context_args = {
+            "accept_downloads": True,
+            "viewport": {"width": 1400, "height": 900},
+            "locale": "es-MX",
+        }
+        if SESION_FILE.exists():
+            context_args["storage_state"] = SESION_FILE
+
+        context = browser.new_context(**context_args)
+        page    = context.new_page()
         page.set_default_timeout(TIMEOUT_NAV)
 
-        # PASO 1: Login
-        if not login(page):
-            log.critical("[ABORT] No se pudo iniciar sesion.")
-            browser.close()
-            return
-
-        # PASO 2: Navegar al tablero
-        if not navegar_a_tablero(page):
-            log.critical("[ABORT] No se pudo llegar al tablero.")
-            browser.close()
-            return
-
-        # PASOS 3-5: Iterar por folio
-        folios_procesados = 0
-        limite_folios = int(os.environ.get("SATYS_MAX_FOLIOS", "0"))
-
-        for idx, folio in enumerate(folios, 1):
-            if limite_folios > 0 and folios_procesados >= limite_folios:
-                log.info("[INFO] Se alcanzó el límite de %d folios existentes. Deteniendo búsqueda.", limite_folios)
-                break
-
-            print("\n" + "=" * 70)
-            print(f"  PROCESANDO FOLIO [{idx}/{len(folios)}]: {folio}")
-            print("=" * 70)
-
-            carpeta = crear_carpeta(folio)
-            log.info("[DIR] Carpeta: %s", carpeta.resolve())
-
-            # VERIFICACIÓN DE SALTOS (SKIP SI YA ESTÁ COMPLETADO)
-            metadata_file = carpeta / "metadata_completo.json"
-            if metadata_file.exists():
-                try:
-                    with open(metadata_file, "r", encoding="utf-8") as f:
-                        meta_existente = json.load(f)
-                    
-                    if meta_existente.get("estado") == "OK" and meta_existente.get("total_archivos_ok", 0) > 0:
-                        log.info("[SKIP] El folio %s ya fue descargado completamente con anterioridad. Saltando...", folio)
-                        todos_resultados.extend(meta_existente.get("archivos", []))
-                        folios_procesados += 1
-                        continue
-                except Exception as e:
-                    log.warning("[SKIP] No se pudo leer metadata existente de %s: %s", folio, e)
-
+        login_requerido = True
+        if SESION_FILE.exists():
+            log.info("[SESION] Probando sesion guardada...")
             try:
-                res = procesar_folio_completo(
-                        context, page, folio, carpeta,
-                        folio_raw=folio_raw_map.get(folio, folio)
-                    )
-                if res:
-                    todos_resultados.extend(res)
-                    folios_procesados += 1
+                test_url = urljoin(BASE_URL, "Sarccontroller")
+                page.goto(test_url, wait_until="domcontentloaded", timeout=TIMEOUT_NAV)
+                url_actual = page.url.lower()
+                en_login = (
+                    "login" in url_actual
+                    or "verifylogin" in url_actual
+                    or page.locator("input[type='password']").count() > 0
+                )
+                if not en_login:
+                    log.info("[OK] Sesion activa recuperada con exito.")
+                    login_requerido = False
                 else:
-                    todos_resultados.append({
-                        "folio": folio, "archivo": "FOLIO_NO_ENCONTRADO",
-                        "tipo": "N/A", "ruta": "", "tamano_kb": 0, "ok": False
-                    })
-
+                    log.info("[SESION] Sesion expirada, requiere nuevo login.")
             except Exception as e:
-                log.error("[ERROR] Fatal en folio %s: %s", folio, e)
-                screenshot(page, f"fatal_{folio}")
-                todos_resultados.append({
-                    "folio": folio, "archivo": "ERROR_FATAL",
-                    "tipo": "ERROR", "ruta": str(e)[:120], "tamano_kb": 0, "ok": False
-                })
+                log.warning("[SESION] Error al probar sesion: %s", e)
 
-            # Asegurar que estamos en el tablero antes del siguiente folio
-            if idx < len(folios):
-                volver_al_tablero(page)
-                time.sleep(1)
+        if login_requerido:
+            if not login(page):
+                log.critical("[ABORT] No se pudo iniciar sesion.")
+                browser.close()
+                return
+            try:
+                context.storage_state(path=SESION_FILE)
+                log.info("[SESION] Sesion guardada correctamente.")
+            except Exception as e:
+                log.warning("[SESION] No se pudo guardar la sesion: %s", e)
+
+        # Navegar brevemente al tablero para confirmar sesión operativa
+        if not navegar_a_tablero(page):
+            log.critical("[ABORT] No se pudo llegar al tablero tras el login.")
+            browser.close()
+            return
 
         browser.close()
-        log.info("[END] Navegador cerrado")
+        log.info("[MAIN] Sesión validada. Navegador principal cerrado.")
 
-    # Reporte final
+    # ──────────────────────────────────────────────────────────────
+    # Separar folios ya completados (SKIP) de los pendientes
+    # ──────────────────────────────────────────────────────────────
+    todos_resultados = []
+    folios_pendientes = []
+
+    for folio in folios:
+        carpeta      = crear_carpeta(folio)
+        metadata_file = carpeta / "metadata_completo.json"
+        if metadata_file.exists():
+            try:
+                with open(metadata_file, "r", encoding="utf-8") as f:
+                    meta_existente = json.load(f)
+                if (meta_existente.get("estado") == "OK"
+                        and meta_existente.get("total_archivos_ok", 0) > 0):
+                    log.info("[SKIP] Folio %s ya descargado. Saltando...", folio)
+                    todos_resultados.extend(meta_existente.get("archivos", []))
+                    continue
+            except Exception as e:
+                log.warning("[SKIP] No se pudo leer metadata de %s: %s", folio, e)
+        folios_pendientes.append(folio)
+
+    log.info(
+        "[MAIN] %d folio(s) pendientes | %d ya completados (SKIP)",
+        len(folios_pendientes), len(folios) - len(folios_pendientes),
+    )
+
+    # ──────────────────────────────────────────────────────────────
+    # FASE 2: Procesamiento concurrente con ThreadPoolExecutor
+    # ──────────────────────────────────────────────────────────────
+    if folios_pendientes:
+        workers_activos = len(folios_pendientes) if num_workers == 0 else min(num_workers, len(folios_pendientes))
+        log.info(
+            "[MAIN] ── FASE 2: Lanzando %d worker(s) para %d folio(s) ──",
+            workers_activos, len(folios_pendientes),
+        )
+        resultados_lock = threading.Lock()
+
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=workers_activos,
+            thread_name_prefix="SATyS",
+        ) as executor:
+            futures_map = {
+                executor.submit(
+                    _worker_folio,
+                    folio,
+                    folio_raw_map.get(folio, folio),
+                ): folio
+                for folio in folios_pendientes
+            }
+
+            completados = 0
+            for future in concurrent.futures.as_completed(futures_map):
+                folio_key = futures_map[future]
+                completados += 1
+                try:
+                    folio_ret, res = future.result()
+                    ok_c = sum(1 for r in res if r.get("ok"))
+                    with resultados_lock:
+                        todos_resultados.extend(res)
+                    log.info(
+                        "[CONC] [%d/%d] ✓ Folio %s completado: %d OK / %d total",
+                        completados, len(folios_pendientes),
+                        folio_ret, ok_c, len(res),
+                    )
+                except Exception as e:
+                    log.error(
+                        "[CONC] [%d/%d] ✗ Excepción en worker folio %s: %s",
+                        completados, len(folios_pendientes), folio_key, e,
+                    )
+                    with resultados_lock:
+                        todos_resultados.append({
+                            "folio": folio_key, "archivo": "EXCEPCION_WORKER",
+                            "tipo": "ERROR", "ruta": str(e)[:120],
+                            "tamano_kb": 0, "ok": False,
+                        })
+
+    # ──────────────────────────────────────────────────────────────
+    # Reporte final (igual que antes)
+    # ──────────────────────────────────────────────────────────────
     if todos_resultados:
         generar_reporte(todos_resultados)
         guardar_log_json(todos_resultados)
         guardar_resumen_global(todos_resultados, DESCARGA_BASE)
     else:
         log.warning("[WARN] No se proceso ningun archivo")
+
 
 
 if __name__ == "__main__":

@@ -1,0 +1,67 @@
+{
+  "folio": "179137",
+  "folio_raw": "VE-179137",
+  "fecha_proceso": "2026-06-19T14:45:18.773719",
+  "fuente_descarga": "DOCUMENTOS_ANEXOS",
+  "estado": "OK",
+  "metadatos_satys": {
+    "representante_legal": "GERARDO MARTÍNEZ AGUSTÍN",
+    "nombre_operador": "GERARDO MARTÍNEZ AGUSTÍN",
+    "asunto": "Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios"
+  },
+  "metadatos_tramite": {
+    "tipo_tramite": "CGPE-01-008: Entrega periódica de Información General Estadística para efectos del Acervo Estadístico del Instituto Federal de Telecomunicaciones.",
+    "fecha_registro": "28/05/2026",
+    "solicitante": "",
+    "nombre_operador": "GERARDO MARTÍNEZ AGUSTÍN",
+    "representante_legal": "GERARDO MARTÍNEZ AGUSTÍN",
+    "asunto": "",
+    "descripcion": "",
+    "folio": "179137"
+  },
+  "total_archivos_encontrados": 3,
+  "total_archivos_ok": 3,
+  "total_archivos_error": 0,
+  "coincide": true,
+  "archivos": [
+    {
+      "folio": "179137",
+      "archivo": "1779997830944r024-01.pdf",
+      "nombre_original": "documento_179137_1",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\179137\\1779997830944r024-01.pdf",
+      "tamano_kb": 60.3,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/1779997830944r024-01.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "179137",
+      "archivo": "17799978249142escritolibrer024gma.pdf",
+      "nombre_original": "documento_179137_2",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\179137\\17799978249142escritolibrer024gma.pdf",
+      "tamano_kb": 434.2,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17799978249142escritolibrer024gma.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "179137",
+      "archivo": "solicitud179137.pdf",
+      "nombre_original": "documento_179137_3",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\179137\\solicitud179137.pdf",
+      "tamano_kb": 154.0,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/179137/solicitud179137.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    }
+  ]
+}

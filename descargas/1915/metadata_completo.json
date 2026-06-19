@@ -1,0 +1,29 @@
+{
+  "folio": "1915",
+  "folio_raw": "CORREO-1915",
+  "fecha_proceso": "2026-06-19T14:34:40.953580",
+  "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+  "estado": "OK",
+  "metadatos_satys": {
+    "representante_legal": "FRANCISCO JAVIER ARREGUIN HERRERA",
+    "nombre_operador": "FRANCISCO JAVIER ARREGUIN HERRERA",
+    "asunto": "PRESENTA CONSULTA EN RELACION A LA VINCULACION DE SU LINEA TELEFONICA. (Se recibió vía correo electrónico oficialiadepartes@crt.gob.mx) (19:16 p. m.) (AC)"
+  },
+  "metadatos_tramite": {},
+  "total_archivos_encontrados": 1,
+  "total_archivos_ok": 1,
+  "total_archivos_error": 0,
+  "coincide": true,
+  "archivos": [
+    {
+      "folio": "1915",
+      "archivo": "MEMORANDUM.pdf",
+      "tipo": "PDF",
+      "ruta": "descargas\\1915\\MEMORANDUM.pdf",
+      "tamano_kb": 741.3,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/167164_20260609_204701_1781059621023.pdf",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    }
+  ]
+}

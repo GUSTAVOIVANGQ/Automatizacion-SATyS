@@ -1,0 +1,79 @@
+{
+  "folio": "14112",
+  "folio_raw": "14112",
+  "fecha_proceso": "2026-06-19T14:52:39.927977",
+  "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+  "estado": "OK",
+  "metadatos_satys": {
+    "representante_legal": "CARLOS ARTURO BELLO HERNANDEZ",
+    "nombre_operador": "CITRO TELECOM",
+    "asunto": "FORMATO R002"
+  },
+  "metadatos_tramite": {},
+  "total_archivos_encontrados": 6,
+  "total_archivos_ok": 6,
+  "total_archivos_error": 0,
+  "coincide": true,
+  "archivos": [
+    {
+      "folio": "14112",
+      "archivo": "CRT26-021954.pdf",
+      "tipo": "PDF",
+      "ruta": "descargas\\14112\\CRT26-021954.pdf",
+      "tamano_kb": 2899.7,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/164808_20260525_171749_1779751069905.pdf",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "14112",
+      "archivo": "R002-01 CITRO.xlsx",
+      "tipo": "XLSX",
+      "ruta": "descargas\\14112\\R002-01 CITRO.xlsx",
+      "tamano_kb": 20.4,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/164808_20260525_155610_1779746170599.xlsx",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "14112",
+      "archivo": "R002-02 CITRO.xlsx",
+      "tipo": "XLSX",
+      "ruta": "descargas\\14112\\R002-02 CITRO.xlsx",
+      "tamano_kb": 80.8,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/164808_20260525_155616_1779746176226.xlsx",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "14112",
+      "archivo": "R002-03 CITRO.xlsx",
+      "tipo": "XLSX",
+      "ruta": "descargas\\14112\\R002-03 CITRO.xlsx",
+      "tamano_kb": 14.7,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/164808_20260525_155623_1779746183981.xlsx",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "14112",
+      "archivo": "R002-04 CITRO.xlsx",
+      "tipo": "XLSX",
+      "ruta": "descargas\\14112\\R002-04 CITRO.xlsx",
+      "tamano_kb": 13.7,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/164808_20260525_155629_1779746189724.xlsx",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "14112",
+      "archivo": "R002-05 CITRO.xlsx",
+      "tipo": "XLSX",
+      "ruta": "descargas\\14112\\R002-05 CITRO.xlsx",
+      "tamano_kb": 12.9,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/164808_20260525_155633_1779746193587.xlsx",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    }
+  ]
+}

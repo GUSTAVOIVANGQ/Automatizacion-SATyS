@@ -1,0 +1,119 @@
+{
+  "folio": "13884",
+  "folio_raw": "13884",
+  "fecha_proceso": "2026-06-19T14:58:07.769788",
+  "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+  "estado": "OK",
+  "metadatos_satys": {
+    "representante_legal": "ALEXIS DANIEL VALENCIA ALFARO",
+    "nombre_operador": "ALEXIS DANIEL VALENCIA ALFARO",
+    "asunto": "RESPUESTA AL OFICIO CRT/DGP/DEI/084/2026 DE FECHA 07 DE MAYO DE 2026."
+  },
+  "metadatos_tramite": {},
+  "total_archivos_encontrados": 10,
+  "total_archivos_ok": 10,
+  "total_archivos_error": 0,
+  "coincide": true,
+  "archivos": [
+    {
+      "folio": "13884",
+      "archivo": "CRT26-021641.pdf",
+      "tipo": "PDF",
+      "ruta": "descargas\\13884\\CRT26-021641.pdf",
+      "tamano_kb": 2419.0,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/164495_20260522_132238_1779477758115.pdf",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "13884",
+      "archivo": "Escrito libre y Anexo R002.pdf",
+      "tipo": "PDF",
+      "ruta": "descargas\\13884\\Escrito libre y Anexo R002.pdf",
+      "tamano_kb": 1713.8,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/164495_20260522_102947_1779467387580.pdf",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "13884",
+      "archivo": "Escrito libre y Anexo R024.pdf",
+      "tipo": "PDF",
+      "ruta": "descargas\\13884\\Escrito libre y Anexo R024.pdf",
+      "tamano_kb": 1105.3,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/164495_20260522_103123_1779467483343.pdf",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "13884",
+      "archivo": "Escrito Libre y Formato R026.pdf",
+      "tipo": "PDF",
+      "ruta": "descargas\\13884\\Escrito Libre y Formato R026.pdf",
+      "tamano_kb": 31571.6,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/164495_20260522_103233_1779467553120.pdf",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "13884",
+      "archivo": "R002-01.csv",
+      "tipo": "CSV",
+      "ruta": "descargas\\13884\\R002-01.csv",
+      "tamano_kb": 0.1,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/164495_20260522_102951_1779467391807.csv",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "13884",
+      "archivo": "R002-02.csv",
+      "tipo": "CSV",
+      "ruta": "descargas\\13884\\R002-02.csv",
+      "tamano_kb": 0.1,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/164495_20260522_102955_1779467395744.csv",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "13884",
+      "archivo": "R002-03.csv",
+      "tipo": "CSV",
+      "ruta": "descargas\\13884\\R002-03.csv",
+      "tamano_kb": 0.3,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/164495_20260522_102959_1779467399232.csv",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "13884",
+      "archivo": "R002-04.csv",
+      "tipo": "CSV",
+      "ruta": "descargas\\13884\\R002-04.csv",
+      "tamano_kb": 0.1,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/164495_20260522_103002_1779467402323.csv",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "13884",
+      "archivo": "R002-05.csv",
+      "tipo": "CSV",
+      "ruta": "descargas\\13884\\R002-05.csv",
+      "tamano_kb": 0.0,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/164495_20260522_103006_1779467406229.csv",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "13884",
+      "archivo": "R024-01.csv",
+      "tipo": "CSV",
+      "ruta": "descargas\\13884\\R024-01.csv",
+      "tamano_kb": 0.1,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/164495_20260522_103127_1779467487000.csv",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    }
+  ]
+}

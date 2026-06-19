@@ -1,0 +1,106 @@
+{
+  "folio": "178254",
+  "folio_raw": "VE-178254",
+  "fecha_proceso": "2026-06-19T14:52:32.534592",
+  "fuente_descarga": "DOCUMENTOS_ANEXOS",
+  "estado": "OK",
+  "metadatos_satys": {
+    "representante_legal": "ROGELIO ESPINOSA CANTELLANO",
+    "nombre_operador": "ROCKETEL",
+    "asunto": "Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios"
+  },
+  "metadatos_tramite": {
+    "tipo_tramite": "CGPE-01-003-G: Entrega periódica de Información General Estadística G.  Sobre el Servicio Minorista Móvil de Telefonía bajo esquema OMV",
+    "fecha_registro": "25/05/2026",
+    "solicitante": "",
+    "nombre_operador": "ROGELIO ESPINOSA CANTELLANO",
+    "representante_legal": "ROCKETEL, S.A.P.I. DE C.V.",
+    "asunto": "",
+    "descripcion": "",
+    "folio": "178254"
+  },
+  "total_archivos_encontrados": 6,
+  "total_archivos_ok": 6,
+  "total_archivos_error": 0,
+  "coincide": true,
+  "archivos": [
+    {
+      "folio": "178254",
+      "archivo": "17796923617689r010-05.pdf",
+      "nombre_original": "documento_178254_1",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\178254\\17796923617689r010-05.pdf",
+      "tamano_kb": 79.9,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17796923617689r010-05.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "178254",
+      "archivo": "17796923558873r010-04.pdf",
+      "nombre_original": "documento_178254_2",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\178254\\17796923558873r010-04.pdf",
+      "tamano_kb": 83.4,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17796923558873r010-04.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "178254",
+      "archivo": "17796923496394r010-03.pdf",
+      "nombre_original": "documento_178254_3",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\178254\\17796923496394r010-03.pdf",
+      "tamano_kb": 85.5,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17796923496394r010-03.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "178254",
+      "archivo": "17796923436309r010-02.pdf",
+      "nombre_original": "documento_178254_4",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\178254\\17796923436309r010-02.pdf",
+      "tamano_kb": 81.2,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17796923436309r010-02.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "178254",
+      "archivo": "17796923378180r010-01.pdf",
+      "nombre_original": "documento_178254_5",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\178254\\17796923378180r010-01.pdf",
+      "tamano_kb": 82.4,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17796923378180r010-01.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "178254",
+      "archivo": "solicitud178254.pdf",
+      "nombre_original": "documento_178254_6",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\178254\\solicitud178254.pdf",
+      "tamano_kb": 214.0,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/178254/solicitud178254.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    }
+  ]
+}

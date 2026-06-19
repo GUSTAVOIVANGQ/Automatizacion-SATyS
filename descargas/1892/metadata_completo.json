@@ -1,0 +1,29 @@
+{
+  "folio": "1892",
+  "folio_raw": "CORREO-1892",
+  "fecha_proceso": "2026-06-19T14:34:31.678133",
+  "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+  "estado": "OK",
+  "metadatos_satys": {
+    "representante_legal": "GEORGINA SANCHEZ.",
+    "nombre_operador": "GEORGINA SANCHEZ",
+    "asunto": "DA SEGUIMIENTO A LA SOLICITUD DE DESVINCULACION DE SU CURP. (Se recibió vía correo electrónico oficialiadepartes@crt.gob.mx) (10:56 a. m.) (AC)"
+  },
+  "metadatos_tramite": {},
+  "total_archivos_encontrados": 1,
+  "total_archivos_ok": 1,
+  "total_archivos_error": 0,
+  "coincide": true,
+  "archivos": [
+    {
+      "folio": "1892",
+      "archivo": "MEMORANDUM.pdf",
+      "tipo": "PDF",
+      "ruta": "descargas\\1892\\MEMORANDUM.pdf",
+      "tamano_kb": 1175.5,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/166861_20260608_161226_1780956746113.pdf",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    }
+  ]
+}

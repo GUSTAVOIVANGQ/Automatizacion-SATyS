@@ -1,0 +1,29 @@
+{
+  "folio": "1969",
+  "folio_raw": "CORREO-1969",
+  "fecha_proceso": "2026-06-19T14:14:59.024041",
+  "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+  "estado": "OK",
+  "metadatos_satys": {
+    "representante_legal": "ANTONIO LEDESMA",
+    "nombre_operador": "ANTONIO LEDESMA",
+    "asunto": "PRESENTA CONSULTA EN RELACION A LO SOLICITADO POR LA EMPRESA AT&T, PARA EL TRAMITE DE VINCULACION DE LINEAS. (Se recibió vía correo electrónico oficialiadepartes@crt.gob.mx) (04:10 p. m.) (AC)"
+  },
+  "metadatos_tramite": {},
+  "total_archivos_encontrados": 1,
+  "total_archivos_ok": 1,
+  "total_archivos_error": 0,
+  "coincide": true,
+  "archivos": [
+    {
+      "folio": "1969",
+      "archivo": "MEMORANDUM.pdf",
+      "tipo": "PDF",
+      "ruta": "descargas\\1969\\MEMORANDUM.pdf",
+      "tamano_kb": 738.0,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/167880_20260615_171051_1781565051474.pdf",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    }
+  ]
+}

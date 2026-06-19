@@ -1,0 +1,29 @@
+{
+  "folio": "2014",
+  "folio_raw": "CORREO-2014",
+  "fecha_proceso": "2026-06-19T14:10:51.079136",
+  "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+  "estado": "OK",
+  "metadatos_satys": {
+    "representante_legal": "JUANA RAMOS MONTIEL",
+    "nombre_operador": "JUANA RAMOS MONTIEL",
+    "asunto": "PRESENTA QUEJA POR LA VINCULACION DE SU LINEA TELEFONICA POR PARTE DE LA EMPRESA AT&T. (Se recibió vía correo electrónico oficialiadepartes@crt.gob.mx) (04:43 p. m.) (AC)"
+  },
+  "metadatos_tramite": {},
+  "total_archivos_encontrados": 1,
+  "total_archivos_ok": 1,
+  "total_archivos_error": 0,
+  "coincide": true,
+  "archivos": [
+    {
+      "folio": "2014",
+      "archivo": "CRT26-025610.zip",
+      "tipo": "ZIP",
+      "ruta": "descargas\\2014\\CRT26-025610.zip",
+      "tamano_kb": 11317.1,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168467_20260618_180307_1781827387746.zip",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "folio": "1985",
+  "folio_raw": "CORREO-1985",
+  "fecha_proceso": "2026-06-19T14:14:43.275852",
+  "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+  "estado": "OK",
+  "metadatos_satys": {
+    "representante_legal": "MANUEL GUADALUPE NAVARRETE QUIROZ",
+    "nombre_operador": "MANUEL GUADALUPE NAVARRETE QUIROZ",
+    "asunto": "PRESENTA INCONFORMIDAD POR EL REGISTRO DE 9 LINEAS TEFONICAS QUE NO LE PERTENECEN. (Se recibió vía correo electrónico oficialiadepartes@crt.gob.mx) (09:53 a. m.) (AC)"
+  },
+  "metadatos_tramite": {},
+  "total_archivos_encontrados": 3,
+  "total_archivos_ok": 3,
+  "total_archivos_error": 0,
+  "coincide": true,
+  "archivos": [
+    {
+      "folio": "1985",
+      "archivo": "IMG-20260616-WA0017.jpg",
+      "tipo": "JPG",
+      "ruta": "descargas\\1985\\IMG-20260616-WA0017.jpg",
+      "tamano_kb": 72.8,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168211_20260617_145312_1781729592656.jpg",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "1985",
+      "archivo": "MEMORANDUM.pdf",
+      "tipo": "PDF",
+      "ruta": "descargas\\1985\\MEMORANDUM.pdf",
+      "tamano_kb": 854.7,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168211_20260617_145317_1781729597800.pdf",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "1985",
+      "archivo": "Screenshot_20260616-150914.png",
+      "tipo": "PNG",
+      "ruta": "descargas\\1985\\Screenshot_20260616-150914.png",
+      "tamano_kb": 218.2,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168211_20260617_145321_1781729601606.png",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    }
+  ]
+}

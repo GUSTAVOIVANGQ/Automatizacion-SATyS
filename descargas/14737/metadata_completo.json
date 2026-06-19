@@ -1,0 +1,39 @@
+{
+  "folio": "14737",
+  "folio_raw": "14737",
+  "fecha_proceso": "2026-06-19T14:39:24.425912",
+  "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+  "estado": "OK",
+  "metadatos_satys": {
+    "representante_legal": "EDITH ARACELI RUIZ VIRUES",
+    "nombre_operador": "EDITH ARACELI RUIZ VIRUES",
+    "asunto": "FORMATO R025"
+  },
+  "metadatos_tramite": {},
+  "total_archivos_encontrados": 2,
+  "total_archivos_ok": 2,
+  "total_archivos_error": 0,
+  "coincide": true,
+  "archivos": [
+    {
+      "folio": "14737",
+      "archivo": "CRT26-022937.pdf",
+      "tipo": "PDF",
+      "ruta": "descargas\\14737\\CRT26-022937.pdf",
+      "tamano_kb": 2128.8,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/165791_20260601_180943_1780358983645.pdf",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "14737",
+      "archivo": "R025-01.xlsx",
+      "tipo": "XLSX",
+      "ruta": "descargas\\14737\\R025-01.xlsx",
+      "tamano_kb": 10.5,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/165791_20260601_142655_1780345615990.xlsx",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    }
+  ]
+}

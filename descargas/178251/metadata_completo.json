@@ -1,0 +1,119 @@
+{
+  "folio": "178251",
+  "folio_raw": "VE-178251",
+  "fecha_proceso": "2026-06-19T15:22:40.487348",
+  "fuente_descarga": "DOCUMENTOS_ANEXOS",
+  "estado": "OK",
+  "metadatos_satys": {
+    "representante_legal": "ROGELIO ESPINOSA CANTELLANO",
+    "nombre_operador": "ROCKETEL",
+    "asunto": "Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios"
+  },
+  "metadatos_tramite": {
+    "tipo_tramite": "CGPE-01-003-A: Entrega periódica de Información General Estadística A.  Para Operador que actualiza alguno de los supuestos determinados por Servicio con base en su volumen de comercialización y/o provisión de servicios.",
+    "fecha_registro": "25/05/2026",
+    "solicitante": "",
+    "nombre_operador": "ROGELIO ESPINOSA CANTELLANO",
+    "representante_legal": "ROCKETEL, S.A.P.I. DE C.V.",
+    "asunto": "",
+    "descripcion": "",
+    "folio": "178251"
+  },
+  "total_archivos_encontrados": 7,
+  "total_archivos_ok": 7,
+  "total_archivos_error": 0,
+  "coincide": true,
+  "archivos": [
+    {
+      "folio": "178251",
+      "archivo": "17796912935592r001-06.pdf",
+      "nombre_original": "documento_178251_1",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\178251\\17796912935592r001-06.pdf",
+      "tamano_kb": 74.1,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17796912935592r001-06.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "178251",
+      "archivo": "1779691287640r001-05.pdf",
+      "nombre_original": "documento_178251_2",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\178251\\1779691287640r001-05.pdf",
+      "tamano_kb": 61.5,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/1779691287640r001-05.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "178251",
+      "archivo": "17796912791629r001-04.pdf",
+      "nombre_original": "documento_178251_3",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\178251\\17796912791629r001-04.pdf",
+      "tamano_kb": 90.0,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17796912791629r001-04.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "178251",
+      "archivo": "1779691272835r001-03.pdf",
+      "nombre_original": "documento_178251_4",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\178251\\1779691272835r001-03.pdf",
+      "tamano_kb": 84.6,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/1779691272835r001-03.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "178251",
+      "archivo": "17796912653316r001-02.pdf",
+      "nombre_original": "documento_178251_5",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\178251\\17796912653316r001-02.pdf",
+      "tamano_kb": 87.8,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17796912653316r001-02.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "178251",
+      "archivo": "17796912561697roo1-01.pdf",
+      "nombre_original": "documento_178251_6",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\178251\\17796912561697roo1-01.pdf",
+      "tamano_kb": 93.7,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17796912561697roo1-01.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "178251",
+      "archivo": "solicitud178251.pdf",
+      "nombre_original": "documento_178251_7",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\178251\\solicitud178251.pdf",
+      "tamano_kb": 243.3,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/178251/solicitud178251.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "folio": "181984",
+  "folio_raw": "VE-181984",
+  "fecha_proceso": "2026-06-19T14:29:57.174859",
+  "fuente_descarga": "DOCUMENTOS_ANEXOS",
+  "estado": "OK",
+  "metadatos_satys": {
+    "representante_legal": "JOSE LUIS MEJIA ESTRADA",
+    "nombre_operador": "PANAMSAT DE MÉXICO",
+    "asunto": "Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios"
+  },
+  "metadatos_tramite": {
+    "tipo_tramite": "CGPE-01-008: Entrega periódica de Información General Estadística para efectos del Acervo Estadístico del Instituto Federal de Telecomunicaciones.",
+    "fecha_registro": "11/06/2026",
+    "solicitante": "",
+    "nombre_operador": "JOSE LUIS MEJIA ESTRADA",
+    "representante_legal": "PANAMSAT DE MÉXICO, S. DE R.L. DE C.V.",
+    "asunto": "R023 1 TRIMESTRE 2026",
+    "descripcion": "",
+    "folio": "181984"
+  },
+  "total_archivos_encontrados": 4,
+  "total_archivos_ok": 4,
+  "total_archivos_error": 0,
+  "coincide": true,
+  "archivos": [
+    {
+      "folio": "181984",
+      "archivo": "17812170283998r023-02.xlsx",
+      "nombre_original": "documento_181984_1",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181984\\17812170283998r023-02.xlsx",
+      "tamano_kb": 10.9,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17812170283998r023-02.xlsx",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181984",
+      "archivo": "17812169921834r023-01.xlsx",
+      "nombre_original": "documento_181984_2",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181984\\17812169921834r023-01.xlsx",
+      "tamano_kb": 11.0,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17812169921834r023-01.xlsx",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181984",
+      "archivo": "17812167829426anexor023.informacionestadisticasobreelserviciomayoristadeprovisiondecapacidadsateli.pdf",
+      "nombre_original": "documento_181984_3",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181984\\17812167829426anexor023.informacionestadisticasobreelserviciomayoristadeprovisiondecapacidadsateli.pdf",
+      "tamano_kb": 2069.6,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17812167829426anexor023.informacionestadisticasobreelserviciomayoristadeprovisiondecapacidadsateli.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181984",
+      "archivo": "solicitud181984.pdf",
+      "nombre_original": "documento_181984_4",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181984\\solicitud181984.pdf",
+      "tamano_kb": 946.2,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/181984/solicitud181984.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    }
+  ]
+}

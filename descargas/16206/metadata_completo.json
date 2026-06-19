@@ -1,0 +1,39 @@
+{
+  "folio": "16206",
+  "folio_raw": "16206",
+  "fecha_proceso": "2026-06-19T14:30:30.041515",
+  "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+  "estado": "OK",
+  "metadatos_satys": {
+    "representante_legal": "CARLOS ARTURO BELLO HERNANDEZ",
+    "nombre_operador": "SIERRA MADRE INTERNET",
+    "asunto": "FORMATO R024"
+  },
+  "metadatos_tramite": {},
+  "total_archivos_encontrados": 2,
+  "total_archivos_ok": 2,
+  "total_archivos_error": 0,
+  "coincide": true,
+  "archivos": [
+    {
+      "folio": "16206",
+      "archivo": "CRT26-025397.pdf",
+      "tipo": "PDF",
+      "ruta": "descargas\\16206\\CRT26-025397.pdf",
+      "tamano_kb": 1625.7,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168254_20260617_173835_1781739515518.pdf",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "16206",
+      "archivo": "R024-01 SMI vf.xlsx",
+      "tipo": "XLSX",
+      "ruta": "descargas\\16206\\R024-01 SMI vf.xlsx",
+      "tamano_kb": 12.7,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168254_20260617_164916_1781736556507.xlsx",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "folio": "179699",
+  "folio_raw": "VE-179699",
+  "fecha_proceso": "2026-06-19T14:40:25.028616",
+  "fuente_descarga": "DOCUMENTOS_ANEXOS",
+  "estado": "OK",
+  "metadatos_satys": {
+    "representante_legal": "GUILLERMO SANTOS MAZA MONCADA",
+    "nombre_operador": "HISPASAT MÉXICO",
+    "asunto": "Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios"
+  },
+  "metadatos_tramite": {
+    "tipo_tramite": "CGPE-01-003-Y: Entrega periódica de Información General Estadística Y. Sobre el Servicio Mayorista de Provisión de Capacidad Satelital",
+    "fecha_registro": "01/06/2026",
+    "solicitante": "",
+    "nombre_operador": "GUILLERMO SANTOS MAZA MONCADA",
+    "representante_legal": "HISPASAT MÉXICO, S.A. DE C.V.",
+    "asunto": "",
+    "descripcion": "",
+    "folio": "179699"
+  },
+  "total_archivos_encontrados": 3,
+  "total_archivos_ok": 3,
+  "total_archivos_error": 0,
+  "coincide": true,
+  "archivos": [
+    {
+      "folio": "179699",
+      "archivo": "17803269839586r023-02vf.csv",
+      "nombre_original": "documento_179699_1",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\179699\\17803269839586r023-02vf.csv",
+      "tamano_kb": 0.6,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17803269839586r023-02vf.csv",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "179699",
+      "archivo": "17803269734041r023-01ok.csv",
+      "nombre_original": "documento_179699_2",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\179699\\17803269734041r023-01ok.csv",
+      "tamano_kb": 0.5,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17803269734041r023-01ok.csv",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "179699",
+      "archivo": "solicitud179699.pdf",
+      "nombre_original": "documento_179699_3",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\179699\\solicitud179699.pdf",
+      "tamano_kb": 203.9,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/179699/solicitud179699.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    }
+  ]
+}

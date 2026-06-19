@@ -1,0 +1,79 @@
+{
+  "folio": "16201",
+  "folio_raw": "16201",
+  "fecha_proceso": "2026-06-19T14:16:09.436943",
+  "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+  "estado": "OK",
+  "metadatos_satys": {
+    "representante_legal": "CARLOS ARTURO BELLO HERNANDEZ",
+    "nombre_operador": "MICROSOFT MEXICO",
+    "asunto": "FORMATO R002"
+  },
+  "metadatos_tramite": {},
+  "total_archivos_encontrados": 6,
+  "total_archivos_ok": 6,
+  "total_archivos_error": 0,
+  "coincide": true,
+  "archivos": [
+    {
+      "folio": "16201",
+      "archivo": "CRT26-025393.pdf",
+      "tipo": "PDF",
+      "ruta": "descargas\\16201\\CRT26-025393.pdf",
+      "tamano_kb": 2612.4,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168250_20260617_173802_1781739482030.pdf",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "16201",
+      "archivo": "R002-01.xlsx",
+      "tipo": "XLSX",
+      "ruta": "descargas\\16201\\R002-01.xlsx",
+      "tamano_kb": 19.5,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168250_20260617_164630_1781736390018.xlsx",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "16201",
+      "archivo": "R002-02 .xlsx",
+      "tipo": "XLSX",
+      "ruta": "descargas\\16201\\R002-02 .xlsx",
+      "tamano_kb": 19.3,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168250_20260617_164635_1781736395094.xlsx",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "16201",
+      "archivo": "R002-03.xlsx",
+      "tipo": "XLSX",
+      "ruta": "descargas\\16201\\R002-03.xlsx",
+      "tamano_kb": 22.0,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168250_20260617_164640_1781736400377.xlsx",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "16201",
+      "archivo": "R002-04.xlsx",
+      "tipo": "XLSX",
+      "ruta": "descargas\\16201\\R002-04.xlsx",
+      "tamano_kb": 19.7,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168250_20260617_164646_1781736406531.xlsx",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "16201",
+      "archivo": "R002-05.xlsx",
+      "tipo": "XLSX",
+      "ruta": "descargas\\16201\\R002-05.xlsx",
+      "tamano_kb": 19.4,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168250_20260617_164654_1781736414498.xlsx",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    }
+  ]
+}

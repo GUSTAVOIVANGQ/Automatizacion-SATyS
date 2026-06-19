@@ -1,0 +1,119 @@
+{
+  "folio": "181809",
+  "folio_raw": "VE-181809",
+  "fecha_proceso": "2026-06-19T15:23:50.570897",
+  "fuente_descarga": "DOCUMENTOS_ANEXOS",
+  "estado": "OK",
+  "metadatos_satys": {
+    "representante_legal": "DANIEL CASTAÑEDA RODRÍGUEZ",
+    "nombre_operador": "COORDINADORA DE CARRIER'S",
+    "asunto": "Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios"
+  },
+  "metadatos_tramite": {
+    "tipo_tramite": "CGPE-01-004: Solicitud de rectificación de información para integrar el acervo estadístico del sector de telecomunicaciones",
+    "fecha_registro": "10/06/2026",
+    "solicitante": "",
+    "nombre_operador": "DANIEL CASTAÑEDA RODRÍGUEZ",
+    "representante_legal": "COORDINADORA DE CARRIER S S.A. DE C.V.",
+    "asunto": "",
+    "descripcion": "",
+    "folio": "181809"
+  },
+  "total_archivos_encontrados": 7,
+  "total_archivos_ok": 7,
+  "total_archivos_error": 0,
+  "coincide": true,
+  "archivos": [
+    {
+      "folio": "181809",
+      "archivo": "17811323111682esc.rectificacion.pdf",
+      "nombre_original": "documento_181809_1",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181809\\17811323111682esc.rectificacion.pdf",
+      "tamano_kb": 264.2,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17811323111682esc.rectificacion.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181809",
+      "archivo": "17811322979316r022-02.csv",
+      "nombre_original": "documento_181809_2",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181809\\17811322979316r022-02.csv",
+      "tamano_kb": 0.1,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17811322979316r022-02.csv",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181809",
+      "archivo": "17811322851795r022-01.csv",
+      "nombre_original": "documento_181809_3",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181809\\17811322851795r022-01.csv",
+      "tamano_kb": 0.1,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17811322851795r022-01.csv",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181809",
+      "archivo": "17811322707988r013-02.csv",
+      "nombre_original": "documento_181809_4",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181809\\17811322707988r013-02.csv",
+      "tamano_kb": 0.1,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17811322707988r013-02.csv",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181809",
+      "archivo": "17811322535692r013-01.csv",
+      "nombre_original": "documento_181809_5",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181809\\17811322535692r013-01.csv",
+      "tamano_kb": 0.2,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17811322535692r013-01.csv",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181809",
+      "archivo": "17811322361643r001-04.csv",
+      "nombre_original": "documento_181809_6",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181809\\17811322361643r001-04.csv",
+      "tamano_kb": 0.2,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17811322361643r001-04.csv",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "181809",
+      "archivo": "solicitud181809.pdf",
+      "nombre_original": "documento_181809_7",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\181809\\solicitud181809.pdf",
+      "tamano_kb": 271.2,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/181809/solicitud181809.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    }
+  ]
+}

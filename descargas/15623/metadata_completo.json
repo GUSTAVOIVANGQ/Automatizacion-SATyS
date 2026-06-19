@@ -1,0 +1,39 @@
+{
+  "folio": "15623",
+  "folio_raw": "15623",
+  "fecha_proceso": "2026-06-19T14:34:30.846742",
+  "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+  "estado": "OK",
+  "metadatos_satys": {
+    "representante_legal": "SERGIO DANILO PANCARDO COBOS",
+    "nombre_operador": "MEGA CABLE",
+    "asunto": "SE SOLICITA CONFIRMACION DE CRITERIO SOBRE VINCULACION DE LINEAS Y SUSPENSION DE SERVICIO"
+  },
+  "metadatos_tramite": {},
+  "total_archivos_encontrados": 2,
+  "total_archivos_ok": 2,
+  "total_archivos_error": 0,
+  "coincide": true,
+  "archivos": [
+    {
+      "folio": "15623",
+      "archivo": "CRT26-024242.pdf",
+      "tipo": "PDF",
+      "ruta": "descargas\\15623\\CRT26-024242.pdf",
+      "tamano_kb": 19307.6,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/167096_20260609_183710_1781051830872.pdf",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "15623",
+      "archivo": "Poder 46509 09042021 MEGA CERT 05122023 Reducido.pdf",
+      "tipo": "PDF",
+      "ruta": "descargas\\15623\\Poder 46509 09042021 MEGA CERT 05122023 Reducido.pdf",
+      "tamano_kb": 6026.6,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/167096_20260609_182018_1781050818896.pdf",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    }
+  ]
+}

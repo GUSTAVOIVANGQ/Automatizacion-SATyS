@@ -1,0 +1,574 @@
+
+
+
+
+
+
+
+
+
+<!DOCTYPE html>
+<html lang="es" translate="no">
+<head><script src='https://maps.ift.org.mx/google/googleanalyitics_satys.js'></script> <script async src='https://www.googletagmanager.com/gtag/js?id=G-108ZWXK3ZZ'></script>
+
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="shortcut icon" href="https://satys.ift.org.mx/assets/images/favicon.ico" type="image/x-icon">
+    <title>SATYS</title>
+
+    <!-- Global stylesheets -->
+    <link href="https://fonts.googleapis.com/css?family=Roboto:400,300,100,500,700,900" rel="stylesheet"
+        type="text/css">
+    <link href="https://satys.ift.org.mx/assets/css/icons/icomoon/styles.css?https://satys.ift.org.mx/" rel="stylesheet"
+        type="text/css">
+    <link href="https://satys.ift.org.mx/assets/css/bootstrap.min.css?https://satys.ift.org.mx/" rel="stylesheet"
+        type="text/css">
+    <link href="https://satys.ift.org.mx/assets/css/core.min.css?https://satys.ift.org.mx/" rel="stylesheet"
+        type="text/css">
+    <link href="https://satys.ift.org.mx/assets/css/components.css?https://satys.ift.org.mx/" rel="stylesheet"
+        type="text/css">
+    <link href="https://satys.ift.org.mx/assets/css/colors.min.css?https://satys.ift.org.mx/" rel="stylesheet"
+        type="text/css">
+
+    <link href="https://satys.ift.org.mx/assets/css/ve_tramiteelectronico.css?39" rel="stylesheet"
+        type="text/css">
+
+    <!--<link href="https://satys.ift.org.mx/assets/css/jquery.dataTables.min.css" rel="stylesheet" type="text/css">-->
+
+    <!-- /global stylesheets -->
+
+    <!-- Core JS files -->
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/plugins/loaders/pace.min.js?4"></script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/core/libraries/jquery.min.js?4"></script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/core/libraries/bootstrap.min.js?4"></script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/plugins/loaders/blockui.min.js?4"></script>
+
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/plugins/forms/styling/switch.min.js?4">
+    </script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/plugins/forms/styling/switchery.min.js?4">
+    </script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/plugins/ui/prism.min.js?4"></script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/plugins/ui/nicescroll.min.js?4"></script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/core/libraries/jquery.csv.js?4"></script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/core/libraries/papaparse.js?4"></script>
+    <!-- /core JS files -->
+
+    <!-- Theme JS files -->
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/plugins/forms/selects/select2.min.js?4">
+    </script>
+    <script type="text/javascript"
+        src="https://satys.ift.org.mx/assets/js/core/libraries/jquery_ui/interactions.min.js?4"></script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/plugins/forms/styling/uniform.min.js?4">
+    </script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/pages/login.js?4"></script>
+    <script type="text/javascript"
+        src="https://satys.ift.org.mx/assets/js/core/libraries/jquery_ui/interactions.min.js?4"></script>
+
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/core/libraries/jquery_ui/datepicker.min.js?4">
+    </script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/core/libraries/jquery_ui/effects.min.js?4">
+    </script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/plugins/notifications/jgrowl.min.js?4">
+    </script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/plugins/ui/moment/moment.min.js?4"></script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/plugins/pickers/daterangepicker.js?4">
+    </script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/plugins/pickers/anytime.min.js?4"></script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/plugins/pickers/pickadate/picker.js?4">
+    </script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/plugins/pickers/pickadate/picker.date.js?4">
+    </script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/plugins/pickers/pickadate/picker.time.js?4">
+    </script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/plugins/pickers/pickadate/legacy.js?4">
+    </script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/plugins/forms/inputs/duallistbox.min.js?4">
+    </script>
+
+    <script type="text/javascript"
+        src="https://satys.ift.org.mx/assets/js/plugins/forms/inputs/typeahead/typeahead.bundle-0.11.1.js?4"></script>
+    <script type="text/javascript"
+        src="https://satys.ift.org.mx/assets/js/plugins/tables/datatables/datatables.min.js?4"></script>
+
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/plugins/uploaders/dropzone.js?4"></script>
+
+
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/ckeditor/ckeditor.js?4"></script>
+
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/core/app.js?4"></script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/pages/sidebar_detached_sticky_custom.js?8">
+    </script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/pages/form_layouts.js?4"></script>
+
+    
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/plugins/notifications/pnotify.min.js?4">
+    </script>
+
+    <!-- /theme JS files -->
+
+    <!-- Local JS files -->
+
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/Map.js?39"></script>
+    <!--<script type="text/javascript" src="assets/js/gravamenes.js?"></script>-->
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/cesionderechos.js?39">
+    </script>
+    <script type="text/javascript"
+        src="https://satys.ift.org.mx/assets/js/contratoadhesion.js?39"></script>
+    <script type="text/javascript"
+        src="https://satys.ift.org.mx/assets/js/estructuraaccionaria.js?39"></script>
+    <script type="text/javascript"
+        src="https://satys.ift.org.mx/assets/js/convinternacional.js?39"></script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/convenios.js?39">
+    </script>
+    <script type="text/javascript"
+        src="https://satys.ift.org.mx/assets/js/puntosinterconexion.js?39"></script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/informesCumpli.js?39">
+    </script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/ofertapublica.js?39">
+    </script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/progInformes.js?39">
+    </script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/consultas.js?39">
+    </script>
+
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/criterio.js?39">
+    </script>
+    <script type="text/javascript"
+        src="https://satys.ift.org.mx/assets/js/modeloInterconexion.js?39"></script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/planesTecnicos.js?39">
+    </script>
+    <script type="text/javascript"
+        src="https://satys.ift.org.mx/assets/js/medidasObligaciones.js?39"></script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/cuadroNacional.js?39">
+    </script>
+
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/functions.js?39">
+    </script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/funcionalidad/functions_satys.js?39">
+	</script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/App.Core.js?39"></script>
+    <!--<link type="text/css" rel="stylesheet" href="https://satys.ift.org.mx/assets/node_modules/alertify/themes/alertify.core.css?39"/>
+    <link href="https://satys.ift.org.mx/assets/node_modules/alertify/themes/alertify.default.css39" rel="stylesheet" id="toggleCSS" />
+	
+	<script src="https://satys.ift.org.mx/assets/node_modules/alertify/src/alertify.js39"></script>
+    -->
+    <script type="text/javascript"
+        src="https://satys.ift.org.mx/assets/js/functionsOperadores.js?39"></script>
+
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/codigoEtica.js?39">
+    </script>
+
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/repLegal.js?39">
+    </script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/sancionesSup.js?39">
+    </script>
+    <script type="text/javascript"
+        src="https://satys.ift.org.mx/assets/js/resolucioninterconexion.js?39"></script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/tarifasEspacios.js?39">
+    </script>
+    <script type="text/javascript"
+        src="https://satys.ift.org.mx/assets/js/visitasDiplomaticas.js?39"></script>
+
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/defensorAud.js?39">
+    </script>
+
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/ping.js?39"></script>
+
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/adminTarifas.js?39">
+    </script>
+
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/reportadorInsc.js?39">
+    </script>
+
+    <script type="text/javascript"
+        src="https://satys.ift.org.mx/assets/js/adminSolicitudes.js?39"></script>
+
+    <script type="text/javascript"
+        src="https://satys.ift.org.mx/assets/js/sancionesProfeco.js?39"></script>
+
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/centrosEstudios.js?39">
+    </script>
+
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/enrolamiento.js?39">
+    </script>
+
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/nombrecomercial.js?39">
+    </script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/avisodomicilio.js?39">
+    </script>
+
+    <script type="text/javascript"
+        src="https://satys.ift.org.mx/assets/js/contratosArrenFrec.js?39"></script>
+
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/tarifaRedMayCom.js?39">
+    </script>
+
+    <script type="text/javascript"
+        src="https://satys.ift.org.mx/assets/js/gravamenEmbargos.js?39"></script>
+    <script type="text/javascript"
+        src="https://satys.ift.org.mx/assets/js/gravamenes_hipoteca.js?39"></script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/tablero.js?39"></script>
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/crucesTransF.js?39"></script>
+        
+    <script type="text/javascript" src="https://satys.ift.org.mx/assets/js/dayjs.min.js?39"></script>
+
+
+	<script>
+		var JS_PUB_PATH_UPLOAD = "https://satys.ift.org.mx/upload/files/";
+		var URLAPPVRPC = "https://rpc.ift.org.mx/vrpc/";
+		var URLAPPSERT = "https://sert.ift.org.mx/tarifasrpc/";
+		var URLRPCPUBLISH = "https://sert.ift.org.mx/tarifasrpc/publish/";
+		var URLAPPSARC = "https://satys.ift.org.mx/";
+		var UPLOADPATH = "/apache/rpcweb/satys/upload/files/";
+		var URLDOCSANEXOSVE = "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/";
+		var URLDOCSSOLICITUDVE = "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/";
+		var URLDOCSPREV = "/apache/opt/uploads/";
+		var URLDOCSPREVDIR = "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/files/";
+		var URLDOCSSIGEDO = "/apache/rpcweb/satys/upload/sigedo/";
+		var URLDOCSSIGEDODIR = "upload/sigedo/";
+		var UPLOADPATHDIR = "upload/files/";
+    </script>
+	
+	<!-- Codigo Google Analitycs -->
+</head>
+
+<body class="navbar-top has-detached-left">
+
+    <!-- header -->
+    <style type="text/css">
+    .navbar-brand {
+        float: left;
+        /* display: inline-block; */
+        padding: 5px 20px !important;
+        font-size: 15px;
+        line-height: 20px;
+        height: 44px;
+    }
+    .navbar-brand>img {
+        margin-top: 1px !important;
+        /*height: 16px;*/
+    }
+
+    .navbar-inverse {
+        border-bottom-color: rgba(255,255,255,0.1);
+        color: #fff;
+        height: 60px;
+    }
+
+    .contenedor {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(255, 255, 255, 0.8);
+        z-index: 1200;
+    }
+
+    .spinner {
+        border: 16px solid #f3f3f3; 
+        border-top: 16px solid #3498db; 
+        border-radius: 50%; 
+        width: 80px;
+        height: 80px;
+        animation: spin 2s linear infinite;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .mensaje-spinner {
+        color: black;
+        font-size: 1.5em;
+        margin-top: 10px;
+    }
+
+</style>
+<!-- Main navbar -->
+ <div id="pantalla-carga" style="display: none;">
+     <div class="contenedor"><div class="spinner"></div><p class="mensaje-spinner">Cargando...</p></div>
+ </div>
+ <script>
+    const pantallaCarga = $("#pantalla-carga");
+ </script>
+<div class="navbar navbar-inverse navbar-fixed-top">
+    <div class="navbar-header" style="text-align: center;">
+        <a class="navbar-brand" href="" style="
+    position: relative;
+    display: block;
+    width: 260px;
+    top: -6px;
+">
+            <img src="https://satys.ift.org.mx/assets/images/LOGO_SATYS_BN_400PX_OK.png" alt="" style="
+            height: 60px;
+            display: block;
+            position: relative;
+            margin: 0 auto;"></a>
+
+        <ul class="nav navbar-nav pull-right visible-xs-block">
+            <li><a data-toggle="collapse" data-target="#navbar-mobile"><i class="icon-tree5"></i></a></li>
+            <li><a class="sidebar-mobile-main-toggle"><i class="icon-paragraph-justify3"></i></a></li>
+            <li><a class="sidebar-mobile-detached-toggle"><i class="icon-grid7"></i></a></li>
+        </ul>
+    </div>
+
+    <div class="navbar-collapse collapse" id="navbar-mobile">
+        <ul class="nav navbar-nav">
+            <li>
+                <a class="sidebar-control sidebar-main-toggle hidden-xs" data-popup="tooltip" title="Ocultar/ver barra lateral" data-placement="bottom" data-container="body">
+                    <i class="icon-paragraph-justify3" style="font-size: 25px; padding-top: 6px;"></i>
+                    <!--<i class="icon-paragraph-justify2"></i>-->
+                </a>
+            </li>
+<!--            <li>
+                        <a class="sidebar-control sidebar-detached-hide hidden-xs" data-popup="tooltip" title="Ocultar/ver acciones" data-placement="bottom" data-container="body">
+                            <i class="icon-drag-right"></i>
+                        </a>
+            </li>-->
+<!--            <li class="dropdown">
+                        <a href="#" class="dropdown-toggle" data-toggle="dropdown">
+                            <i class="icon-git-compare"></i>
+                            <span class="visible-xs-inline-block position-right">avisos</span>
+                            <span class="badge bg-warning-400">9</span>
+                        </a>
+        
+                        <div class="dropdown-menu dropdown-content">
+                            <div class="dropdown-content-heading">
+                                Avisos
+                                <ul class="icons-list">
+                                    <li><a href="#"><i class="icon-sync"></i></a></li>
+                                </ul>
+                            </div>
+        
+                            <ul class="media-list dropdown-content-body width-350">
+                                <li class="media">
+                                    <div class="media-left">
+                                        <a href="#" class="btn border-primary text-primary btn-flat btn-rounded btn-icon btn-sm"><i class="icon-git-pull-request"></i></a>
+                                    </div>
+        
+                                    <div class="media-body">
+                                        Publicar <a href="#">concesión</a> 
+                                        <div class="media-annotation">Hace 4 minutos</div>
+                                    </div>
+                                </li>
+        
+                                <li class="media">
+                                    <div class="media-left">
+                                        <a href="#" class="btn border-warning text-warning btn-flat btn-rounded btn-icon btn-sm"><i class="icon-git-commit"></i></a>
+                                    </div>
+        
+                                    <div class="media-body">
+                                        Imprimir constancias de nuevas tarifas
+                                        <div class="media-annotation">Hace 36 minutos</div>
+                                    </div>
+                                </li>
+        
+                                <li class="media">
+                                    <div class="media-left">
+                                        <a href="#" class="btn border-info text-info btn-flat btn-rounded btn-icon btn-sm"><i class="icon-git-branch"></i></a>
+                                    </div>
+        
+                                    <div class="media-body">
+                                        <a href="#">Usuario 2</a> genero nuevo <span class="text-semibold">embargo</span>
+                                        <div class="media-annotation">Hace 1 día</div>
+                                    </div>
+                                </li>
+        
+        
+                                <li class="media">
+                                    <div class="media-left">
+                                        <a href="#" class="btn border-primary text-primary btn-flat btn-rounded btn-icon btn-sm"><i class="icon-git-pull-request"></i></a>
+                                    </div>
+        
+                                    <div class="media-body">
+                                        <a href="#">Usuario 3</a> incribió nueva <a href="#">concesión</a> de telecom
+                                        <div class="media-annotation">Noviembre 20 13:46</div>
+                                    </div>
+                                </li>
+                            </ul>
+        
+                            <div class="dropdown-content-footer">
+                                <a href="#" data-popup="tooltip" title="All activity"><i class="icon-menu display-block"></i></a>
+                            </div>
+                        </div>
+            </li>-->
+        </ul>
+        
+        <ul class="nav navbar-nav navbar-right">
+            <!--<li><a href="#">Text link</a></li>-->
+
+            <!--<li>
+                <a href="#">
+                    <i class="icon-cog3"></i>
+                    <span class="visible-xs-inline-block position-right">Icon link</span>
+                </a>                        
+            </li>-->
+
+            <li class="dropdown dropdown-user">
+                <a class="dropdown-toggle" data-toggle="dropdown">
+                    <!--<img src="https://satys.ift.org.mx/assets/images/image.png" alt="">-->
+                    <!--<img src="http://www.conexion.ift.org.mx/intranet/directorio/img/LORB880914MMNPNR09.jpg" alt=""> -->
+                    <!--<img src="http://www.conexion.ift.org.mx/intranet/directorio/img/.jpg" alt="">-->
+                    <span id="useralias-span" data-useralias="David Palestina Ramirez"> David Palestina Ramirez                        <i class="icon-arrow-down12" style="
+                            font-size: 20pt;
+                            padding-top: 8px;
+                            padding-right: 8px;
+                        "></i>
+                    </span>
+                    <div id="divRefresSession" name="divRefresSession" style="width: 0;height: 0; visibility: hidden;"><span>LAST 1781902073</span></div>
+
+                </a>
+
+                <ul class="dropdown-menu dropdown-menu-right">
+                    <!--<li><a href="#"><i class="icon-user-plus"></i> My profile</a></li>-->
+                    <!--<li><a href="#"><i class="icon-coins"></i> My balance</a></li>-->
+                    <!--<li><a href="#"><span class="badge badge-warning pull-right">58</span> <i class="icon-comment-discussion"></i> Messages</a></li>-->
+                    <!--<li class="divider"></li>-->
+                    <!--<li><a href="#"><i class="icon-cog5"></i> Account settings</a></li>-->
+                    <li><a href="Sarccontroller/logout"><i class="icon-switch2"></i> Salir</a></li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+</div>
+<!-- /main navbar -->
+
+
+<script>
+
+    startCheckSession();
+</script>
+
+
+
+    <!-- Page container -->
+    <div class="page-container">
+
+        <!-- Page content -->
+        <div class="page-content">
+
+            <!-- Main sidebar -->
+<style type="text/css">
+    .barraContenedor {
+        width: 100%;
+        height: calc(100vh - 108px);
+        /* background-color: #CCC;*/
+        overflow: scroll;
+    }
+    .invisibleBarC::-webkit-scrollbar {
+        width: 1px !important;
+    }
+    ::-webkit-scrollbar-corner {
+        background-color: #1E282d;
+        /*background-color: #fff;*/
+    }
+</style>
+
+
+<div class="sidebar sidebar-main">
+    <div class="sidebar-content fix-position-menu">
+        <!-- header -->
+        <!-- User menu -->
+<div class="sidebar-user">
+    <div class="category-content">
+        <div class="media">
+                <!--<a href="#" class="media-left"><img src="https://satys.ift.org.mx/assets/images/image.png" class="img-circle img-sm" alt=""></a>-->
+            <!--<a href="#" class="media-left"><img src="http://www.conexion.ift.org.mx/intranet/directorio/img/.jpg" class="img-circle img-sm" alt=""></a>-->
+            <div class="media-body">
+                <span class="media-heading text-semibold">David Palestina Ramirez</span>
+                <!--<div class="text-size-mini text-muted">
+                        <i class="icon-pin text-size-small"></i> &nbsp;Santa Ana, CA
+                </div>-->
+            </div>
+
+<!--            <div class="media-right media-middle">
+                <ul class="icons-list">
+                    <li>
+                        <a href="#"><i class="icon-cog3"></i></a>
+                    </li>
+                </ul>
+            </div>-->
+        </div>
+    </div>
+</div>
+<!-- /user menu -->
+        <!-- Main navigation -->
+        <div class="sidebar-category sidebar-category-visible">
+            <div class="category-content no-padding">
+                <ul class="navigation navigation-main navigation-accordion barraContenedor invisibleBarC">
+                    <!-- Main -->
+                    <li class="navigation-header"><span>SATyS</span> <i class="icon-menu" title="Main pages"></i></li>
+                                                                                <li><a href="#" ><i class="icon-stack"> </i> <span>Administración solicitudes +TyS/SIGEDO/Internos IFT</span></a><ul><li><a onclick="callAdminSolicitudesPages('tableroControlSolicitud');">+TyS/SIGEDO/Internos IFT</a></li></ul></li><li><a href="#" ><i class="icon-stack"> </i> <span>Administración por Asignación +TyS/SIGEDO/Internos IFT</span></a><ul><li><a onclick="callAdminSolicitudesPages('nuevosControlSolicitud');">Trámites Nuevos</a></li></ul></li><li><a href=# ><i class=icon-stack> </i> <span>Enlace/SIGEDO</span></a><ul><li><a onclick=callAdminSolicitudesPages('muestraGestionSIGEDO');>Enlace Oficialía de Partes</a></li></ul></li>                    <!--
+                    <li>
+                        <a href="#"><i class="icon-stack"> </i> <span>Administración/SIGEDO</span></a>
+                        <ul>
+                            <li><a onclick="callAdminSolicitudesPages('muestraReportesSIGEDO');">Alta de Documento</a></li>
+                            <li><a id="reporte_menu" onclick="callAdminSolicitudesPages('muestraAlataSIGEDO');">Reportes</a></li>
+                        </ul>
+                    </li>
+                    -->
+                    <script type="text/javascript">
+                        (function() {
+                            var rolAdmin = 0;
+                            var totalReportes = 0;
+                            
+                            // Solo ejecutar limpieza si el usuario NO es admin de usuarios
+                            if (rolAdmin === 0) {
+                                var $reporteMenu = $("#reporte_menu");
+                                if ($reporteMenu.length > 0) {
+                                    var $menu = $reporteMenu.closest("ul");
+                                    $menu.find("li a:not(#reporte_menu)").parent().remove();
+                                }
+                            }
+
+                            // Si no hay reportes, intentar reestructurar el menú
+                            if (totalReportes === 0) {
+                                var $reporteMenu = $("#reporte_menu");
+                                if ($reporteMenu.length > 0) {
+                                    var $item = $reporteMenu.parent();
+                                    var $menu = $item.parent();
+                                    $menu.attr("id", "usermenu_menu");
+                                    $item.remove();
+                                }
+                            }
+
+                            // Validar si el menú quedó vacío antes de eliminarlo
+                            var $userMenu = $("#usermenu_menu");
+                            if ($userMenu.length > 0) {
+                                var liCount = $userMenu.find("li").length;
+                                if (liCount < 1) {
+                                    $userMenu.parent().remove();
+                                }
+                            }
+                        })();
+                    </script>
+                    <!-- /main -->
+                </ul>
+            </div>
+        </div>
+        <!-- /main navigation -->
+    </div>
+</div>
+<!-- /main sidebar -->
+
+            <!-- Main content -->
+            <div class="content-wrapper" name="main-workspace" id="main-workspace">
+                                                
+            </div>
+            <!-- /main content -->
+
+        </div>
+        <!-- /page content -->
+
+    </div>
+    <!-- /page container -->
+
+</body>
+</html>

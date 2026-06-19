@@ -1,17 +1,177 @@
 {
-  "fecha_generacion": "2026-06-19T12:36:04.552800",
-  "total_folios": 1,
-  "total_archivos": 8,
-  "total_ok": 8,
-  "total_errores": 0,
+  "fecha_generacion": "2026-06-19T16:01:51.557271",
+  "total_folios": 21,
+  "total_archivos": 25,
+  "total_ok": 6,
+  "total_errores": 19,
   "folios": [
     {
-      "folio": "181985",
+      "folio": "182509",
       "fuente_descarga": "DOCUMENTOS_ANEXOS",
-      "archivos_ok": 8,
+      "archivos_ok": 3,
       "archivos_error": 0,
       "estado": "OK",
-      "carpeta": "descargas\\181985"
+      "carpeta": "descargas\\182509"
+    },
+    {
+      "folio": "182510",
+      "fuente_descarga": "DOCUMENTOS_ANEXOS",
+      "archivos_ok": 3,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\182510"
+    },
+    {
+      "folio": "182508",
+      "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "ERROR",
+      "carpeta": "descargas\\182508"
+    },
+    {
+      "folio": "182502",
+      "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "ERROR",
+      "carpeta": "descargas\\182502"
+    },
+    {
+      "folio": "182519",
+      "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "ERROR",
+      "carpeta": "descargas\\182519"
+    },
+    {
+      "folio": "182511",
+      "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "ERROR",
+      "carpeta": "descargas\\182511"
+    },
+    {
+      "folio": "182515",
+      "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "ERROR",
+      "carpeta": "descargas\\182515"
+    },
+    {
+      "folio": "182513",
+      "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "ERROR",
+      "carpeta": "descargas\\182513"
+    },
+    {
+      "folio": "182506",
+      "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "ERROR",
+      "carpeta": "descargas\\182506"
+    },
+    {
+      "folio": "182500",
+      "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "ERROR",
+      "carpeta": "descargas\\182500"
+    },
+    {
+      "folio": "182504",
+      "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "ERROR",
+      "carpeta": "descargas\\182504"
+    },
+    {
+      "folio": "182512",
+      "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "ERROR",
+      "carpeta": "descargas\\182512"
+    },
+    {
+      "folio": "182514",
+      "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "ERROR",
+      "carpeta": "descargas\\182514"
+    },
+    {
+      "folio": "182517",
+      "fuente_descarga": "NINGUNA",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "ERROR",
+      "carpeta": "descargas\\182517"
+    },
+    {
+      "folio": "182516",
+      "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "ERROR",
+      "carpeta": "descargas\\182516"
+    },
+    {
+      "folio": "182518",
+      "fuente_descarga": "NINGUNA",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "ERROR",
+      "carpeta": "descargas\\182518"
+    },
+    {
+      "folio": "182505",
+      "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "ERROR",
+      "carpeta": "descargas\\182505"
+    },
+    {
+      "folio": "182503",
+      "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "ERROR",
+      "carpeta": "descargas\\182503"
+    },
+    {
+      "folio": "182501",
+      "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "ERROR",
+      "carpeta": "descargas\\182501"
+    },
+    {
+      "folio": "182520",
+      "fuente_descarga": "NINGUNA",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "ERROR",
+      "carpeta": "descargas\\182520"
+    },
+    {
+      "folio": "182507",
+      "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "ERROR",
+      "carpeta": "descargas\\182507"
     }
   ]
 }

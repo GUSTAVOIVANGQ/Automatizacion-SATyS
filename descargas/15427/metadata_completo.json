@@ -1,0 +1,29 @@
+{
+  "folio": "15427",
+  "folio_raw": "15427",
+  "fecha_proceso": "2026-06-19T14:35:07.486340",
+  "fuente_descarga": "ARCHIVOS_ASOCIADOS",
+  "estado": "OK",
+  "metadatos_satys": {
+    "representante_legal": "SELMA YULIANA GUERRERO LINARES",
+    "nombre_operador": "SERVICIOS CELULARES MULTIPAIS",
+    "asunto": "MANIFIESTA QUE SE DIO CUMPLIMIENTO A LA ENTREGA DE INFORMACION CONSOLIDADA PARA LA INTEGRAR EL ACERVO ESTADISTICO (R003, R002, R027) A TRAVES DE LA VENTANILLA ELECTRONICA CON FOLIOS 164199, 164201 Y 164203."
+  },
+  "metadatos_tramite": {},
+  "total_archivos_encontrados": 1,
+  "total_archivos_ok": 1,
+  "total_archivos_error": 0,
+  "coincide": true,
+  "archivos": [
+    {
+      "folio": "15427",
+      "archivo": "CRT26-024016.pdf",
+      "tipo": "PDF",
+      "ruta": "descargas\\15427\\CRT26-024016.pdf",
+      "tamano_kb": 747.6,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/166870_20260608_184231_1780965751057.pdf",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    }
+  ]
+}
