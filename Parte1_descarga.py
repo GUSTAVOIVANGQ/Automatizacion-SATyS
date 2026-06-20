@@ -1573,6 +1573,13 @@ def procesar_folio_completo(context, page, folio: str, carpeta: Path, folio_raw:
                     res, meta_tramite = descargar_via_documentos_anexos_con_fallback(
                         context, page, folio, folio_raw or folio, carpeta
                     )
+                    
+                    if meta_tramite and isinstance(meta_tramite, dict):
+                        meta_satys.update(meta_tramite)
+                        out_path_satys = carpeta / "metadata_satys.json"
+                        with open(out_path_satys, "w", encoding="utf-8") as f:
+                            json.dump(meta_satys, f, ensure_ascii=False, indent=2)
+                        log.info("[META] metadata_satys.json actualizado con datos de tramite nuevo para folio %s", folio)
                 else:
                     log.info("[FUENTE] ARCHIVOS ASOCIADOS encontrado para folio %s", folio)
 
@@ -2620,41 +2627,48 @@ def guardar_metadata_completo(
     return data
 
 
-def guardar_resumen_global(todos: list, carpeta_base: Path) -> dict:
-    """
-    Genera descargas/resumen_global.json con el resumen de todos los folios procesados.
-    """
+def guardar_resumen_global(todos_resultados: list, carpeta_base: Path) -> dict:
     por_folio: dict = {}
-    for r in todos:
-        f = r.get("folio", "DESCONOCIDO")
-        if f not in por_folio:
-            por_folio[f] = {
-                "ok": 0, "err": 0,
-                "fuente": r.get("fuente", "ARCHIVOS_ASOCIADOS"),
-                "archivos": [],
-            }
-        por_folio[f]["ok" if r.get("ok") else "err"] += 1
+    for r in todos_resultados:
+        f = r["folio"]
+        por_folio.setdefault(f, {"ok": 0, "err": 0, "archivos": [], "no_encontrado": False})
         por_folio[f]["archivos"].append(r)
-        # Si hay al menos un resultado con fuente DOCUMENTOS_ANEXOS, usar esa
-        if r.get("fuente") == "DOCUMENTOS_ANEXOS":
-            por_folio[f]["fuente"] = "DOCUMENTOS_ANEXOS"
+        if r.get("archivo") == "FOLIO_NO_ENCONTRADO":
+            por_folio[f]["no_encontrado"] = True
+            por_folio[f]["err"] += 1
+        elif r.get("ok"):
+            por_folio[f]["ok"] += 1
+        else:
+            por_folio[f]["err"] += 1
+
+    folios_exitosos = 0
+    folios_incompletos = 0
+    folios_no_encontrados = 0
+
+    for f, d in por_folio.items():
+        if d["no_encontrado"]:
+            folios_no_encontrados += 1
+        elif d["err"] > 0:
+            folios_incompletos += 1
+        else:
+            folios_exitosos += 1
 
     resumen = {
-        "fecha_generacion": datetime.now().isoformat(),
+        "fecha": datetime.now().isoformat(),
         "total_folios": len(por_folio),
-        "total_archivos": len(todos),
-        "total_ok": sum(1 for r in todos if r.get("ok")),
-        "total_errores": sum(1 for r in todos if not r.get("ok")),
-        "folios": [
+        "folios_exitosos": folios_exitosos,
+        "folios_incompletos": folios_incompletos,
+        "folios_no_encontrados": folios_no_encontrados,
+        "total_archivos_descargados": sum(1 for r in todos_resultados if r.get("ok")),
+        "detalle_folios": [
             {
                 "folio": folio,
-                "fuente_descarga": d["fuente"],
                 "archivos_ok": d["ok"],
                 "archivos_error": d["err"],
                 "estado": (
-                    "OK" if d["err"] == 0 and d["ok"] > 0
-                    else "PARCIAL" if d["ok"] > 0
-                    else "ERROR"
+                    "NO_ENCONTRADO" if d["no_encontrado"]
+                    else "OK" if d["err"] == 0
+                    else "INCOMPLETO"
                 ),
                 "carpeta": str(carpeta_base / folio),
             }
@@ -2668,10 +2682,11 @@ def guardar_resumen_global(todos: list, carpeta_base: Path) -> dict:
         json.dump(resumen, f, ensure_ascii=False, indent=2)
 
     log.info(
-        "[RESUMEN] resumen_global.json: %d folios | %d OK | %d errores",
+        "[RESUMEN] resumen_global.json: %d folios | %d Exitosos | %d Incompletos | %d No encontrados",
         resumen["total_folios"],
-        resumen["total_ok"],
-        resumen["total_errores"],
+        resumen["folios_exitosos"],
+        resumen["folios_incompletos"],
+        resumen["folios_no_encontrados"],
     )
     return resumen
 
@@ -2688,23 +2703,43 @@ def generar_reporte(todos: list):
     por_folio: dict = {}
     for r in todos:
         f = r["folio"]
-        por_folio.setdefault(f, {"ok": 0, "err": 0, "archivos": []})
-        por_folio[f]["ok" if r["ok"] else "err"] += 1
+        por_folio.setdefault(f, {"ok": 0, "err": 0, "archivos": [], "no_encontrado": False})
         por_folio[f]["archivos"].append(r)
+        if r.get("archivo") == "FOLIO_NO_ENCONTRADO":
+            por_folio[f]["no_encontrado"] = True
+            por_folio[f]["err"] += 1
+        elif r.get("ok"):
+            por_folio[f]["ok"] += 1
+        else:
+            por_folio[f]["err"] += 1
 
-    for folio, d in por_folio.items():
-        ico = "[OK]" if d["err"] == 0 else ("[WARN]" if d["ok"] > 0 else "[ERR]")
-        print(f"\n  {ico}  Folio: {folio}  ->  {DESCARGA_BASE / folio}")
-        print(f"      Descargados: {d['ok']}   Errores: {d['err']}")
-        print(f"      {'-'*50}")
-        for a in d["archivos"]:
-            est = "OK" if a["ok"] else "XX"
-            print(f"      [{est}] {a['archivo']:<45s}  {a['tipo']:<6s}  {a['tamano_kb']} KB")
+    folios_exitosos = {f: d for f, d in por_folio.items() if not d["no_encontrado"] and d["err"] == 0}
+    folios_incompletos = {f: d for f, d in por_folio.items() if not d["no_encontrado"] and d["err"] > 0}
+    folios_no_encontrados = {f: d for f, d in por_folio.items() if d["no_encontrado"]}
 
-    total_ok  = sum(1 for r in todos if r["ok"])
-    total_err = len(todos) - total_ok
-    print(f"\n  {'-'*50}")
-    print(f"  TOTAL: {len(todos)} archivos  OK: {total_ok}  Errores: {total_err}")
+    def imprimir_grupo(titulo, grupo, icono):
+        if not grupo: return
+        print(f"\n  ▶ {titulo} ({len(grupo)} folios)")
+        for folio, d in grupo.items():
+            print(f"\n  {icono}  Folio: {folio}  ->  {DESCARGA_BASE / folio}")
+            print(f"      Descargados: {d['ok']}   Errores: {d['err']}")
+            print(f"      {'-'*50}")
+            for a in d["archivos"]:
+                if a.get("archivo") == "FOLIO_NO_ENCONTRADO":
+                    print(f"      [--] El folio no existe en el Tablero")
+                else:
+                    est = "OK" if a["ok"] else "XX"
+                    print(f"      [{est}] {a['archivo']:<45s}  {a['tipo']:<6s}  {a['tamano_kb']} KB")
+
+    imprimir_grupo("FOLIOS EXITOSOS", folios_exitosos, "[OK]")
+    imprimir_grupo("FOLIOS INCOMPLETOS / CON ERRORES", folios_incompletos, "[WARN]")
+    imprimir_grupo("FOLIOS NO ENCONTRADOS", folios_no_encontrados, "[ERR]")
+
+    total_archivos_ok = sum(1 for r in todos if r.get("ok"))
+    
+    print(f"\n  {'-'*66}")
+    print(f"  TOTAL FOLIOS: {len(por_folio)} | Exitosos: {len(folios_exitosos)} | Incompletos: {len(folios_incompletos)} | No Encontrados: {len(folios_no_encontrados)}")
+    print(f"  TOTAL ARCHIVOS DESCARGADOS: {total_archivos_ok}")
     print("=" * 70 + "\n")
 
 

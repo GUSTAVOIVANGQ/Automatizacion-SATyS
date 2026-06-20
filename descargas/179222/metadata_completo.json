@@ -5,9 +5,14 @@
   "fuente_descarga": "DOCUMENTOS_ANEXOS",
   "estado": "OK",
   "metadatos_satys": {
-    "representante_legal": "ROGELIO ESPINOSA CANTELLANO",
-    "nombre_operador": "ISLIM TELCO",
-    "asunto": "Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios"
+    "representante_legal": "ISLIM TELCO, S.A.P.I. DE C.V.",
+    "nombre_operador": "ROGELIO ESPINOSA CANTELLANO",
+    "asunto": "",
+    "tipo_tramite": "CGPE-01-003-J: Entrega periódica de Información General Estadística J. Sobre el Servicio Minorista Fijo de Acceso a Internet",
+    "fecha_registro": "29/05/2026",
+    "solicitante": "",
+    "descripcion": "",
+    "folio": "179222"
   },
   "metadatos_tramite": {
     "tipo_tramite": "CGPE-01-003-J: Entrega periódica de Información General Estadística J. Sobre el Servicio Minorista Fijo de Acceso a Internet",

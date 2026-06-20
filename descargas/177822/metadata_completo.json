@@ -5,9 +5,14 @@
   "fuente_descarga": "DOCUMENTOS_ANEXOS",
   "estado": "OK",
   "metadatos_satys": {
-    "representante_legal": "JORGE MORENO LOZA",
-    "nombre_operador": "SERVNET MÉXICO",
-    "asunto": "Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios"
+    "representante_legal": "SERVNET MÉXICO, S.A. DE C.V.",
+    "nombre_operador": "JORGE MORENO LOZA",
+    "asunto": "",
+    "tipo_tramite": "CGPE-01-003-E: Entrega periódica de Información General Estadística E. Sobre el Servicio Minorista Fijo de Telefonía",
+    "fecha_registro": "21/05/2026",
+    "solicitante": "",
+    "descripcion": "",
+    "folio": "177822"
   },
   "metadatos_tramite": {
     "tipo_tramite": "CGPE-01-003-E: Entrega periódica de Información General Estadística E. Sobre el Servicio Minorista Fijo de Telefonía",

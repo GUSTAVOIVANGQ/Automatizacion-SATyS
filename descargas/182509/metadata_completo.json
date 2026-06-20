@@ -5,9 +5,14 @@
   "fuente_descarga": "DOCUMENTOS_ANEXOS",
   "estado": "OK",
   "metadatos_satys": {
-    "representante_legal": "NARCISO VALLE CRUZ",
-    "nombre_operador": "VALLE TV",
-    "asunto": "Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios"
+    "representante_legal": "VALLE TV, S.A. DE C.V.",
+    "nombre_operador": "NARCISO VALLE CRUZ",
+    "asunto": "",
+    "tipo_tramite": "CGPE-01-003-B: Entrega periódica de Información General Estadística B. Para Operador que no actualiza ninguno de los supuestos determinados por Servicio con base en su volumen de comercialización y/o provisión de servicios.",
+    "fecha_registro": "16/06/2026",
+    "solicitante": "",
+    "descripcion": "",
+    "folio": "182509"
   },
   "metadatos_tramite": {
     "tipo_tramite": "CGPE-01-003-B: Entrega periódica de Información General Estadística B. Para Operador que no actualiza ninguno de los supuestos determinados por Servicio con base en su volumen de comercialización y/o provisión de servicios.",

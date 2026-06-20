@@ -1,13 +1,18 @@
 {
   "folio": "182510",
-  "folio_raw": "VE-182510",
-  "fecha_proceso": "2026-06-19T15:23:09.814463",
+  "folio_raw": "182510",
+  "fecha_proceso": "2026-06-19T17:57:27.663311",
   "fuente_descarga": "DOCUMENTOS_ANEXOS",
   "estado": "OK",
   "metadatos_satys": {
-    "representante_legal": "NARCISO VALLE CRUZ",
-    "nombre_operador": "VALLE TV",
-    "asunto": "Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios"
+    "representante_legal": "VALLE TV, S.A. DE C.V.",
+    "nombre_operador": "NARCISO VALLE CRUZ",
+    "asunto": "",
+    "tipo_tramite": "CGPE-01-003-N: Entrega periódica de Información General Estadística N. Sobre el Servicio Minorista Fijo de Televisión y/o Audio Restringidos",
+    "fecha_registro": "16/06/2026",
+    "solicitante": "",
+    "descripcion": "",
+    "folio": "182510"
   },
   "metadatos_tramite": {
     "tipo_tramite": "CGPE-01-003-N: Entrega periódica de Información General Estadística N. Sobre el Servicio Minorista Fijo de Televisión y/o Audio Restringidos",

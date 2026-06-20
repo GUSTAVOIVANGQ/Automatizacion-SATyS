@@ -8839,3 +8839,841 @@ Call log:
 16:02:11  INFO      [SESION] Probando sesion guardada...
 16:03:01  INFO      [OK] Sesion activa recuperada con exito.
 16:03:01  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:04:01  ERROR     [ERROR] Navegando: Locator.wait_for: Timeout 60000ms exceeded.
+Call log:
+  - waiting for locator("nav, .sidebar, aside").first to be visible
+
+16:04:03  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:05:04  ERROR     [ERROR] Navegando: Locator.wait_for: Timeout 60000ms exceeded.
+Call log:
+  - waiting for locator("nav, .sidebar, aside").first to be visible
+
+16:05:06  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:06:06  ERROR     [ERROR] Navegando: Locator.wait_for: Timeout 60000ms exceeded.
+Call log:
+  - waiting for locator("nav, .sidebar, aside").first to be visible
+
+16:06:18  INFO      [LIST] Folios a procesar (21): 182500, 182501, 182502, 182503, 182504, 182505, 182506, 182507, 182508, 182509, 182510, 182511, 182512, 182513, 182514, 182515, 182516, 182517, 182518, 182519, 182520
+16:06:18  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+16:06:19  INFO      [SESION] Probando sesion guardada...
+16:06:23  INFO      [OK] Sesion activa recuperada con exito.
+16:06:23  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:06:26  INFO      [OK] Tablero de Control cargado
+16:06:27  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+16:06:27  INFO      [SKIP] Folio 182509 ya descargado. Saltando...
+16:06:27  INFO      [SKIP] Folio 182510 ya descargado. Saltando...
+16:06:27  INFO      [MAIN] 19 folio(s) pendientes | 2 ya completados (SKIP)
+16:06:27  INFO      [MAIN] ── FASE 2: Lanzando 6 worker(s) para 19 folio(s) ──
+16:06:27  INFO      [W:SATyS_0] ── Iniciando folio 182500 ──
+16:06:27  INFO      [W:SATyS_1] ── Iniciando folio 182501 ──
+16:06:27  INFO      [W:SATyS_2] ── Iniciando folio 182502 ──
+16:06:27  INFO      [W:SATyS_3] ── Iniciando folio 182503 ──
+16:06:27  INFO      [W:SATyS_4] ── Iniciando folio 182504 ──
+16:06:27  INFO      [W:SATyS_5] ── Iniciando folio 182505 ──
+16:06:29  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:06:29  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:06:29  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:06:29  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:06:29  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:06:29  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:06:36  INFO      [W:SATyS_2] Sesión activa (folio 182502)
+16:06:36  INFO      [W:SATyS_5] Sesión activa (folio 182505)
+16:06:36  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:06:36  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:06:36  INFO      [W:SATyS_1] Sesión activa (folio 182501)
+16:06:36  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:06:36  INFO      [W:SATyS_4] Sesión activa (folio 182504)
+16:06:36  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:06:36  INFO      [W:SATyS_3] Sesión activa (folio 182503)
+16:06:36  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:06:37  INFO      [W:SATyS_0] Sesión activa (folio 182500)
+16:06:37  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:06:40  INFO      [OK] Tablero de Control cargado
+16:06:40  INFO      [OK] Tablero de Control cargado
+16:06:40  INFO      [OK] Tablero de Control cargado
+16:06:40  INFO      [OK] Tablero de Control cargado
+16:06:40  INFO      [OK] Tablero de Control cargado
+16:06:40  INFO      [OK] Tablero de Control cargado
+16:06:45  WARNING   [WARN] Folio 182503 no encontrado en columna 'Memo / Folio OPC'
+16:06:47  INFO      [W:SATyS_3] ── Folio 182503 OK (0/1 archivos) ──
+16:06:47  INFO      [W:SATyS_3] ── Iniciando folio 182506 ──
+16:06:47  INFO      [CONC] [1/19] ✓ Folio 182503 completado: 0 OK / 1 total
+16:06:48  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:06:54  WARNING   [WARN] Folio 182500 no encontrado en columna 'Memo / Folio OPC'
+16:06:55  INFO      [W:SATyS_0] ── Folio 182500 OK (0/1 archivos) ──
+16:06:55  INFO      [W:SATyS_0] ── Iniciando folio 182507 ──
+16:06:55  INFO      [CONC] [2/19] ✓ Folio 182500 completado: 0 OK / 1 total
+16:06:56  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:07:09  INFO      [W:SATyS_0] Sesión activa (folio 182507)
+16:07:09  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:07:30  WARNING   [WARN] Folio 182502 no encontrado en columna 'Memo / Folio OPC'
+16:07:33  INFO      [W:SATyS_2] ── Folio 182502 OK (0/1 archivos) ──
+16:07:33  INFO      [W:SATyS_2] ── Iniciando folio 182508 ──
+16:07:33  INFO      [CONC] [3/19] ✓ Folio 182502 completado: 0 OK / 1 total
+16:07:34  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:07:34  INFO      [OK] Tablero de Control cargado
+16:07:35  WARNING   [WARN] Folio 182504 no encontrado en columna 'Memo / Folio OPC'
+16:07:35  WARNING   [WARN] Folio 182501 no encontrado en columna 'Memo / Folio OPC'
+16:07:36  INFO      [W:SATyS_1] ── Folio 182501 OK (0/1 archivos) ──
+16:07:36  INFO      [W:SATyS_4] ── Folio 182504 OK (0/1 archivos) ──
+16:07:36  INFO      [W:SATyS_1] ── Iniciando folio 182511 ──
+16:07:36  INFO      [CONC] [4/19] ✓ Folio 182501 completado: 0 OK / 1 total
+16:07:36  INFO      [W:SATyS_4] ── Iniciando folio 182512 ──
+16:07:36  INFO      [CONC] [5/19] ✓ Folio 182504 completado: 0 OK / 1 total
+16:07:36  INFO      [W:SATyS_3] Sesión activa (folio 182506)
+16:07:36  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:07:37  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:07:37  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:07:39  WARNING   [WARN] Folio 182505 no encontrado en columna 'Memo / Folio OPC'
+16:07:40  INFO      [W:SATyS_5] ── Folio 182505 OK (0/1 archivos) ──
+16:07:40  INFO      [W:SATyS_5] ── Iniciando folio 182513 ──
+16:07:40  INFO      [CONC] [6/19] ✓ Folio 182505 completado: 0 OK / 1 total
+16:07:41  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:07:59  INFO      [OK] Tablero de Control cargado
+16:08:02  INFO      [W:SATyS_1] Sesión activa (folio 182511)
+16:08:02  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:08:02  INFO      [W:SATyS_2] Sesión activa (folio 182508)
+16:08:02  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:08:03  INFO      [W:SATyS_5] Sesión activa (folio 182513)
+16:08:03  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:08:03  INFO      [W:SATyS_4] Sesión activa (folio 182512)
+16:08:03  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:08:08  WARNING   [WARN] Folio 182507 no encontrado en columna 'Memo / Folio OPC'
+16:08:09  WARNING   [WARN] Folio 182506 no encontrado en columna 'Memo / Folio OPC'
+16:08:10  INFO      [OK] Tablero de Control cargado
+16:08:10  INFO      [W:SATyS_0] ── Folio 182507 OK (0/1 archivos) ──
+16:08:10  INFO      [W:SATyS_3] ── Folio 182506 OK (0/1 archivos) ──
+16:08:10  INFO      [W:SATyS_0] ── Iniciando folio 182514 ──
+16:08:10  INFO      [CONC] [7/19] ✓ Folio 182507 completado: 0 OK / 1 total
+16:08:10  INFO      [W:SATyS_3] ── Iniciando folio 182515 ──
+16:08:10  INFO      [CONC] [8/19] ✓ Folio 182506 completado: 0 OK / 1 total
+16:08:11  INFO      [OK] Tablero de Control cargado
+16:08:11  INFO      [OK] Tablero de Control cargado
+16:08:11  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:08:11  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:08:15  WARNING   [WARN] Folio 182511 no encontrado en columna 'Memo / Folio OPC'
+16:08:16  INFO      [W:SATyS_1] ── Folio 182511 OK (0/1 archivos) ──
+16:08:16  INFO      [W:SATyS_1] ── Iniciando folio 182516 ──
+16:08:16  INFO      [CONC] [9/19] ✓ Folio 182511 completado: 0 OK / 1 total
+16:08:16  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:08:21  INFO      [OK] Tablero de Control cargado
+16:08:28  WARNING   [WARN] Folio 182508 no encontrado en columna 'Memo / Folio OPC'
+16:08:30  INFO      [W:SATyS_1] Sesión activa (folio 182516)
+16:08:30  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:08:30  INFO      [W:SATyS_0] Sesión activa (folio 182514)
+16:08:30  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:08:30  INFO      [W:SATyS_2] ── Folio 182508 OK (0/1 archivos) ──
+16:08:30  INFO      [W:SATyS_2] ── Iniciando folio 182517 ──
+16:08:30  INFO      [CONC] [10/19] ✓ Folio 182508 completado: 0 OK / 1 total
+16:08:31  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:08:32  WARNING   [WARN] Folio 182513 no encontrado en columna 'Memo / Folio OPC'
+16:08:32  INFO      [W:SATyS_5] ── Folio 182513 OK (0/1 archivos) ──
+16:08:32  INFO      [W:SATyS_5] ── Iniciando folio 182518 ──
+16:08:32  INFO      [CONC] [11/19] ✓ Folio 182513 completado: 0 OK / 1 total
+16:08:33  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:08:35  INFO      [W:SATyS_3] Sesión activa (folio 182515)
+16:08:35  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:08:38  WARNING   [WARN] Folio 182512 no encontrado en columna 'Memo / Folio OPC'
+16:08:39  INFO      [W:SATyS_4] ── Folio 182512 OK (0/1 archivos) ──
+16:08:39  INFO      [W:SATyS_4] ── Iniciando folio 182519 ──
+16:08:39  INFO      [CONC] [12/19] ✓ Folio 182512 completado: 0 OK / 1 total
+16:08:40  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:08:51  INFO      [OK] Tablero de Control cargado
+16:08:51  INFO      [OK] Tablero de Control cargado
+16:08:51  INFO      [OK] Tablero de Control cargado
+16:08:53  INFO      [W:SATyS_4] Sesión activa (folio 182519)
+16:08:53  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:08:53  INFO      [W:SATyS_2] Sesión activa (folio 182517)
+16:08:53  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:08:53  INFO      [W:SATyS_5] Sesión activa (folio 182518)
+16:08:53  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:08:55  WARNING   [WARN] Folio 182514 no encontrado en columna 'Memo / Folio OPC'
+16:08:57  INFO      [W:SATyS_0] ── Folio 182514 OK (0/1 archivos) ──
+16:08:57  INFO      [W:SATyS_0] ── Iniciando folio 182520 ──
+16:08:57  INFO      [CONC] [13/19] ✓ Folio 182514 completado: 0 OK / 1 total
+16:08:58  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:09:04  INFO      [OK] Tablero de Control cargado
+16:09:09  WARNING   [WARN] Folio 182515 no encontrado en columna 'Memo / Folio OPC'
+16:09:10  INFO      [OK] Tablero de Control cargado
+16:09:11  INFO      [W:SATyS_3] ── Folio 182515 OK (0/1 archivos) ──
+16:09:11  INFO      [CONC] [14/19] ✓ Folio 182515 completado: 0 OK / 1 total
+16:09:12  WARNING   [WARN] Folio 182516 no encontrado en columna 'Memo / Folio OPC'
+16:09:13  WARNING   [WARN] Folio 182519 no encontrado en columna 'Memo / Folio OPC'
+16:09:14  INFO      [W:SATyS_1] ── Folio 182516 OK (0/1 archivos) ──
+16:09:14  INFO      [W:SATyS_4] ── Folio 182519 OK (0/1 archivos) ──
+16:09:14  INFO      [CONC] [15/19] ✓ Folio 182516 completado: 0 OK / 1 total
+16:09:14  INFO      [CONC] [16/19] ✓ Folio 182519 completado: 0 OK / 1 total
+16:09:21  WARNING   [WARN] Folio 182518 no encontrado en columna 'Memo / Folio OPC'
+16:09:23  INFO      [W:SATyS_5] ── Folio 182518 OK (0/1 archivos) ──
+16:09:23  INFO      [CONC] [17/19] ✓ Folio 182518 completado: 0 OK / 1 total
+16:09:28  INFO      [W:SATyS_0] Sesión activa (folio 182520)
+16:09:28  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:09:32  INFO      [OK] Tablero de Control cargado
+16:09:37  INFO      [OK] Tablero de Control cargado
+16:09:48  WARNING   [WARN] Folio 182517 no encontrado en columna 'Memo / Folio OPC'
+16:09:50  INFO      [W:SATyS_2] ── Folio 182517 OK (0/1 archivos) ──
+16:09:50  INFO      [CONC] [18/19] ✓ Folio 182517 completado: 0 OK / 1 total
+16:10:06  WARNING   [WARN] Folio 182520 no encontrado en columna 'Memo / Folio OPC'
+16:10:08  INFO      [W:SATyS_0] ── Folio 182520 OK (0/1 archivos) ──
+16:10:08  INFO      [CONC] [19/19] ✓ Folio 182520 completado: 0 OK / 1 total
+16:10:08  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+16:10:08  INFO      [RESUMEN] resumen_global.json: 21 folios | 6 OK | 19 errores
+16:51:38  INFO      [LIST] Folios a procesar (21): 182500, 182501, 182502, 182503, 182504, 182505, 182506, 182507, 182508, 182509, 182510, 182511, 182512, 182513, 182514, 182515, 182516, 182517, 182518, 182519, 182520
+16:51:38  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+16:51:40  INFO      [SESION] Probando sesion guardada...
+16:51:43  INFO      [OK] Sesion activa recuperada con exito.
+16:51:43  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:51:47  INFO      [OK] Tablero de Control cargado
+16:51:48  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+16:51:48  INFO      [SKIP] Folio 182509 ya descargado. Saltando...
+16:51:48  INFO      [SKIP] Folio 182510 ya descargado. Saltando...
+16:51:48  INFO      [MAIN] 19 folio(s) pendientes | 2 ya completados (SKIP)
+16:51:48  INFO      [MAIN] ── FASE 2: Lanzando 19 worker(s) para 19 folio(s) ──
+16:51:48  INFO      [W:SATyS_0] ── Iniciando folio 182500 ──
+16:51:48  INFO      [W:SATyS_1] ── Iniciando folio 182501 ──
+16:51:48  INFO      [W:SATyS_4] ── Iniciando folio 182504 ──
+16:51:48  INFO      [W:SATyS_3] ── Iniciando folio 182503 ──
+16:51:48  INFO      [W:SATyS_2] ── Iniciando folio 182502 ──
+16:51:48  INFO      [W:SATyS_5] ── Iniciando folio 182505 ──
+16:51:48  INFO      [W:SATyS_6] ── Iniciando folio 182506 ──
+16:51:48  INFO      [W:SATyS_7] ── Iniciando folio 182507 ──
+16:51:48  INFO      [W:SATyS_8] ── Iniciando folio 182508 ──
+16:51:48  INFO      [W:SATyS_9] ── Iniciando folio 182511 ──
+16:51:48  INFO      [W:SATyS_10] ── Iniciando folio 182512 ──
+16:51:48  INFO      [W:SATyS_11] ── Iniciando folio 182513 ──
+16:51:48  INFO      [W:SATyS_12] ── Iniciando folio 182514 ──
+16:51:48  INFO      [W:SATyS_13] ── Iniciando folio 182515 ──
+16:51:48  INFO      [W:SATyS_14] ── Iniciando folio 182516 ──
+16:51:48  INFO      [W:SATyS_15] ── Iniciando folio 182517 ──
+16:51:48  INFO      [W:SATyS_16] ── Iniciando folio 182518 ──
+16:51:48  INFO      [W:SATyS_17] ── Iniciando folio 182519 ──
+16:51:48  INFO      [W:SATyS_18] ── Iniciando folio 182520 ──
+16:51:50  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:51:50  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:51:50  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:51:51  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:51:51  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:51:51  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:51:51  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:51:51  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:51:51  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:51:51  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:51:51  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:51:52  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:51:52  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:51:52  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:51:52  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:51:52  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:51:52  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:51:52  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:51:53  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:52:30  INFO      [W:SATyS_10] Sesión activa (folio 182512)
+16:52:30  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:52:30  INFO      [W:SATyS_0] Sesión activa (folio 182500)
+16:52:30  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:52:30  INFO      [W:SATyS_14] Sesión activa (folio 182516)
+16:52:30  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:52:31  INFO      [W:SATyS_7] Sesión activa (folio 182507)
+16:52:31  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:52:31  INFO      [W:SATyS_18] Sesión activa (folio 182520)
+16:52:31  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:52:31  INFO      [W:SATyS_17] Sesión activa (folio 182519)
+16:52:31  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:52:31  INFO      [W:SATyS_15] Sesión activa (folio 182517)
+16:52:31  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:52:32  INFO      [W:SATyS_6] Sesión activa (folio 182506)
+16:52:32  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:52:32  INFO      [W:SATyS_5] Sesión activa (folio 182505)
+16:52:32  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:52:33  INFO      [W:SATyS_4] Sesión activa (folio 182504)
+16:52:33  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:52:33  INFO      [OK] Tablero de Control cargado
+16:52:33  INFO      [OK] Tablero de Control cargado
+16:52:33  INFO      [OK] Tablero de Control cargado
+16:52:34  INFO      [W:SATyS_16] Sesión activa (folio 182518)
+16:52:34  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:52:34  INFO      [W:SATyS_3] Sesión activa (folio 182503)
+16:52:34  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:52:39  INFO      [OK] Tablero de Control cargado
+16:52:39  INFO      [OK] Tablero de Control cargado
+16:52:40  WARNING   [WARN] Folio 182512 no encontrado en columna 'Memo / Folio OPC'
+16:52:42  WARNING   [WARN] Folio 182516 no encontrado en columna 'Memo / Folio OPC'
+16:52:43  INFO      [W:SATyS_10] ── Folio 182512 OK (0/1 archivos) ──
+16:52:43  INFO      [CONC] [1/19] ✓ Folio 182512 completado: 0 OK / 1 total
+16:52:43  INFO      [W:SATyS_14] ── Folio 182516 OK (0/1 archivos) ──
+16:52:43  INFO      [CONC] [2/19] ✓ Folio 182516 completado: 0 OK / 1 total
+16:52:52  WARNING   [W:SATyS_13] Error validando sesión: Page.goto: Timeout 60000ms exceeded.
+Call log:
+  - navigating to "https://satys.ift.org.mx/Sarccontroller", waiting until "domcontentloaded"
+
+16:52:52  WARNING   [W:SATyS_11] Error validando sesión: Page.goto: Timeout 60000ms exceeded.
+Call log:
+  - navigating to "https://satys.ift.org.mx/Sarccontroller", waiting until "domcontentloaded"
+
+16:52:52  WARNING   [W:SATyS_9] Error validando sesión: Page.goto: Timeout 60000ms exceeded.
+Call log:
+  - navigating to "https://satys.ift.org.mx/Sarccontroller", waiting until "domcontentloaded"
+
+16:52:53  WARNING   [W:SATyS_8] Error validando sesión: Page.goto: Timeout 60000ms exceeded.
+Call log:
+  - navigating to "https://satys.ift.org.mx/Sarccontroller", waiting until "domcontentloaded"
+
+16:52:53  WARNING   [W:SATyS_2] Error validando sesión: Page.goto: Timeout 60000ms exceeded.
+Call log:
+  - navigating to "https://satys.ift.org.mx/Sarccontroller", waiting until "domcontentloaded"
+
+16:52:53  WARNING   [W:SATyS_12] Error validando sesión: Page.goto: Timeout 60000ms exceeded.
+Call log:
+  - navigating to "https://satys.ift.org.mx/Sarccontroller", waiting until "domcontentloaded"
+
+16:52:53  WARNING   [W:SATyS_1] Error validando sesión: Page.goto: Timeout 60000ms exceeded.
+Call log:
+  - navigating to "https://satys.ift.org.mx/Sarccontroller", waiting until "domcontentloaded"
+
+16:52:55  INFO      [CONC] [3/19] ✓ Folio 182514 completado: 0 OK / 1 total
+16:52:55  INFO      [CONC] [4/19] ✓ Folio 182511 completado: 0 OK / 1 total
+16:52:55  INFO      [CONC] [5/19] ✓ Folio 182508 completado: 0 OK / 1 total
+16:52:55  INFO      [CONC] [6/19] ✓ Folio 182502 completado: 0 OK / 1 total
+16:52:55  INFO      [CONC] [7/19] ✓ Folio 182513 completado: 0 OK / 1 total
+16:52:55  INFO      [CONC] [8/19] ✓ Folio 182501 completado: 0 OK / 1 total
+16:52:55  INFO      [CONC] [9/19] ✓ Folio 182515 completado: 0 OK / 1 total
+16:53:01  INFO      [OK] Tablero de Control cargado
+16:53:01  INFO      [OK] Tablero de Control cargado
+16:53:31  INFO      [OK] Tablero de Control cargado
+16:53:31  INFO      [OK] Tablero de Control cargado
+16:53:40  WARNING   [WARN] Tablero no detectado -- continuando de todas formas
+16:53:41  WARNING   [WARN] Tablero no detectado -- continuando de todas formas
+16:53:42  WARNING   [WARN] Tablero no detectado -- continuando de todas formas
+16:53:45  WARNING   [WARN] Folio 182519 no encontrado en columna 'Memo / Folio OPC'
+16:53:47  INFO      [W:SATyS_17] ── Folio 182519 OK (0/1 archivos) ──
+16:53:47  INFO      [CONC] [10/19] ✓ Folio 182519 completado: 0 OK / 1 total
+16:53:48  WARNING   [WARN] Folio 182506 no encontrado en columna 'Memo / Folio OPC'
+16:53:49  INFO      [W:SATyS_6] ── Folio 182506 OK (0/1 archivos) ──
+16:53:49  INFO      [CONC] [11/19] ✓ Folio 182506 completado: 0 OK / 1 total
+16:53:49  WARNING   [WARN] Folio 182517 no encontrado en columna 'Memo / Folio OPC'
+16:53:50  INFO      [W:SATyS_15] ── Folio 182517 OK (0/1 archivos) ──
+16:53:50  INFO      [CONC] [12/19] ✓ Folio 182517 completado: 0 OK / 1 total
+16:53:52  WARNING   [WARN] Folio 182518 no encontrado en columna 'Memo / Folio OPC'
+16:53:53  INFO      [W:SATyS_16] ── Folio 182518 OK (0/1 archivos) ──
+16:53:53  INFO      [CONC] [13/19] ✓ Folio 182518 completado: 0 OK / 1 total
+16:53:53  WARNING   [V04-NO_ENCONTRADO] Folio 182505 no encontrado en Documentos en Proceso
+16:53:54  WARNING   [V04-NO_ENCONTRADO] Folio 182504 no encontrado en Documentos en Proceso
+16:53:54  INFO      [W:SATyS_5] ── Folio 182505 OK (0/1 archivos) ──
+16:53:54  INFO      [CONC] [14/19] ✓ Folio 182505 completado: 0 OK / 1 total
+16:53:55  WARNING   [V04-NO_ENCONTRADO] Folio 182503 no encontrado en Documentos en Proceso
+16:53:56  INFO      [W:SATyS_3] ── Folio 182503 OK (0/1 archivos) ──
+16:53:56  INFO      [W:SATyS_4] ── Folio 182504 OK (0/1 archivos) ──
+16:53:56  INFO      [CONC] [15/19] ✓ Folio 182503 completado: 0 OK / 1 total
+16:53:56  INFO      [CONC] [16/19] ✓ Folio 182504 completado: 0 OK / 1 total
+16:54:10  WARNING   [WARN] Folio 182507 no encontrado en columna 'Memo / Folio OPC'
+16:54:12  INFO      [W:SATyS_7] ── Folio 182507 OK (0/1 archivos) ──
+16:54:12  INFO      [CONC] [17/19] ✓ Folio 182507 completado: 0 OK / 1 total
+16:54:22  WARNING   [WARN] Folio 182520 no encontrado en columna 'Memo / Folio OPC'
+16:54:24  INFO      [W:SATyS_18] ── Folio 182520 OK (0/1 archivos) ──
+16:54:24  INFO      [CONC] [18/19] ✓ Folio 182520 completado: 0 OK / 1 total
+16:54:33  WARNING   [WARN] Folio 182500 no encontrado en columna 'Memo / Folio OPC'
+16:54:35  INFO      [W:SATyS_0] ── Folio 182500 OK (0/1 archivos) ──
+16:54:35  INFO      [CONC] [19/19] ✓ Folio 182500 completado: 0 OK / 1 total
+16:54:35  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+16:54:35  INFO      [RESUMEN] resumen_global.json: 21 folios | 2 Exitosos | 10 Incompletos | 9 No encontrados
+17:02:31  INFO      [LIST] Folios a procesar (21): 182500, 182501, 182502, 182503, 182504, 182505, 182506, 182507, 182508, 182509, 182510, 182511, 182512, 182513, 182514, 182515, 182516, 182517, 182518, 182519, 182520
+17:02:31  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+17:02:32  INFO      [SESION] Probando sesion guardada...
+17:02:34  INFO      [OK] Sesion activa recuperada con exito.
+17:02:34  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:02:37  INFO      [OK] Tablero de Control cargado
+17:02:38  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+17:02:38  INFO      [SKIP] Folio 182509 ya descargado. Saltando...
+17:02:38  INFO      [SKIP] Folio 182510 ya descargado. Saltando...
+17:02:38  INFO      [MAIN] 19 folio(s) pendientes | 2 ya completados (SKIP)
+17:02:38  INFO      [MAIN] ── FASE 2: Lanzando 3 worker(s) para 19 folio(s) ──
+17:02:38  INFO      [W:SATyS_0] ── Iniciando folio 182500 ──
+17:02:38  INFO      [W:SATyS_1] ── Iniciando folio 182501 ──
+17:02:38  INFO      [W:SATyS_2] ── Iniciando folio 182502 ──
+17:02:39  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:02:39  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:02:39  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:02:40  INFO      [W:SATyS_1] Sesión activa (folio 182501)
+17:02:40  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:02:40  INFO      [W:SATyS_0] Sesión activa (folio 182500)
+17:02:40  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:02:40  INFO      [W:SATyS_2] Sesión activa (folio 182502)
+17:02:40  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:02:43  INFO      [OK] Tablero de Control cargado
+17:02:44  INFO      [OK] Tablero de Control cargado
+17:02:44  INFO      [OK] Tablero de Control cargado
+17:02:57  WARNING   [WARN] Folio 182501 no encontrado en columna 'Memo / Folio OPC'
+17:02:59  INFO      [W:SATyS_1] ── Folio 182501 OK (0/1 archivos) ──
+17:02:59  INFO      [W:SATyS_1] ── Iniciando folio 182503 ──
+17:02:59  INFO      [CONC] [1/19] ✓ Folio 182501 completado: 0 OK / 1 total
+17:02:59  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:03:06  WARNING   [WARN] Folio 182500 no encontrado en columna 'Memo / Folio OPC'
+17:03:07  INFO      [W:SATyS_0] ── Folio 182500 OK (0/1 archivos) ──
+17:03:07  INFO      [W:SATyS_0] ── Iniciando folio 182504 ──
+17:03:07  INFO      [CONC] [2/19] ✓ Folio 182500 completado: 0 OK / 1 total
+17:03:08  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:03:10  INFO      [W:SATyS_0] Sesión activa (folio 182504)
+17:03:10  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:03:13  INFO      [W:SATyS_1] Sesión activa (folio 182503)
+17:03:13  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:03:13  INFO      [OK] Tablero de Control cargado
+17:03:16  WARNING   [WARN] Folio 182502 no encontrado en columna 'Memo / Folio OPC'
+17:03:17  INFO      [OK] Tablero de Control cargado
+17:03:18  INFO      [W:SATyS_2] ── Folio 182502 OK (0/1 archivos) ──
+17:03:18  INFO      [W:SATyS_2] ── Iniciando folio 182505 ──
+17:03:18  INFO      [CONC] [3/19] ✓ Folio 182502 completado: 0 OK / 1 total
+17:03:19  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:03:20  WARNING   [WARN] Folio 182504 no encontrado en columna 'Memo / Folio OPC'
+17:03:21  INFO      [W:SATyS_0] ── Folio 182504 OK (0/1 archivos) ──
+17:03:21  INFO      [W:SATyS_0] ── Iniciando folio 182506 ──
+17:03:21  INFO      [CONC] [4/19] ✓ Folio 182504 completado: 0 OK / 1 total
+17:03:22  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:03:24  INFO      [W:SATyS_0] Sesión activa (folio 182506)
+17:03:24  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:03:34  INFO      [OK] Tablero de Control cargado
+17:03:35  INFO      [W:SATyS_2] Sesión activa (folio 182505)
+17:03:35  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:03:35  WARNING   [WARN] Folio 182503 no encontrado en columna 'Memo / Folio OPC'
+17:03:37  INFO      [W:SATyS_1] ── Folio 182503 OK (0/1 archivos) ──
+17:03:37  INFO      [W:SATyS_1] ── Iniciando folio 182507 ──
+17:03:37  INFO      [CONC] [5/19] ✓ Folio 182503 completado: 0 OK / 1 total
+17:03:37  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:03:38  WARNING   [WARN] Folio 182506 no encontrado en columna 'Memo / Folio OPC'
+17:03:39  INFO      [W:SATyS_0] ── Folio 182506 OK (0/1 archivos) ──
+17:03:39  INFO      [W:SATyS_0] ── Iniciando folio 182508 ──
+17:03:39  INFO      [CONC] [6/19] ✓ Folio 182506 completado: 0 OK / 1 total
+17:03:39  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:03:44  INFO      [OK] Tablero de Control cargado
+17:03:45  INFO      [W:SATyS_1] Sesión activa (folio 182507)
+17:03:45  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:03:45  INFO      [W:SATyS_0] Sesión activa (folio 182508)
+17:03:45  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:03:55  INFO      [OK] Tablero de Control cargado
+17:03:55  INFO      [OK] Tablero de Control cargado
+17:03:58  WARNING   [WARN] Folio 182505 no encontrado en columna 'Memo / Folio OPC'
+17:04:00  INFO      [W:SATyS_2] ── Folio 182505 OK (0/1 archivos) ──
+17:04:00  INFO      [W:SATyS_2] ── Iniciando folio 182511 ──
+17:04:00  INFO      [CONC] [7/19] ✓ Folio 182505 completado: 0 OK / 1 total
+17:04:01  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:04:12  WARNING   [WARN] Folio 182508 no encontrado en columna 'Memo / Folio OPC'
+17:04:14  INFO      [W:SATyS_0] ── Folio 182508 OK (0/1 archivos) ──
+17:04:14  INFO      [W:SATyS_0] ── Iniciando folio 182512 ──
+17:04:14  INFO      [CONC] [8/19] ✓ Folio 182508 completado: 0 OK / 1 total
+17:04:15  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:04:15  WARNING   [WARN] Folio 182507 no encontrado en columna 'Memo / Folio OPC'
+17:04:16  INFO      [W:SATyS_1] ── Folio 182507 OK (0/1 archivos) ──
+17:04:16  INFO      [W:SATyS_1] ── Iniciando folio 182513 ──
+17:04:16  INFO      [CONC] [9/19] ✓ Folio 182507 completado: 0 OK / 1 total
+17:04:16  INFO      [W:SATyS_2] Sesión activa (folio 182511)
+17:04:16  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:04:17  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:04:17  INFO      [W:SATyS_0] Sesión activa (folio 182512)
+17:04:17  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:04:18  INFO      [W:SATyS_1] Sesión activa (folio 182513)
+17:04:18  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:04:20  INFO      [OK] Tablero de Control cargado
+17:04:29  INFO      [OK] Tablero de Control cargado
+17:04:33  INFO      [OK] Tablero de Control cargado
+17:04:34  WARNING   [WARN] Folio 182511 no encontrado en columna 'Memo / Folio OPC'
+17:04:36  INFO      [W:SATyS_2] ── Folio 182511 OK (0/1 archivos) ──
+17:04:36  INFO      [W:SATyS_2] ── Iniciando folio 182514 ──
+17:04:36  INFO      [CONC] [10/19] ✓ Folio 182511 completado: 0 OK / 1 total
+17:04:36  WARNING   [WARN] Folio 182512 no encontrado en columna 'Memo / Folio OPC'
+17:04:37  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:04:37  INFO      [W:SATyS_0] ── Folio 182512 OK (0/1 archivos) ──
+17:04:37  INFO      [W:SATyS_0] ── Iniciando folio 182515 ──
+17:04:37  INFO      [CONC] [11/19] ✓ Folio 182512 completado: 0 OK / 1 total
+17:04:38  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:04:46  INFO      [W:SATyS_2] Sesión activa (folio 182514)
+17:04:46  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:04:46  INFO      [W:SATyS_0] Sesión activa (folio 182515)
+17:04:46  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:04:47  WARNING   [WARN] Folio 182513 no encontrado en columna 'Memo / Folio OPC'
+17:04:49  INFO      [W:SATyS_1] ── Folio 182513 OK (0/1 archivos) ──
+17:04:49  INFO      [W:SATyS_1] ── Iniciando folio 182516 ──
+17:04:49  INFO      [CONC] [12/19] ✓ Folio 182513 completado: 0 OK / 1 total
+17:04:50  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:04:51  INFO      [OK] Tablero de Control cargado
+17:04:51  INFO      [OK] Tablero de Control cargado
+17:04:54  INFO      [W:SATyS_1] Sesión activa (folio 182516)
+17:04:54  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:04:58  WARNING   [WARN] Folio 182514 no encontrado en columna 'Memo / Folio OPC'
+17:04:58  WARNING   [WARN] Folio 182515 no encontrado en columna 'Memo / Folio OPC'
+17:05:00  INFO      [W:SATyS_2] ── Folio 182514 OK (0/1 archivos) ──
+17:05:00  INFO      [W:SATyS_0] ── Folio 182515 OK (0/1 archivos) ──
+17:05:00  INFO      [W:SATyS_2] ── Iniciando folio 182517 ──
+17:05:00  INFO      [CONC] [13/19] ✓ Folio 182514 completado: 0 OK / 1 total
+17:05:00  INFO      [W:SATyS_0] ── Iniciando folio 182518 ──
+17:05:00  INFO      [CONC] [14/19] ✓ Folio 182515 completado: 0 OK / 1 total
+17:05:01  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:05:01  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:05:04  INFO      [OK] Tablero de Control cargado
+17:05:05  INFO      [W:SATyS_2] Sesión activa (folio 182517)
+17:05:05  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:05:14  INFO      [W:SATyS_0] Sesión activa (folio 182518)
+17:05:14  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:05:17  WARNING   [WARN] Folio 182516 no encontrado en columna 'Memo / Folio OPC'
+17:05:19  INFO      [W:SATyS_1] ── Folio 182516 OK (0/1 archivos) ──
+17:05:19  INFO      [W:SATyS_1] ── Iniciando folio 182519 ──
+17:05:19  INFO      [CONC] [15/19] ✓ Folio 182516 completado: 0 OK / 1 total
+17:05:20  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:05:22  INFO      [OK] Tablero de Control cargado
+17:05:23  INFO      [OK] Tablero de Control cargado
+17:05:23  INFO      [W:SATyS_1] Sesión activa (folio 182519)
+17:05:23  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:05:35  WARNING   [WARN] Folio 182518 no encontrado en columna 'Memo / Folio OPC'
+17:05:37  INFO      [W:SATyS_0] ── Folio 182518 OK (0/1 archivos) ──
+17:05:37  INFO      [W:SATyS_0] ── Iniciando folio 182520 ──
+17:05:37  INFO      [CONC] [16/19] ✓ Folio 182518 completado: 0 OK / 1 total
+17:05:38  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:05:42  INFO      [W:SATyS_0] Sesión activa (folio 182520)
+17:05:42  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:05:44  INFO      [OK] Tablero de Control cargado
+17:05:47  INFO      [OK] Tablero de Control cargado
+17:05:47  WARNING   [WARN] Folio 182517 no encontrado en columna 'Memo / Folio OPC'
+17:05:49  INFO      [W:SATyS_2] ── Folio 182517 OK (0/1 archivos) ──
+17:05:49  INFO      [CONC] [17/19] ✓ Folio 182517 completado: 0 OK / 1 total
+17:05:51  WARNING   [WARN] Folio 182519 no encontrado en columna 'Memo / Folio OPC'
+17:05:52  INFO      [W:SATyS_1] ── Folio 182519 OK (0/1 archivos) ──
+17:05:52  INFO      [CONC] [18/19] ✓ Folio 182519 completado: 0 OK / 1 total
+17:06:03  WARNING   [WARN] Folio 182520 no encontrado en columna 'Memo / Folio OPC'
+17:06:05  INFO      [W:SATyS_0] ── Folio 182520 OK (0/1 archivos) ──
+17:06:05  INFO      [CONC] [19/19] ✓ Folio 182520 completado: 0 OK / 1 total
+17:06:05  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+17:06:05  INFO      [RESUMEN] resumen_global.json: 21 folios | 2 Exitosos | 0 Incompletos | 19 No encontrados
+17:15:14  INFO      [LIST] Folios a procesar (100): 2021, 2014, 16206, 16201, 16205, 16202, 1985, 1984, 182510, 182509, 1982, 1969, 1965, 1964, 1948, 181985, 1945, 181984, 1943, 1942, 1940, 1928, 1927, 1923, 181809, 181793, 181778, 1915, 15621, 15623, 181514, 15427, 1892, 1891, 1890, 15321, 1882, 181010, 181009, 180652, 15089, 180368, 180362, 14738, 14737, 179746, 179702, 179701, 179699, 179697, 14615, 179291, 179223, 179222, 179221, 179220, 179138, 179137, 179136, 179131, 179130, 179129, 179085, 179076, 178633, 178534, 178533, 178532, 178531, 178530, 178529, 178528, 178527, 178526, 178525, 178524, 178523, 14112, 14110, 178254, 178252, 178251, 13899, 13898, 13897, 13896, 13895, 13894, 178113, 13893, 13892, 13891, 178112, 178065, 13884, 13789, 177828, 177824, 177822, 177711
+17:15:14  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+17:15:15  INFO      [SESION] Probando sesion guardada...
+17:15:18  INFO      [OK] Sesion activa recuperada con exito.
+17:15:18  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:15:21  INFO      [OK] Tablero de Control cargado
+17:15:22  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+17:15:22  INFO      [SKIP] Folio 2021 ya descargado. Saltando...
+17:15:22  INFO      [SKIP] Folio 2014 ya descargado. Saltando...
+17:15:22  INFO      [SKIP] Folio 16206 ya descargado. Saltando...
+17:15:22  INFO      [SKIP] Folio 16201 ya descargado. Saltando...
+17:15:22  INFO      [SKIP] Folio 16205 ya descargado. Saltando...
+17:15:22  INFO      [SKIP] Folio 16202 ya descargado. Saltando...
+17:15:22  INFO      [SKIP] Folio 1985 ya descargado. Saltando...
+17:15:22  INFO      [SKIP] Folio 1984 ya descargado. Saltando...
+17:15:22  INFO      [SKIP] Folio 182510 ya descargado. Saltando...
+17:15:22  INFO      [SKIP] Folio 182509 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 1982 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 1969 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 1965 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 1964 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 1948 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 181985 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 1945 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 181984 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 1943 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 1942 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 1940 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 1928 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 1927 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 1923 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 181809 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 181793 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 181778 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 1915 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 15621 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 15623 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 181514 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 15427 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 1892 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 1891 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 1890 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 15321 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 1882 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 181010 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 181009 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 180652 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 15089 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 180368 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 180362 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 14738 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 14737 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 179746 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 179702 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 179701 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 179699 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 179697 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 14615 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 179291 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 179223 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 179222 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 179221 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 179220 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 179138 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 179137 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 179136 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 179131 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 179130 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 179129 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 179085 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 179076 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 178633 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 178534 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 178533 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 178532 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 178531 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 178530 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 178529 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 178528 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 178527 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 178526 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 178525 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 178524 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 178523 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 14112 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 14110 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 178254 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 178252 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 178251 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 13899 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 13898 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 13897 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 13896 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 13895 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 13894 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 178113 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 13893 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 13892 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 13891 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 178112 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 178065 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 13884 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 13789 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 177828 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 177824 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 177822 ya descargado. Saltando...
+17:15:23  INFO      [SKIP] Folio 177711 ya descargado. Saltando...
+17:15:23  INFO      [MAIN] 0 folio(s) pendientes | 100 ya completados (SKIP)
+17:15:23  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+17:15:23  INFO      [RESUMEN] resumen_global.json: 100 folios | 100 Exitosos | 0 Incompletos | 0 No encontrados
+17:18:50  INFO      [LIST] Folios a procesar (21): 182500, 182501, 182502, 182503, 182504, 182505, 182506, 182507, 182508, 182509, 182510, 182511, 182512, 182513, 182514, 182515, 182516, 182517, 182518, 182519, 182520
+17:18:50  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+17:18:51  INFO      [SESION] Probando sesion guardada...
+17:18:52  INFO      [SESION] Sesion expirada, requiere nuevo login.
+17:18:52  INFO      [LOGIN] Iniciando sesion...
+17:18:52  INFO      [NET] Cargando pagina login...
+17:18:52  INFO      [LOGIN] Llenando credenciales...
+17:19:03  WARNING   [WARN] Tablero no encontrado tras login, asumiendo exito...
+17:19:03  INFO      [SESION] Sesion guardada correctamente.
+17:19:03  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:19:06  INFO      [OK] Tablero de Control cargado
+17:19:08  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+17:19:08  INFO      [SKIP] Folio 182509 ya descargado. Saltando...
+17:19:08  INFO      [SKIP] Folio 182510 ya descargado. Saltando...
+17:19:08  INFO      [MAIN] 19 folio(s) pendientes | 2 ya completados (SKIP)
+17:19:08  INFO      [MAIN] ── FASE 2: Lanzando 6 worker(s) para 19 folio(s) ──
+17:19:08  INFO      [W:SATyS_0] ── Iniciando folio 182500 ──
+17:19:08  INFO      [W:SATyS_1] ── Iniciando folio 182501 ──
+17:19:08  INFO      [W:SATyS_2] ── Iniciando folio 182502 ──
+17:19:08  INFO      [W:SATyS_3] ── Iniciando folio 182503 ──
+17:19:08  INFO      [W:SATyS_4] ── Iniciando folio 182504 ──
+17:19:08  INFO      [W:SATyS_5] ── Iniciando folio 182505 ──
+17:19:09  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:19:09  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:19:09  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:19:09  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:19:10  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:19:10  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:19:22  INFO      [W:SATyS_5] Sesión activa (folio 182505)
+17:19:22  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:19:22  INFO      [W:SATyS_2] Sesión activa (folio 182502)
+17:19:22  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:19:22  INFO      [W:SATyS_1] Sesión activa (folio 182501)
+17:19:22  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:19:22  INFO      [W:SATyS_4] Sesión activa (folio 182504)
+17:19:22  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:19:22  INFO      [W:SATyS_3] Sesión activa (folio 182503)
+17:19:22  INFO      [W:SATyS_0] Sesión activa (folio 182500)
+17:19:22  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:19:22  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:19:26  INFO      [OK] Tablero de Control cargado
+17:19:27  INFO      [OK] Tablero de Control cargado
+17:19:27  INFO      [OK] Tablero de Control cargado
+17:19:27  INFO      [OK] Tablero de Control cargado
+17:19:27  INFO      [OK] Tablero de Control cargado
+17:19:27  INFO      [OK] Tablero de Control cargado
+17:19:32  WARNING   [WARN] Folio 182504 no encontrado en columna 'Memo / Folio OPC'
+17:19:34  INFO      [W:SATyS_4] ── Folio 182504 OK (0/1 archivos) ──
+17:19:34  INFO      [W:SATyS_4] ── Iniciando folio 182506 ──
+17:19:34  INFO      [CONC] [1/19] ✓ Folio 182504 completado: 0 OK / 1 total
+17:19:35  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:19:41  WARNING   [WARN] Folio 182501 no encontrado en columna 'Memo / Folio OPC'
+17:19:42  INFO      [W:SATyS_1] ── Folio 182501 OK (0/1 archivos) ──
+17:19:42  INFO      [W:SATyS_1] ── Iniciando folio 182507 ──
+17:19:42  INFO      [CONC] [2/19] ✓ Folio 182501 completado: 0 OK / 1 total
+17:19:43  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:20:06  INFO      [W:SATyS_1] Sesión activa (folio 182507)
+17:20:06  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:20:09  WARNING   [WARN] Folio 182500 no encontrado en columna 'Memo / Folio OPC'
+17:20:11  INFO      [W:SATyS_0] ── Folio 182500 OK (0/1 archivos) ──
+17:20:11  INFO      [W:SATyS_0] ── Iniciando folio 182508 ──
+17:20:11  INFO      [CONC] [3/19] ✓ Folio 182500 completado: 0 OK / 1 total
+17:20:12  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:20:14  INFO      [OK] Tablero de Control cargado
+17:20:15  INFO      [W:SATyS_0] Sesión activa (folio 182508)
+17:20:15  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:20:18  WARNING   [WARN] Folio 182503 no encontrado en columna 'Memo / Folio OPC'
+17:20:19  INFO      [W:SATyS_3] ── Folio 182503 OK (0/1 archivos) ──
+17:20:19  INFO      [W:SATyS_3] ── Iniciando folio 182511 ──
+17:20:19  INFO      [CONC] [4/19] ✓ Folio 182503 completado: 0 OK / 1 total
+17:20:20  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:20:26  INFO      [W:SATyS_4] Sesión activa (folio 182506)
+17:20:26  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:20:27  WARNING   [WARN] Folio 182507 no encontrado en columna 'Memo / Folio OPC'
+17:20:29  WARNING   [WARN] Folio 182502 no encontrado en columna 'Memo / Folio OPC'
+17:20:30  INFO      [W:SATyS_1] ── Folio 182507 OK (0/1 archivos) ──
+17:20:30  INFO      [W:SATyS_2] ── Folio 182502 OK (0/1 archivos) ──
+17:20:30  INFO      [W:SATyS_2] ── Iniciando folio 182512 ──
+17:20:30  INFO      [W:SATyS_1] ── Iniciando folio 182513 ──
+17:20:30  INFO      [CONC] [5/19] ✓ Folio 182502 completado: 0 OK / 1 total
+17:20:30  INFO      [CONC] [6/19] ✓ Folio 182507 completado: 0 OK / 1 total
+17:20:31  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:20:31  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:20:33  INFO      [OK] Tablero de Control cargado
+17:20:34  INFO      [W:SATyS_3] Sesión activa (folio 182511)
+17:20:34  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:20:36  INFO      [OK] Tablero de Control cargado
+17:20:38  WARNING   [WARN] Folio 182505 no encontrado en columna 'Memo / Folio OPC'
+17:20:38  INFO      [W:SATyS_1] Sesión activa (folio 182513)
+17:20:38  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:20:39  WARNING   [WARN] Folio 182508 no encontrado en columna 'Memo / Folio OPC'
+17:20:40  INFO      [W:SATyS_0] ── Folio 182508 OK (0/1 archivos) ──
+17:20:40  INFO      [W:SATyS_0] ── Iniciando folio 182514 ──
+17:20:40  INFO      [CONC] [7/19] ✓ Folio 182508 completado: 0 OK / 1 total
+17:20:40  INFO      [W:SATyS_5] ── Folio 182505 OK (0/1 archivos) ──
+17:20:40  INFO      [W:SATyS_5] ── Iniciando folio 182515 ──
+17:20:40  INFO      [CONC] [8/19] ✓ Folio 182505 completado: 0 OK / 1 total
+17:20:41  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:20:41  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:20:45  INFO      [W:SATyS_2] Sesión activa (folio 182512)
+17:20:45  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:20:46  INFO      [OK] Tablero de Control cargado
+17:20:46  INFO      [OK] Tablero de Control cargado
+17:20:50  WARNING   [WARN] Folio 182506 no encontrado en columna 'Memo / Folio OPC'
+17:20:52  INFO      [W:SATyS_4] ── Folio 182506 OK (0/1 archivos) ──
+17:20:52  INFO      [W:SATyS_4] ── Iniciando folio 182516 ──
+17:20:52  INFO      [CONC] [9/19] ✓ Folio 182506 completado: 0 OK / 1 total
+17:20:53  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:20:55  INFO      [OK] Tablero de Control cargado
+17:21:00  INFO      [W:SATyS_5] Sesión activa (folio 182515)
+17:21:00  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:21:02  WARNING   [WARN] Folio 182511 no encontrado en columna 'Memo / Folio OPC'
+17:21:04  INFO      [W:SATyS_3] ── Folio 182511 OK (0/1 archivos) ──
+17:21:04  INFO      [W:SATyS_3] ── Iniciando folio 182517 ──
+17:21:04  INFO      [CONC] [10/19] ✓ Folio 182511 completado: 0 OK / 1 total
+17:21:05  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:21:08  WARNING   [WARN] Folio 182513 no encontrado en columna 'Memo / Folio OPC'
+17:21:09  INFO      [W:SATyS_1] ── Folio 182513 OK (0/1 archivos) ──
+17:21:09  INFO      [W:SATyS_1] ── Iniciando folio 182518 ──
+17:21:09  INFO      [CONC] [11/19] ✓ Folio 182513 completado: 0 OK / 1 total
+17:21:10  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:21:12  INFO      [W:SATyS_4] Sesión activa (folio 182516)
+17:21:12  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:21:21  INFO      [OK] Tablero de Control cargado
+17:21:23  INFO      [W:SATyS_3] Sesión activa (folio 182517)
+17:21:23  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:21:23  INFO      [W:SATyS_1] Sesión activa (folio 182518)
+17:21:23  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:21:23  INFO      [W:SATyS_0] Sesión activa (folio 182514)
+17:21:23  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:21:27  WARNING   [WARN] Folio 182512 no encontrado en columna 'Memo / Folio OPC'
+17:21:29  INFO      [W:SATyS_2] ── Folio 182512 OK (0/1 archivos) ──
+17:21:29  INFO      [W:SATyS_2] ── Iniciando folio 182519 ──
+17:21:29  INFO      [CONC] [12/19] ✓ Folio 182512 completado: 0 OK / 1 total
+17:21:30  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:21:30  INFO      [OK] Tablero de Control cargado
+17:21:31  INFO      [OK] Tablero de Control cargado
+17:21:35  WARNING   [WARN] Folio 182515 no encontrado en columna 'Memo / Folio OPC'
+17:21:36  INFO      [W:SATyS_5] ── Folio 182515 OK (0/1 archivos) ──
+17:21:36  INFO      [W:SATyS_5] ── Iniciando folio 182520 ──
+17:21:36  INFO      [CONC] [13/19] ✓ Folio 182515 completado: 0 OK / 1 total
+17:21:37  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:21:45  WARNING   [WARN] Folio 182514 no encontrado en columna 'Memo / Folio OPC'
+17:21:47  INFO      [W:SATyS_0] ── Folio 182514 OK (0/1 archivos) ──
+17:21:47  INFO      [CONC] [14/19] ✓ Folio 182514 completado: 0 OK / 1 total
+17:21:51  INFO      [OK] Tablero de Control cargado
+17:21:54  INFO      [W:SATyS_2] Sesión activa (folio 182519)
+17:21:54  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:21:54  INFO      [OK] Tablero de Control cargado
+17:21:55  WARNING   [WARN] Folio 182516 no encontrado en columna 'Memo / Folio OPC'
+17:21:57  INFO      [W:SATyS_4] ── Folio 182516 OK (0/1 archivos) ──
+17:21:57  INFO      [CONC] [15/19] ✓ Folio 182516 completado: 0 OK / 1 total
+17:21:58  INFO      [W:SATyS_5] Sesión activa (folio 182520)
+17:21:58  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:21:59  WARNING   [WARN] Folio 182518 no encontrado en columna 'Memo / Folio OPC'
+17:22:00  INFO      [W:SATyS_1] ── Folio 182518 OK (0/1 archivos) ──
+17:22:00  INFO      [CONC] [16/19] ✓ Folio 182518 completado: 0 OK / 1 total
+17:22:02  INFO      [OK] Tablero de Control cargado
+17:22:07  INFO      [OK] Tablero de Control cargado
+17:22:10  WARNING   [WARN] Folio 182517 no encontrado en columna 'Memo / Folio OPC'
+17:22:11  WARNING   [WARN] Folio 182519 no encontrado en columna 'Memo / Folio OPC'
+17:22:12  INFO      [W:SATyS_3] ── Folio 182517 OK (0/1 archivos) ──
+17:22:12  INFO      [W:SATyS_2] ── Folio 182519 OK (0/1 archivos) ──
+17:22:12  INFO      [CONC] [17/19] ✓ Folio 182517 completado: 0 OK / 1 total
+17:22:12  INFO      [CONC] [18/19] ✓ Folio 182519 completado: 0 OK / 1 total
+17:22:35  WARNING   [WARN] Folio 182520 no encontrado en columna 'Memo / Folio OPC'
+17:22:37  INFO      [W:SATyS_5] ── Folio 182520 OK (0/1 archivos) ──
+17:22:37  INFO      [CONC] [19/19] ✓ Folio 182520 completado: 0 OK / 1 total
+17:22:37  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+17:22:37  INFO      [RESUMEN] resumen_global.json: 21 folios | 2 Exitosos | 0 Incompletos | 19 No encontrados
+17:56:04  INFO      [LIST] Folios a procesar (1): 182510
+17:56:04  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+17:56:05  INFO      [SESION] Probando sesion guardada...
+17:56:07  INFO      [OK] Sesion activa recuperada con exito.
+17:56:07  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:56:10  INFO      [OK] Tablero de Control cargado
+17:56:11  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+17:56:11  INFO      [MAIN] 1 folio(s) pendientes | 0 ya completados (SKIP)
+17:56:11  INFO      [MAIN] ── FASE 2: Lanzando 1 worker(s) para 1 folio(s) ──
+17:56:11  INFO      [W:SATyS_0] ── Iniciando folio 182510 ──
+17:56:12  INFO      [API] Discovery activo: debug\api_log.jsonl
+17:56:12  INFO      [W:SATyS_0] Sesión activa (folio 182510)
+17:56:12  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:56:16  INFO      [OK] Tablero de Control cargado
+17:56:21  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+17:56:21  INFO      [VIEW] Abriendo detalle: registro=CRT26-025230, folio=182510
+17:56:31  INFO      [OK] Detalle cargado: registro=CRT26-025230
+17:56:31  INFO      [WEB] Extrayendo metadatos web de SATyS para folio 182510
+17:56:37  INFO      [WEB] Metadatos guardados OK: Rep='NARCISO VALLE CRUZ', Ope='VALLE TV', Asunto='Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios'
+17:56:37  INFO      [FILES] Descargando archivos del folio 182510...
+17:56:50  INFO      [INFO] Seccion 'ARCHIVOS ASOCIADOS' no existe en folio 182510 -- activar fallback
+17:56:51  INFO      [FUENTE] Sin ARCHIVOS ASOCIADOS -- activando flujo DOCUMENTOS ANEXOS para folio 182510
+17:56:51  INFO      [ALT] Iniciando flujo DOCUMENTOS ANEXOS para folio 182510 (raw=182510)
+17:56:51  INFO      [ALT-NAV] Navegando a Tramites Nuevos...
+17:56:55  INFO      [ALT-NAV] Tramites Nuevos cargado OK
+17:56:55  INFO      [ALT-SEARCH] Buscando folio 182510 en Tramites Nuevos...
+17:57:02  INFO      [ALT-SEARCH] Folio 182510 encontrado en Tramites Nuevos
+17:57:02  INFO      [ALT-REVISAR] Abriendo detalle del tramite 182510...
+17:57:04  INFO      [ALT-REVISAR] Detalle del tramite cargado OK
+17:57:04  INFO      [ALT-META] Extrayendo metadatos de DATOS DEL TRAMITE para folio 182510
+17:57:22  INFO      [ALT-META] Metadatos guardados: {'tipo_tramite': 'CGPE-01-003-N: Entrega periódica de Información General Estadística N. Sobre el Servicio Minorista Fijo de Televisión y/o Audio Restringidos', 'fecha_registro': '16/06/2026', 'solicitante': '', 'nombre_operador': 'NARCISO VALLE CRUZ', 'representante_legal': 'VALLE TV, S.A. DE C.V.', 'asunto': '', 'descripcion': '', 'folio': '182510'}
+17:57:22  INFO      [ALT-DL] Descargando DOCUMENTOS ANEXOS para folio 182510
+17:57:24  INFO      [ALT-DL] Seccion DOCUMENTOS ANEXOS localizada: text=DOCUMENTOS ANEXOS
+17:57:25  INFO      [ALT-DL] DOCUMENTOS ANEXOS: Mostrando 1 a 3 de 3
+17:57:26  WARNING   [ALT-DL] 6 botones > 3 esperados -- usando solo los primeros 3
+17:57:26  INFO      [ALT-DL] Pagina 1: 3 botones VER DOCUMENTO
+17:57:26  INFO        [1] nombre=documento_182510_1  tipo=  fecha=
+17:57:26  INFO        [OK] 17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf  (211.1 KB)
+17:57:26  INFO        [2] nombre=documento_182510_2  tipo=  fecha=
+17:57:27  INFO        [OK] 17816591373093r024-01.csv  (0.1 KB)
+17:57:27  INFO        [3] nombre=documento_182510_3  tipo=  fecha=
+17:57:27  INFO        [OK] solicitud182510.pdf  (297.6 KB)
+17:57:27  INFO      [ALT-DL] Paginacion: mostrando 1 a 3 de 3
+17:57:27  INFO      [ALT-DL] VALIDACION OK: 3/3 documentos descargados
+17:57:27  INFO      [META] metadata_satys.json actualizado con datos de tramite nuevo para folio 182510
+17:57:27  INFO      [META] metadata_completo.json: fuente=DOCUMENTOS_ANEXOS  ok=3/3  estado=OK
+17:57:27  INFO      [BACK] Regresando al tablero...
+17:57:30  INFO      [BACK] Re-navegando al tablero...
+17:57:30  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+17:57:34  INFO      [OK] Tablero de Control cargado
+17:57:40  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+17:57:40  INFO      [OK] Folio 182510: 1 tramite(s) procesado(s), registros: CRT26-025230
+17:57:41  INFO      [W:SATyS_0] ── Folio 182510 OK (3/3 archivos) ──
+17:57:41  INFO      [CONC] [1/1] ✓ Folio 182510 completado: 3 OK / 3 total
+17:57:41  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+17:57:41  INFO      [RESUMEN] resumen_global.json: 1 folios | 1 Exitosos | 0 Incompletos | 0 No encontrados
