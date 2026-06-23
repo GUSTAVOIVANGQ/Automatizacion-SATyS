@@ -1,17 +1,59 @@
 {
-  "fecha": "2026-06-22T18:07:51.812435",
-  "total_folios": 1,
-  "folios_exitosos": 1,
+  "fecha": "2026-06-23T12:04:39.217572",
+  "total_folios": 7,
+  "folios_exitosos": 4,
   "folios_incompletos": 0,
-  "folios_no_encontrados": 0,
-  "total_archivos_descargados": 2,
+  "folios_no_encontrados": 3,
+  "total_archivos_descargados": 10,
   "detalle_folios": [
     {
-      "folio": "16438",
+      "folio": "182510",
+      "archivos_ok": 3,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\182510"
+    },
+    {
+      "folio": "182509",
+      "archivos_ok": 3,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\182509"
+    },
+    {
+      "folio": "7478",
       "archivos_ok": 2,
       "archivos_error": 0,
       "estado": "OK",
-      "carpeta": "descargas\\16438"
+      "carpeta": "descargas\\7478"
+    },
+    {
+      "folio": "2038",
+      "archivos_ok": 2,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\2038"
+    },
+    {
+      "folio": "182517",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "NO_ENCONTRADO",
+      "carpeta": "descargas\\182517"
+    },
+    {
+      "folio": "182518",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "NO_ENCONTRADO",
+      "carpeta": "descargas\\182518"
+    },
+    {
+      "folio": "182511",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "NO_ENCONTRADO",
+      "carpeta": "descargas\\182511"
     }
   ]
 }

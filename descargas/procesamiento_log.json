@@ -1,21 +1,31 @@
 {
-  "fecha_ejecucion": "2026-06-22T16:37:35.356465",
+  "fecha_ejecucion": "2026-06-23T12:04:48.787758",
   "modo_extraccion": "azure",
   "total_folios": 7,
-  "total_exitosos": 3,
+  "total_exitosos": 4,
   "resultados": [
     {
       "folio": "182510",
-      "pdf_encontrado": false,
-      "nombre_operador": null,
-      "representante_legal": null,
+      "pdf_encontrado": true,
+      "nombre_operador": "VALLE TV, S.A. DE C.V.",
+      "representante_legal": "NARCISO VALLE CRUZ",
       "formatos": {},
       "imagen_sello": null,
-      "fecha_sello": null,
-      "rpc_ok": false,
-      "excel_ok": false,
-      "organizado_ok": false,
-      "modo_extraccion": null
+      "fecha_sello": "16/06/2026",
+      "rpc_ok": true,
+      "excel_ok": true,
+      "organizado_ok": true,
+      "modo_extraccion": "lectura_json",
+      "rpc_resultado": {
+        "nombre_completo": "VALLE TV, S.A. DE C.V.",
+        "numero_rpc": "514855",
+        "idBp": "514855",
+        "ruta": "514855_valle_tv_s_a_de_c_v\\01 EN\\VE",
+        "score": 1.0,
+        "ok": true,
+        "empate": false,
+        "metodo": "id_exacto"
+      }
     },
     {
       "folio": "182509",
@@ -36,7 +46,8 @@
         "ruta": "514855_valle_tv_s_a_de_c_v\\01 EN\\VE",
         "score": 1.0,
         "ok": true,
-        "empate": false
+        "empate": false,
+        "metodo": "id_exacto"
       }
     },
     {
@@ -99,7 +110,8 @@
         "ruta": "520668_rosa_elena_delgado_almaraz\\01 EN\\VE",
         "score": 1.0,
         "ok": true,
-        "empate": false
+        "empate": false,
+        "metodo": "id_exacto"
       }
     },
     {
@@ -115,10 +127,10 @@
       "organizado_ok": false,
       "modo_extraccion": "lectura_json",
       "archivos_pendientes": [
-        "MEMORANDUM.pdf",
-        "metadata_completo.json",
-        "metadata_satys.json"
-      ]
+        "103980.png",
+        "MEMORANDUM.pdf"
+      ],
+      "sin_operador_dir": "output\\_sin_operador\\2038"
     }
   ]
 }

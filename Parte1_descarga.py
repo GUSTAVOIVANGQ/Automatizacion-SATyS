@@ -796,7 +796,9 @@ def extraer_metadatos_satys(page, folio: str, carpeta: Path, registro_esperado: 
     log.info("[WEB] Extrayendo metadatos web de SATyS para folio %s", folio)
     metadatos = {
         "representante_legal": None,
+        "id_representante_legal": None,
         "nombre_operador": None,
+        "id_solicitante": None,
         "asunto": None,
         "registro": None,
     }
@@ -898,51 +900,79 @@ def extraer_metadatos_satys(page, folio: str, carpeta: Path, registro_esperado: 
             remitentes.click()
             page.wait_for_timeout(1500)
             
-            # 2.1 Extraer Representante legal (de Tabla de representantes legales)
-            rep = page.evaluate('''() => {
-                let ths = Array.from(document.querySelectorAll('th'));
-                let th = ths.find(el => el.textContent && el.textContent.includes('Representante legal'));
-                if(th) {
-                    let table = th.closest('table');
-                    if(table && table.querySelector('tbody tr td')) {
-                        let cols = Array.from(table.querySelectorAll('thead th'));
-                        let idx = cols.indexOf(th);
-                        let firstRow = table.querySelector('tbody tr');
-                        if(firstRow) {
-                            let tds = firstRow.querySelectorAll('td');
-                            if(tds.length > idx) {
-                                return tds[idx].textContent.trim();
-                            }
-                        }
-                    }
-                }
-                return "";
-            }''')
-            if rep:
-                metadatos["representante_legal"] = rep
+            # 2.1 Extraer Representante legal e ID (de Tabla de representantes legales)
+            rep_nombre = ""
+            rep_id = ""
+            try:
+                tablas = page.locator("table")
+                for i in range(tablas.count()):
+                    tabla = tablas.nth(i)
+                    headers = tabla.locator("thead th")
+                    if headers.count() > 0:
+                        idx_nombre = -1
+                        idx_id = -1
+                        for j in range(headers.count()):
+                            texto = headers.nth(j).inner_text().strip().lower()
+                            if 'representante legal' in texto:
+                                idx_nombre = j
+                            elif 'id' == texto or 'id' in texto.split():
+                                idx_id = j
+                        
+                        if idx_nombre != -1:
+                            filas = tabla.locator("tbody tr")
+                            if filas.count() > 0:
+                                primera_fila = filas.first
+                                tds = primera_fila.locator("td")
+                                if tds.count() > 1 or (tds.count() == 1 and "dataTables_empty" not in (tds.first.get_attribute("class") or "")):
+                                    if tds.count() > idx_nombre:
+                                        rep_nombre = tds.nth(idx_nombre).inner_text().strip()
+                                    if idx_id != -1 and tds.count() > idx_id:
+                                        rep_id = tds.nth(idx_id).inner_text().strip()
+                            break
+            except Exception as e:
+                log.warning("Error extrayendo representante legal: %s", e)
+
+            if rep_nombre:
+                metadatos["representante_legal"] = rep_nombre
+            if rep_id:
+                metadatos["id_representante_legal"] = rep_id
                 
-            # 2.2 Extraer Nombre o razon social del Operador (Solicitante)
-            op = page.evaluate('''() => {
-                let ths = Array.from(document.querySelectorAll('th'));
-                let th = ths.find(el => el.textContent && el.textContent.includes('Solicitante'));
-                if(th) {
-                    let table = th.closest('table');
-                    if(table && table.querySelector('tbody tr td')) {
-                        let cols = Array.from(table.querySelectorAll('thead th'));
-                        let idx = cols.indexOf(th);
-                        let firstRow = table.querySelector('tbody tr');
-                        if(firstRow) {
-                            let tds = firstRow.querySelectorAll('td');
-                            if(tds.length > idx) {
-                                return tds[idx].textContent.trim();
-                            }
-                        }
-                    }
-                }
-                return "";
-            }''')
-            if op:
-                metadatos["nombre_operador"] = op
+            # 2.2 Extraer Nombre o razon social del Operador (Solicitante) e ID
+            op_nombre = ""
+            op_id = ""
+            try:
+                tablas = page.locator("table")
+                for i in range(tablas.count()):
+                    tabla = tablas.nth(i)
+                    headers = tabla.locator("thead th")
+                    if headers.count() > 0:
+                        idx_nombre = -1
+                        idx_id = -1
+                        for j in range(headers.count()):
+                            texto = headers.nth(j).inner_text().strip().lower()
+                            if 'solicitante' in texto:
+                                idx_nombre = j
+                            elif 'id' == texto or 'id' in texto.split():
+                                idx_id = j
+                        
+                        if idx_nombre != -1:
+                            filas = tabla.locator("tbody tr")
+                            if filas.count() > 0:
+                                primera_fila = filas.first
+                                tds = primera_fila.locator("td")
+                                if tds.count() > 1 or (tds.count() == 1 and "dataTables_empty" not in (tds.first.get_attribute("class") or "")):
+                                    if tds.count() > idx_nombre:
+                                        op_nombre = tds.nth(idx_nombre).inner_text().strip()
+                                    if idx_id != -1 and tds.count() > idx_id:
+                                        op_id = tds.nth(idx_id).inner_text().strip()
+                            break
+            except Exception as e:
+                log.warning("Error extrayendo solicitante: %s", e)
+
+            if op_nombre:
+                metadatos["nombre_operador"] = op_nombre
+            if op_id:
+                metadatos["id_solicitante"] = op_id
         except Exception as e:
             log.warning("[WEB] No se pudo extraer REMITENTE(S): %s", e)
             

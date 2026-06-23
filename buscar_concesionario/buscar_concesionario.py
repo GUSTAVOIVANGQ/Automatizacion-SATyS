@@ -324,6 +324,56 @@ def buscar_coincidencias(nombre_malo: str, catalogo: list, top_n: int = 5) -> li
 
 
 # ─────────────────────────────────────────────────────────────
+# BÚSQUEDA EXACTA POR ID OPERADOR (id_solicitante)
+# ─────────────────────────────────────────────────────────────
+
+def buscar_por_id_solicitante(id_solicitante: str, catalogo: list) -> dict | None:
+    """
+    Busca el concesionario comparando el id_solicitante del JSON con la
+    columna 'ID OPERADOR' (idBp) del catálogo Excel del RPC-IFT.
+
+    Esta función reemplaza la similitud fuzzy por nombre: es una comparación
+    exacta de IDs, por lo que el score resultante es siempre 1.0 (100%).
+
+    Parámetros
+    ----------
+    id_solicitante : str
+        Valor del campo 'id_solicitante' leído del metadata_satys.json.
+    catalogo : list
+        Lista de dicts preparada por preparar_catalogo_para_matching().
+        Cada elemento tiene al menos: idBp, concesionario, estatus, folio.
+
+    Retorna
+    -------
+    dict | None
+        Si se encontró: dict con claves compatibles con rpc_resultado
+        (nombre_completo, numero_rpc, idBp, score, ok).
+        Si no se encontró: None.
+    """
+    if not id_solicitante:
+        return None
+
+    id_buscar = str(id_solicitante).strip()
+
+    for item in catalogo:
+        id_catalogo = str(item.get("idBp", "")).strip()
+        if id_catalogo and id_catalogo == id_buscar:
+            return {
+                "nombre_completo": item.get("concesionario", ""),
+                "numero_rpc":      item.get("idBp", ""),
+                "idBp":            item.get("idBp", ""),
+                "estatus":         item.get("estatus", ""),
+                "folio_rpc":       item.get("folio", ""),
+                "score":           1.0,   # coincidencia exacta = 100%
+                "ok":              True,
+                "empate":          False,
+                "metodo":          "id_exacto",
+            }
+
+    return None
+
+
+# ─────────────────────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────────────────────
 

@@ -1,0 +1,30 @@
+# ──────────────────────────────
+# CARPETAS DE RESULTADOS Y TEMPORALES
+# ──────────────────────────────
+descargas/
+output/
+logs/
+debug/
+base_de_datos_rpc/
+
+# ──────────────────────────────
+# ARCHIVOS DE DEPURACIÓN Y CACHÉ
+# ──────────────────────────────
+*.html
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.vscode/
+
+# ──────────────────────────────
+# SESIONES Y RESPALDOS EXCEL
+# ──────────────────────────────
+sesion_guardada.json
+~$*.xlsx
+
+# NOTA: 
+# A petición tuya, el archivo .env NO está excluido y se subirá con las credenciales.
+# La carpeta python-3.11.9-embed-amd64/ tampoco está excluida, se subirá entera
+# para que el proyecto siga siendo "portable" al clonarlo.
+python-3.11.9-embed-amd64/

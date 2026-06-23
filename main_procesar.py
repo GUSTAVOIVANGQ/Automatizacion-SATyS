@@ -25,6 +25,7 @@ import os
 import json
 import logging
 import argparse
+import shutil
 from pathlib import Path
 from datetime import datetime
 
@@ -219,6 +220,7 @@ def procesar_folio(
     asunto = ""
     fecha_registro = ""
     registro_val = ""
+    id_solicitante = ""  # Campo clave para búsqueda exacta en RPC
 
     if meta_path.exists():
         try:
@@ -229,6 +231,7 @@ def procesar_folio(
                 asunto = meta.get("asunto", "")
                 fecha_registro = meta.get("fecha_registro", "")
                 registro_val = meta.get("registro", "")
+                id_solicitante = meta.get("id_solicitante", "")  # ID para lookup exacto
         except Exception as e:
             log.warning("⚠️  No se pudo leer metadatos de %s: %s", meta_path, e)
 
@@ -268,82 +271,131 @@ def procesar_folio(
 
     # ──── PARTE 3: Búsqueda RPC ────
     rpc_resultado = None
-    nombre_pdf = datos_pdf.get("nombre_operador")
-    nombre_web = datos_pdf.get("nombre_operador_web")
-    
-    nombres_a_probar = []
-    if nombre_web: nombres_a_probar.append((nombre_web, "Web"))
-    if nombre_pdf: nombres_a_probar.append((nombre_pdf, "PDF"))
+    origen_ganador = ""
+    nombre_original_usado = datos_pdf.get("nombre_operador", "")
 
-    if nombres_a_probar:
-        log.info("🌐 [PARTE 3] Buscando en RPC (comparando Web y PDF con CSV)...")
-        
-        es_catalogo_bc = bool(catalogo and "norm" in catalogo[0])
-        mejor_score = -1
-        mejor_match = None
-        origen_ganador = ""
-        nombre_original_usado = ""
-        
-        if es_catalogo_bc:
-            import buscar_concesionario as bc
-            mejor_score = -1
-            mejor_match = None
-            empate = False
-            for nom, origen in nombres_a_probar:
-                matches = bc.buscar_coincidencias(nom, catalogo, top_n=5)
-                if matches:
-                    score, best_match = matches[0]
-                    if score > mejor_score:
-                        mejor_score = score
-                        mejor_match = best_match
-                        origen_ganador = origen
-                        nombre_original_usado = nom
-                        
-                        # Revisar empate
-                        empate = False
-                        if len(matches) > 1 and matches[1][0] == score:
-                            id1 = best_match.get("idBp")
-                            for s2, m2 in matches[1:]:
-                                if s2 == score and m2.get("idBp") != id1:
-                                    empate = True
-                                    break
-                        
-            if mejor_match and mejor_score >= 0.80:  # SCORE_MINIMO
-                from Parte3_rpc import construir_ruta
+    es_catalogo_bc = bool(catalogo and "norm" in catalogo[0])
+
+    if es_catalogo_bc:
+        import buscar_concesionario as bc
+        from Parte3_rpc import construir_ruta
+
+        # ── MÉTODO PRIMARIO: Búsqueda exacta por id_solicitante ──────────────
+        # Compara el campo 'id_solicitante' del metadata_satys.json con la
+        # columna 'ID OPERADOR' (idBp) del Excel del RPC-IFT.
+        # Score = 1.0 (100%) cuando hay coincidencia exacta.
+        if id_solicitante:
+            log.info("🆔 [PARTE 3] Buscando por id_solicitante='%s' en catálogo RPC...", id_solicitante)
+            match_id = bc.buscar_por_id_solicitante(id_solicitante, catalogo)
+            if match_id:
                 rpc_resultado = {
-                    "nombre_completo": mejor_match["concesionario"],
-                    "numero_rpc": mejor_match.get("idBp", ""),
-                    "idBp": mejor_match.get("idBp", ""),
-                    "ruta": construir_ruta(mejor_match["concesionario"], mejor_match.get("idBp", "")),
-                    "score": mejor_score,
-                    "ok": not empate,
-                    "empate": empate
+                    "nombre_completo": match_id["nombre_completo"],
+                    "numero_rpc":      match_id["idBp"],
+                    "idBp":            match_id["idBp"],
+                    "ruta":            construir_ruta(match_id["nombre_completo"], match_id["idBp"]),
+                    "score":           1.0,
+                    "ok":              True,
+                    "empate":          False,
+                    "metodo":          "id_exacto",
                 }
+                origen_ganador = "ID"
+                log.info("✅ Coincidencia exacta por ID: %s", match_id["nombre_completo"][:60])
+            else:
+                log.warning("⚠️  id_solicitante='%s' NO encontrado en catálogo. Se intentará fuzzy por nombre.", id_solicitante)
         else:
-            # Fallback sin Excel
-            nom, origen_ganador = nombres_a_probar[0]
-            nombre_original_usado = nom
-            rpc_resultado = buscar_en_rpc(nom, catalogo=catalogo)
+            log.warning("⚠️  No hay id_solicitante en metadata. Se usará búsqueda fuzzy por nombre.")
 
-        if rpc_resultado and rpc_resultado.get("ok"):
-            resultado["rpc_ok"] = True
-            resultado["rpc_resultado"] = rpc_resultado
-            score_exactitud = rpc_resultado.get("score", 0) * 100
-            
-            log.info("✅ RPC: %s (score: %.0f%%)",
-                     rpc_resultado.get("nombre_completo", "")[:60],
-                     score_exactitud)
-                     
-            print(f"\n   🎯 PORCENTAJE DE EXACTITUD (Fuente {origen_ganador} vs CSV/Excel): {score_exactitud:.2f}%")
-            print(f"      Nombre extraído ({origen_ganador}) : {nombre_original_usado}")
-            print(f"      Nombre Oficial CSV      : {rpc_resultado['nombre_completo']}")
-            
-            # REEMPLAZAR EL NOMBRE DEL PDF POR EL DEL CSV (PARA EL EXCEL Y ORGANIZAR)
-            if score_exactitud >= 50.0:
-                resultado["nombre_operador"] = rpc_resultado["nombre_completo"]
-                log.info("🔧 Nombre actualizado al oficial del catálogo CSV.")
+        # ── FALLBACK: Similitud fuzzy por nombre (solo si ID falló) ──────────
+        # Se conserva el código de similitud anterior como respaldo.
+        # Se activa cuando:
+        #   - El JSON no tiene id_solicitante, O
+        #   - El id_solicitante no se encontró en el catálogo.
+        if rpc_resultado is None:
+            nombre_pdf = datos_pdf.get("nombre_operador")
+            nombre_web = datos_pdf.get("nombre_operador_web")
+            nombres_a_probar = []
+            if nombre_web: nombres_a_probar.append((nombre_web, "Web"))
+            if nombre_pdf and nombre_pdf != nombre_web: nombres_a_probar.append((nombre_pdf, "PDF"))
+
+            if nombres_a_probar:
+                log.info("🌐 [PARTE 3 - FALLBACK] Buscando por similitud de nombre...")
+                mejor_score = -1
+                mejor_match = None
+                empate = False
+                for nom, origen in nombres_a_probar:
+                    matches = bc.buscar_coincidencias(nom, catalogo, top_n=5)
+                    if matches:
+                        score, best_match = matches[0]
+                        if score > mejor_score:
+                            mejor_score = score
+                            mejor_match = best_match
+                            origen_ganador = origen
+                            nombre_original_usado = nom
+
+                            # Revisar empate de IDs distintos con el mismo score
+                            empate = False
+                            if len(matches) > 1 and matches[1][0] == score:
+                                id1 = best_match.get("idBp")
+                                for s2, m2 in matches[1:]:
+                                    if s2 == score and m2.get("idBp") != id1:
+                                        empate = True
+                                        break
+
+                SCORE_MINIMO_FUZZY = 0.80
+                if mejor_match and mejor_score >= SCORE_MINIMO_FUZZY:
+                    rpc_resultado = {
+                        "nombre_completo": mejor_match["concesionario"],
+                        "numero_rpc":      mejor_match.get("idBp", ""),
+                        "idBp":            mejor_match.get("idBp", ""),
+                        "ruta":            construir_ruta(mejor_match["concesionario"], mejor_match.get("idBp", "")),
+                        "score":           mejor_score,
+                        "ok":              not empate,
+                        "empate":          empate,
+                        "metodo":          "fuzzy_nombre",
+                    }
+                elif mejor_match:
+                    log.warning("⚠️  Mejor score fuzzy %.0f%% < mínimo %.0f%%. Sin coincidencia.",
+                                mejor_score * 100, SCORE_MINIMO_FUZZY * 100)
+            else:
+                log.warning("⚠️  Sin nombre de operador en PDF ni Web, se omite búsqueda RPC")
     else:
-        log.warning("⚠️  Sin nombre de operador en PDF ni Web, se omite búsqueda RPC")
+        # Catálogo sin 'norm' → usar Parte3_rpc directamente (sin Excel)
+        nombre_pdf = datos_pdf.get("nombre_operador", "")
+        origen_ganador = "API"
+        nombre_original_usado = nombre_pdf
+        if nombre_pdf:
+            rpc_resultado = buscar_en_rpc(nombre_pdf, catalogo=catalogo)
+
+    # ── Reporte de resultado RPC ─────────────────────────────────────────────
+    if rpc_resultado and rpc_resultado.get("ok"):
+        resultado["rpc_ok"] = True
+        resultado["rpc_resultado"] = rpc_resultado
+        score_exactitud = rpc_resultado.get("score", 0) * 100
+        metodo = rpc_resultado.get("metodo", "")
+        etiqueta_metodo = "ID exacto" if metodo == "id_exacto" else f"Fuzzy ({origen_ganador})"
+
+        log.info("✅ RPC [%s]: %s (exactitud: %.0f%%)",
+                 etiqueta_metodo,
+                 rpc_resultado.get("nombre_completo", "")[:60],
+                 score_exactitud)
+
+        print(f"\n   🎯 PORCENTAJE DE EXACTITUD ({etiqueta_metodo}): {score_exactitud:.2f}%")
+        if metodo == "id_exacto":
+            print(f"      id_solicitante usado    : {id_solicitante}")
+            print(f"      ID OPERADOR en catálogo : {rpc_resultado.get('idBp', '')}")
+        else:
+            print(f"      Nombre usado ({origen_ganador}) : {nombre_original_usado}")
+        print(f"      Nombre Oficial Catálogo  : {rpc_resultado['nombre_completo']}")
+
+        # Actualizar nombre_operador al nombre oficial del catálogo
+        resultado["nombre_operador"] = rpc_resultado["nombre_completo"]
+        log.info("🔧 Nombre actualizado al oficial del catálogo.")
+    elif rpc_resultado and not rpc_resultado.get("ok"):
+        # Hay resultado pero con empate u otro problema
+        resultado["rpc_resultado"] = rpc_resultado
+        score_exactitud = rpc_resultado.get("score", 0) * 100
+        log.warning("⚠️  RPC encontrado pero con problema (empate u otro): %.0f%%", score_exactitud)
+        print(f"\n   ⚠️  EXACTITUD: {score_exactitud:.2f}% — Revisión manual requerida")
 
     nombre_final = resultado.get("nombre_operador") or ""
 
@@ -372,12 +424,24 @@ def procesar_folio(
             if destino:
                 resultado["organizado_ok"] = True
         elif resultado["pdf_encontrado"]:
-            # Sin operador → dejar en descargas/, solo registrar para reporte final
-            archivos_pendientes = [
-                f.name for f in carpeta.iterdir()
-                if f.is_file() and f.suffix.lower() != ".png"
-            ]
-            resultado["archivos_pendientes"] = archivos_pendientes
+            # Sin operador o coincidencia insuficiente → copiar carpeta a output\_sin_operador\{folio}
+            sin_op_dir = OUTPUT_BASE / "_sin_operador" / folio
+            sin_op_dir.mkdir(parents=True, exist_ok=True)
+            archivos_copiados = []
+            for archivo in carpeta.iterdir():
+                if archivo.is_file() and archivo.suffix.lower() != ".json":
+                    try:
+                        shutil.copy2(archivo, sin_op_dir / archivo.name)
+                        archivos_copiados.append(archivo.name)
+                    except Exception as e_copy:
+                        log.warning("⚠️  No se pudo copiar %s: %s", archivo.name, e_copy)
+            resultado["archivos_pendientes"] = archivos_copiados
+            resultado["sin_operador_dir"] = str(sin_op_dir)
+            if archivos_copiados:
+                log.info("📂 Folio %s copiado a: %s (%d archivos)",
+                         folio, sin_op_dir, len(archivos_copiados))
+            else:
+                log.warning("⚠️  Folio %s: no se copiaron archivos a _sin_operador", folio)
 
     return resultado
 
@@ -577,7 +641,27 @@ Ejemplos:
     try:
         sys.path.append(os.path.join(str(_script_dir), "buscar_concesionario"))
         import buscar_concesionario as bc
-        excel_path_full = Path(_script_dir) / "buscar_concesionario" / "Area _de_descargas" / "03_concesiones_permisos_autorizaciones_250326.xlsx"
+        from descargar_concesiones_rpc import descargar_bd
+        
+        bd_dir = Path(_script_dir) / "base_de_datos_rpc"
+        bd_dir.mkdir(exist_ok=True)
+        
+        log.info("⬇️  Verificando/Descargando la base de datos más reciente...")
+        # Capturamos la salida estándar para que no ensucie demasiado el log de main_procesar, o simplemente la dejamos
+        descargado_path = descargar_bd(str(bd_dir))
+        
+        if descargado_path:
+            excel_path_full = Path(descargado_path)
+        else:
+            # Fallback a buscar el xlsx más reciente en la carpeta si falló la descarga
+            archivos_xlsx = list(bd_dir.glob("03_concesiones_permisos_autorizaciones_*.xlsx"))
+            if archivos_xlsx:
+                # Ordenar por fecha de modificación (el más reciente primero) o por nombre
+                excel_path_full = sorted(archivos_xlsx, key=lambda p: p.stat().st_mtime, reverse=True)[0]
+                log.info("Usando archivo existente (offline fallback): %s", excel_path_full.name)
+            else:
+                # Fallback final a la antigua carpeta si base_de_datos_rpc está vacío
+                excel_path_full = Path(_script_dir) / "buscar_concesionario" / "Area _de_descargas" / "03_concesiones_permisos_autorizaciones_250326.xlsx"
         
         if excel_path_full.exists():
             cat_excel = bc.cargar_catalogo_desde_excel(str(excel_path_full), "copeau", solo_vigentes=False)

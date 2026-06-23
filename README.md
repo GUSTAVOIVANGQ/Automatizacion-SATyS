@@ -23,15 +23,7 @@ Automatización completa del flujo de trabajo para la descarga, procesamiento y 
 │  ├── Descarga de archivos asociados                         │
 │  └── Organización en /descargas/<folio>/                    │
 │                                                              │
-│  PARTE 2 — EXTRACCIÓN DE DATOS PDF                          │
-│  ├── Localización del archivo PDF en carpeta                │
-│  ├── Extracción de texto con pdfplumber                     │
-│  ├── Identificación de:                                     │
-│  │   ├── Nombre o razón social del Operador                 │
-│  │   ├── Representante Legal                                │
-│  │   └── Formatos marcados con "X" (R001-R027)              │
-│  └── Corrección de errores OCR con fuzzywuzzy               │
-│                                                              │
+
 │  PARTE 3 — BÚSQUEDA EN RPC                                  │
 │  ├── Consulta en https://rpc.ift.org.mx/vrpc/               │
 │  ├── Búsqueda por nombre del operador                       │
@@ -43,7 +35,16 @@ Automatización completa del flujo de trabajo para la descarga, procesamiento y 
 │  ├── Inserción de datos extraídos                           │
 │  ├── Marcado de formatos (1 en columna correspondiente)     │
 │  └── Registro de tipos de archivo descargados               │
-│                                                              │
+│                                                             │
+│  PARTE 2 — EXTRACCIÓN DE DATOS PDF (No implementado)        │
+│  ├── Localización del archivo PDF en carpeta                │
+│  ├── Extracción de texto con pdfplumber                     │
+│  ├── Identificación de:                                     │
+│  │   ├── Nombre o razón social del Operador                 │
+│  │   ├── Representante Legal                                │
+│  │   └── Formatos marcados con "X" (R001-R027)              │
+│  └── Corrección de errores OCR con fuzzywuzzy               │
+│                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
