@@ -1,0 +1,336 @@
+H4:  Visualización del documento / Enlace Oficialía de Partes
+B: 
+LABEL: 
+LABEL: 
+DIV: 
+            
+                
+                    
+                    Crear tramite
+                
+            
+        
+LABEL: Folio Origen:
+LABEL: Folio Origen:
+LABEL: Folio:
+LABEL: Trámite: *
+B: 
+LABEL: 
+LABEL: 
+LABEL: Sub Trámite:
+B: 
+LABEL: 
+LABEL: 
+LABEL: Descripción trámite interno:
+LABEL: Concesionario SIGEDO:
+LABEL: Concesionario:
+B: 
+LABEL: 
+LABEL: 
+LABEL: Promovente: *
+B: 
+LABEL: 
+LABEL: 
+LABEL: Fecha de recepción:
+LABEL: Plazo de atención al trámite: *
+LABEL: Origen:
+LABEL: CRT:
+LABEL: Info. adicional:
+DIV: 
+            
+                
+                    
+                    Unir a un trámite
+                
+            
+        
+LABEL: Seleccione la solicitud a la cual se unirá: 
+B: 
+LABEL: 
+LABEL: 
+DIV: 
+                        
+                            
+                                
+                                Re Turnar Solicitud
+                            
+                        
+                    
+DIV: 
+                                             Unidad de Destino
+                                        
+LABEL: ¿Misma unidad administrativa?
+LABEL: 
+                                                        Si No
+                                                    
+LABEL: Unidad Administrativa *
+B: 
+LABEL: 
+LABEL: 
+LABEL: Seleccionar área de Dirección Ejecutiva
+B: 
+LABEL: 
+LABEL: 
+LABEL: Seleccionar persona a turnar *
+LABEL: 
+LABEL: Plazo de atención
+LABEL: ¿Copia a conocimiento? *
+LABEL: 
+                                                                Si No
+                                                            
+LABEL: Requerimiento *
+DIV: 
+                        
+                            
+                                
+                                ACCIONES DE CIERRE DE TRÁMITE
+                            
+                        
+                    
+DIV: 
+                    
+                        
+                            
+                            Toma de nota
+                        
+                    
+                
+LABEL: Comentarios: *
+LABEL: Unidad Administrativa 
+B: 
+LABEL: 
+LABEL: 
+LABEL: Turnar Copia a: 
+LABEL: 
+DIV: 
+                    
+                        
+                            
+                            Atender Documento
+                        
+                    
+                
+LABEL: Número de expediente: 
+LABEL: Palabras clave: 
+LABEL: Prioridad: 
+LABEL: Comentarios: *
+LABEL: Unidad Administrativa 
+B: 
+LABEL: 
+LABEL: 
+LABEL: Turnar Copia a: 
+LABEL: 
+LABEL:  
+                                                    
+                                                    
+                                                
+DIV: 
+                                                    Tabla de archivos
+                                                
+LABEL: Mostrar 102550100 trámites
+LABEL: Buscar:
+DIV: 
+                    
+                        
+                            
+                            DEVOLUCIÓN DEL TRÁMITE
+                        
+                    
+                
+LABEL: Motivo: *
+B: 
+LABEL: 
+LABEL: 
+LABEL: Comentarios: *
+DIV: 
+                                        
+                                            
+                                                
+                                                DATOS DEL SISTEMA
+                                            
+                                        
+                                    
+LABEL: Registro
+LABEL: Fecha de registro
+LABEL: Capturista
+LABEL: Estado
+DIV: 
+                                        
+                                            
+                                                
+                                                DATOS DEL DOCUMENTO
+                                            
+                                        
+                                    
+LABEL: Folio OPC *
+LABEL: Fecha de folio OPC
+LABEL: Mensajería
+B: 
+LABEL: Mensajería
+LABEL: Mensajería
+LABEL: No. de guía
+LABEL: No. del documento
+LABEL: Fecha del documento
+LABEL: Número de anexos
+LABEL: USB
+LABEL: CD/DVD
+LABEL: Imágenes
+LABEL: Otros dispositivos
+LABEL: Observaciones
+DIV: 
+                                                    
+                                                        
+                                                            
+                                                            REMITENTE(S)
+                                                        
+                                                    
+                                                
+DIV: 
+                                                                Tabla de representantes legales
+                                                            
+LABEL: Mostrar 102550100 trámites
+LABEL: Buscar:
+DIV: 
+                                                                Representantes Legales de Migración (Origen)
+                                                            
+DIV: 
+                                                                Tabla de remitentes solicitantes
+                                                            
+LABEL: Mostrar 102550100 trámites
+LABEL: Buscar:
+DIV: 
+                                                                Remitentes Solicitantes de Migración (Origen)
+                                                            
+DIV: 
+                                        
+                                            
+                                                
+                                                DESCRIPCIÓN DEL DOCUMENTO
+                                            
+                                        
+                                    
+LABEL: Tipo Trámite
+B: 
+LABEL: 
+LABEL: 
+LABEL: Asunto
+DIV: 
+                                        
+                                            
+                                                
+                                                HISTORIAL DE TURNADOS
+                                            
+                                        
+                                    
+LABEL: Mostrar 102550100 trámites
+LABEL: Buscar:
+DIV: 
+                                        
+                                            
+                                                
+                                                ARCHIVOS ASOCIADOS
+                                            
+                                        
+                                    
+LABEL: Mostrar 102550100 trámites
+LABEL: Buscar:
+DIV: 
+                                        
+                                            
+                                                
+                                                BITÁCORAS
+                                            
+                                        
+                                    
+LABEL: Mostrar 102550100 trámites
+LABEL: Buscar:
+DIV: 
+                        
+                            
+                                
+                                TOMAS DE NOTA Y ATENCIONES
+                            
+                        
+                    
+DIV: 
+                        
+                            
+                                
+                                TURNOS ATENDIDOS
+                            
+                        
+                    
+LABEL: Mostrar 102550100 trámites
+LABEL: Buscar:
+DIV: 
+                        
+                            
+                                
+                                TURNOS DEVUELTOS
+                            
+                        
+                    
+LABEL: Mostrar 102550100 trámites
+LABEL: Buscar:
+DIV: 
+                        
+                            
+                                
+                                ARCHIVOS DE OFICIALIA
+                            
+                        
+                    
+DIV: 
+                        
+                            
+                                
+                                TRÁMITES CREADOS
+                            
+                        
+                    
+DIV: 
+                        
+                            
+                                
+                                TRÁMITES RELACIONADOS
+                            
+                        
+                    
+DIV: 
+                        DATOS DEL TRÁMITE
+                        
+                            
+                                
+                            
+                        
+                    
+H5: DATOS DEL TRÁMITE
+LABEL: Folio:
+LABEL: 
+LABEL: Trámite:
+LABEL: Concesionario:
+LABEL: Promovente:
+LABEL: Fecha de recepción:
+LABEL: Plazo de atención al trámite:
+LABEL: Origen:
+LABEL: CRT:
+LABEL: Info. adicional:
+DIV: 
+                        DOCUMENTOS ANEXOS
+                        
+                            
+                                
+                            
+                        
+                    
+H5: DOCUMENTOS ANEXOS
+DIV: 
+                        Requerimientos/opiniones
+                        
+                            
+                                
+                            
+                        
+                    
+H5: Requerimientos/opiniones
+LABEL: Otros:

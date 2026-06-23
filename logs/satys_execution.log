@@ -15588,3 +15588,982 @@ Call log:
 14:07:18  INFO      [CONC] [7/7] ✓ Folio 7478 completado: 2 OK / 2 total
 14:07:18  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
 14:07:18  INFO      [RESUMEN] resumen_global.json: 7 folios | 4 Exitosos | 0 Incompletos | 3 No encontrados
+14:47:07  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+14:47:07  INFO      [LIST] Folios a procesar (1): 6404
+14:47:07  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+14:47:08  INFO      [SESION] Probando sesion guardada...
+14:47:09  INFO      [OK] Sesion activa recuperada con exito.
+14:47:09  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+14:47:13  INFO      [OK] Tablero de Control cargado
+14:47:14  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+14:47:14  INFO      [MAIN] 1 folio(s) pendientes | 0 ya completados (SKIP)
+14:47:14  INFO      [MAIN] ── FASE 2: Lanzando 1 worker(s) para 1 folio(s) ──
+14:47:14  INFO      [W:SATyS_0] ── Iniciando folio 6404 ──
+14:47:14  INFO      [API] Discovery activo: debug\api_log.jsonl
+14:47:16  INFO      [W:SATyS_0] Sesión activa (folio 6404)
+14:47:16  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+14:47:19  INFO      [OK] Tablero de Control cargado
+14:47:28  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+14:47:28  WARNING   [WARN] Folio 6404 no encontrado en columna 'Memo / Folio OPC'
+14:47:29  INFO      [W:SATyS_0] ── Folio 6404 OK (0/1 archivos) ──
+14:47:29  INFO      [CONC] [1/1] ✓ Folio 6404 completado: 0 OK / 1 total
+14:47:29  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+14:47:29  INFO      [RESUMEN] resumen_global.json: 1 folios | 0 Exitosos | 0 Incompletos | 1 No encontrados
+14:47:58  INFO      [LIST] Folios a procesar (1): 164045
+14:47:58  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+14:47:59  INFO      [SESION] Probando sesion guardada...
+14:48:01  INFO      [OK] Sesion activa recuperada con exito.
+14:48:01  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+14:48:04  INFO      [OK] Tablero de Control cargado
+14:48:05  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+14:48:05  INFO      [MAIN] 1 folio(s) pendientes | 0 ya completados (SKIP)
+14:48:05  INFO      [MAIN] ── FASE 2: Lanzando 1 worker(s) para 1 folio(s) ──
+14:48:05  INFO      [W:SATyS_0] ── Iniciando folio 164045 ──
+14:48:05  INFO      [API] Discovery activo: debug\api_log.jsonl
+14:48:18  INFO      [W:SATyS_0] Sesión activa (folio 164045)
+14:48:18  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+14:48:21  INFO      [OK] Tablero de Control cargado
+14:48:34  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+14:48:34  INFO      [VIEW] Abriendo detalle: registro=CRT26-012559, folio=164045
+14:48:36  INFO      [OK] Detalle cargado: registro=CRT26-012559
+14:48:36  INFO      [WEB] Extrayendo metadatos web de SATyS para folio 164045
+14:48:37  INFO      [WEB] Registro encontrado: CRT26-012559
+14:48:39  INFO      [WEB] Fecha de folio OPC extraída: 05-03-2026 17:01:36
+14:48:42  INFO      [WEB] Metadatos guardados OK: Rep='MARIA DE LOURDES VARGAS GARCIA', Ope='CUALLI TELECOMUNICACIONES', Asunto='Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios', Registro='CRT26-012559'
+14:48:42  INFO      [FILES] Descargando archivos del folio 164045...
+14:48:56  INFO      [INFO] Seccion 'ARCHIVOS ASOCIADOS' no existe en folio 164045 -- activar fallback
+14:48:56  INFO      [FUENTE] Sin ARCHIVOS ASOCIADOS -- activando flujo DOCUMENTOS ANEXOS para folio 164045
+14:48:56  INFO      [ALT] Iniciando flujo DOCUMENTOS ANEXOS para folio 164045 (raw=164045)
+14:48:56  INFO      [ALT-NAV] Navegando a Tramites Nuevos...
+14:49:04  INFO      [ALT-NAV] Tramites Nuevos cargado OK
+14:49:04  INFO      [ALT-SEARCH] Buscando folio 164045 en Tramites Nuevos...
+14:49:11  INFO      [ALT-SEARCH] Folio 164045 encontrado en Tramites Nuevos
+14:49:11  INFO      [ALT-REVISAR] Abriendo detalle del tramite 164045...
+14:49:13  INFO      [ALT-REVISAR] Detalle del tramite cargado OK
+14:49:13  INFO      [ALT-META] Extrayendo metadatos de DATOS DEL TRAMITE para folio 164045
+14:49:33  INFO      [ALT-META] Metadatos guardados: {'tipo_tramite': 'CGPE-01-008: Entrega periódica de Información General Estadística para efectos del Acervo Estadístico del Instituto Federal de Telecomunicaciones.', 'fecha_registro': '05/03/2026', 'solicitante': '', 'nombre_operador': 'CUALLI TELECOMUNICACIONES, S.A. DE C.V.', 'representante_legal': 'MARIA DE LOURDES VARGAS GARCIA', 'asunto': '', 'descripcion': '', 'registro': '', 'folio': '164045'}
+14:49:33  INFO      [ALT-DL] Descargando DOCUMENTOS ANEXOS para folio 164045
+14:49:36  INFO      [ALT-DL] Seccion DOCUMENTOS ANEXOS localizada: text=DOCUMENTOS ANEXOS
+14:49:37  INFO      [ALT-DL] DOCUMENTOS ANEXOS: Mostrando 1 a 3 de 3
+14:49:37  WARNING   [ALT-DL] 6 botones > 3 esperados -- usando solo los primeros 3
+14:49:37  INFO      [ALT-DL] Pagina 1: 3 botones VER DOCUMENTO
+14:49:38  INFO        [1] nombre=documento_164045_1  tipo=  fecha=
+14:49:38  INFO        [OK] 17727516537304r025-01.pdf  (76.6 KB)
+14:49:38  INFO        [2] nombre=documento_164045_2  tipo=  fecha=
+14:49:39  INFO        [OK] 17727516482533escritolibrer025cualli.pdf  (444.2 KB)
+14:49:39  INFO        [3] nombre=documento_164045_3  tipo=  fecha=
+14:49:39  INFO        [OK] solicitud164045.pdf  (172.8 KB)
+14:49:39  INFO      [ALT-DL] Paginacion: mostrando 1 a 3 de 3
+14:49:39  INFO      [ALT-DL] VALIDACION OK: 3/3 documentos descargados
+14:49:39  INFO      [META] metadata_satys.json actualizado con datos de tramite nuevo para folio 164045
+14:49:39  INFO      [META] metadata_completo.json: fuente=DOCUMENTOS_ANEXOS  ok=3/3  estado=OK
+14:49:39  INFO      [BACK] Regresando al tablero...
+14:49:43  INFO      [BACK] Re-navegando al tablero...
+14:49:43  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+14:49:46  INFO      [OK] Tablero de Control cargado
+14:49:51  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+14:49:51  INFO      [OK] Folio 164045: 1 tramite(s) procesado(s), registros: CRT26-012559
+14:49:53  INFO      [W:SATyS_0] ── Folio 164045 OK (3/3 archivos) ──
+14:49:53  INFO      [CONC] [1/1] ✓ Folio 164045 completado: 3 OK / 3 total
+14:49:53  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+14:49:53  INFO      [RESUMEN] resumen_global.json: 1 folios | 1 Exitosos | 0 Incompletos | 0 No encontrados
+14:57:02  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+14:57:02  INFO      [LIST] Folios a procesar (1): 182510
+14:57:02  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+14:57:03  INFO      [SESION] Probando sesion guardada...
+14:57:04  INFO      [OK] Sesion activa recuperada con exito.
+14:57:04  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+14:57:07  INFO      [OK] Tablero de Control cargado
+14:57:08  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+14:57:08  INFO      [SKIP] Folio 182510 ya descargado. Saltando...
+14:57:08  INFO      [MAIN] 0 folio(s) pendientes | 1 ya completados (SKIP)
+14:57:08  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+14:57:08  INFO      [RESUMEN] resumen_global.json: 1 folios | 1 Exitosos | 0 Incompletos | 0 No encontrados
+14:57:37  INFO      [LIST] Folios a procesar (1): 181793
+14:57:37  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+14:57:38  INFO      [SESION] Probando sesion guardada...
+14:57:39  INFO      [OK] Sesion activa recuperada con exito.
+14:57:39  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+14:57:42  INFO      [OK] Tablero de Control cargado
+14:57:42  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+14:57:42  INFO      [MAIN] 1 folio(s) pendientes | 0 ya completados (SKIP)
+14:57:42  INFO      [MAIN] ── FASE 2: Lanzando 1 worker(s) para 1 folio(s) ──
+14:57:42  INFO      [W:SATyS_0] ── Iniciando folio 181793 ──
+14:57:43  INFO      [API] Discovery activo: debug\api_log.jsonl
+14:57:52  INFO      [W:SATyS_0] Sesión activa (folio 181793)
+14:57:52  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+14:57:55  INFO      [OK] Tablero de Control cargado
+14:58:02  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+14:58:02  INFO      [VIEW] Abriendo detalle: registro=CRT26-024456, folio=181793
+14:58:05  INFO      [OK] Detalle cargado: registro=CRT26-024456
+14:58:05  INFO      [WEB] Extrayendo metadatos web de SATyS para folio 181793
+14:58:07  INFO      [WEB] Registro encontrado: CRT26-024456
+14:58:08  INFO      [WEB] Fecha de folio OPC extraída: 10-06-2026 14:20:54
+14:58:12  INFO      [WEB] Metadatos guardados OK: Rep='LINDA FABIOLA MONTOYA MARTÍNEZ', Ope='NUEVA RED INTERNET DE MÉXICO', Asunto='Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios', Registro='CRT26-024456'
+14:58:12  INFO      [FILES] Descargando archivos del folio 181793...
+14:58:25  INFO      [INFO] Seccion 'ARCHIVOS ASOCIADOS' no existe en folio 181793 -- activar fallback
+14:58:25  INFO      [FUENTE] Sin ARCHIVOS ASOCIADOS -- activando flujo DOCUMENTOS ANEXOS para folio 181793
+14:58:25  INFO      [ALT] Iniciando flujo DOCUMENTOS ANEXOS para folio 181793 (raw=181793)
+14:58:25  INFO      [ALT-NAV] Navegando a Tramites Nuevos...
+14:58:31  INFO      [ALT-NAV] Tramites Nuevos cargado OK
+14:58:31  INFO      [ALT-SEARCH] Buscando folio 181793 en Tramites Nuevos...
+14:58:38  INFO      [ALT-SEARCH] Folio 181793 encontrado en Tramites Nuevos
+14:58:38  INFO      [ALT-REVISAR] Abriendo detalle del tramite 181793...
+14:58:40  INFO      [ALT-REVISAR] Detalle del tramite cargado OK
+14:58:40  INFO      [ALT-META] Extrayendo metadatos de DATOS DEL TRAMITE para folio 181793
+14:59:18  INFO      [ALT-META] Metadatos guardados: {'tipo_tramite': 'CGPE-01-001: Solicitud de Registro inicial de los servicios de telecomunicaciones comercializados, para efectos del acervo estadístico del Instituto Federal de Telecomunicaciones', 'fecha_registro': '10/06/2026', 'solicitante': '', 'nombre_operador': 'NUEVA RED INTERNET DE MÉXICO, S. DE R.L. DE C.V.', 'representante_legal': 'LINDA FABIOLA MONTOYA MARTÍNEZ', 'asunto': 'PARA LA INTEGRACIÓN DEL ACERVO ESTADÍSTICO', 'descripcion': '', 'registro': '', 'folio': '181793'}
+14:59:18  INFO      [ALT-DL] Descargando DOCUMENTOS ANEXOS para folio 181793
+14:59:22  INFO      [ALT-DL] Seccion DOCUMENTOS ANEXOS localizada: text=DOCUMENTOS ANEXOS
+14:59:23  INFO      [ALT-DL] DOCUMENTOS ANEXOS: Mostrando 1 a 4 de 4
+14:59:23  WARNING   [ALT-DL] 7 botones > 4 esperados -- usando solo los primeros 4
+14:59:23  INFO      [ALT-DL] Pagina 1: 4 botones VER DOCUMENTO
+14:59:23  INFO        [1] nombre=documento_181793_1  tipo=  fecha=
+14:59:24  INFO        [OK] 17811227795770r002-03.xlsx  (9.1 KB)
+14:59:24  INFO        [2] nombre=documento_181793_2  tipo=  fecha=
+14:59:25  INFO        [OK] 17811227635011r002-02.xlsx  (9.0 KB)
+14:59:25  INFO        [3] nombre=documento_181793_3  tipo=  fecha=
+14:59:26  INFO        [OK] 17811227445466r002-01.xlsx  (9.0 KB)
+14:59:26  INFO        [4] nombre=documento_181793_4  tipo=  fecha=
+14:59:27  INFO        [OK] solicitud181793.pdf  (254.0 KB)
+14:59:27  INFO      [ALT-DL] Paginacion: mostrando 1 a 4 de 4
+14:59:27  INFO      [ALT-DL] VALIDACION OK: 4/4 documentos descargados
+14:59:27  INFO      [META] metadata_satys.json actualizado con datos de tramite nuevo para folio 181793
+14:59:27  INFO      [META] metadata_completo.json: fuente=DOCUMENTOS_ANEXOS  ok=4/4  estado=OK
+14:59:27  INFO      [BACK] Regresando al tablero...
+14:59:30  INFO      [BACK] Re-navegando al tablero...
+14:59:30  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+14:59:34  INFO      [OK] Tablero de Control cargado
+14:59:39  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+14:59:39  INFO      [OK] Folio 181793: 1 tramite(s) procesado(s), registros: CRT26-024456
+14:59:40  INFO      [W:SATyS_0] ── Folio 181793 OK (4/4 archivos) ──
+14:59:40  INFO      [CONC] [1/1] ✓ Folio 181793 completado: 4 OK / 4 total
+14:59:40  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+14:59:40  INFO      [RESUMEN] resumen_global.json: 1 folios | 1 Exitosos | 0 Incompletos | 0 No encontrados
+15:07:51  INFO      [LIST] Folios a procesar (1): 181791
+15:07:51  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+15:07:52  INFO      [SESION] Probando sesion guardada...
+15:07:53  INFO      [OK] Sesion activa recuperada con exito.
+15:07:53  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+15:07:56  INFO      [OK] Tablero de Control cargado
+15:07:56  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+15:07:56  INFO      [MAIN] 1 folio(s) pendientes | 0 ya completados (SKIP)
+15:07:56  INFO      [MAIN] ── FASE 2: Lanzando 1 worker(s) para 1 folio(s) ──
+15:07:56  INFO      [W:SATyS_0] ── Iniciando folio 181791 ──
+15:07:57  INFO      [API] Discovery activo: debug\api_log.jsonl
+15:07:58  INFO      [W:SATyS_0] Sesión activa (folio 181791)
+15:07:58  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+15:08:01  INFO      [OK] Tablero de Control cargado
+15:08:05  WARNING   [WARN] Folio 181791 no encontrado en columna 'Memo / Folio OPC'
+15:08:07  INFO      [W:SATyS_0] ── Folio 181791 OK (0/1 archivos) ──
+15:08:07  INFO      [CONC] [1/1] ✓ Folio 181791 completado: 0 OK / 1 total
+15:08:07  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+15:08:07  INFO      [RESUMEN] resumen_global.json: 1 folios | 0 Exitosos | 0 Incompletos | 1 No encontrados
+15:09:27  INFO      [LIST] Folios a procesar (1): 179746
+15:09:27  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+15:09:27  INFO      [SESION] Probando sesion guardada...
+15:09:28  INFO      [OK] Sesion activa recuperada con exito.
+15:09:28  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+15:09:31  INFO      [OK] Tablero de Control cargado
+15:09:32  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+15:09:32  INFO      [MAIN] 1 folio(s) pendientes | 0 ya completados (SKIP)
+15:09:32  INFO      [MAIN] ── FASE 2: Lanzando 1 worker(s) para 1 folio(s) ──
+15:09:32  INFO      [W:SATyS_0] ── Iniciando folio 179746 ──
+15:09:33  INFO      [API] Discovery activo: debug\api_log.jsonl
+15:09:39  INFO      [W:SATyS_0] Sesión activa (folio 179746)
+15:09:39  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+15:09:42  INFO      [OK] Tablero de Control cargado
+15:09:47  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+15:09:47  INFO      [VIEW] Abriendo detalle: registro=CRT26-022857, folio=179746
+15:09:53  INFO      [OK] Detalle cargado: registro=CRT26-022857
+15:09:53  INFO      [WEB] Extrayendo metadatos web de SATyS para folio 179746
+15:09:55  INFO      [WEB] Registro encontrado: CRT26-022857
+15:09:56  INFO      [WEB] Fecha de folio OPC extraída: 01-06-2026 11:17:25
+15:10:00  INFO      [WEB] Metadatos guardados OK: Rep='ALEJANDRO ACOSTA HERRERA', Ope='COMNET', Asunto='Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios', Registro='CRT26-022857'
+15:10:00  INFO      [FILES] Descargando archivos del folio 179746...
+15:10:13  INFO      [INFO] Seccion 'ARCHIVOS ASOCIADOS' no existe en folio 179746 -- activar fallback
+15:10:13  INFO      [FUENTE] Sin ARCHIVOS ASOCIADOS -- activando flujo DOCUMENTOS ANEXOS para folio 179746
+15:10:13  INFO      [ALT] Iniciando flujo DOCUMENTOS ANEXOS para folio 179746 (raw=179746)
+15:10:13  INFO      [ALT-NAV] Navegando a Tramites Nuevos...
+15:10:19  INFO      [ALT-NAV] Tramites Nuevos cargado OK
+15:10:19  INFO      [ALT-SEARCH] Buscando folio 179746 en Tramites Nuevos...
+15:10:26  INFO      [ALT-SEARCH] Folio 179746 encontrado en Tramites Nuevos
+15:10:26  INFO      [ALT-REVISAR] Abriendo detalle del tramite 179746...
+15:10:28  INFO      [ALT-REVISAR] Detalle del tramite cargado OK
+15:10:28  INFO      [ALT-META] Extrayendo metadatos de DATOS DEL TRAMITE para folio 179746
+15:11:01  INFO      [ALT-META] Metadatos guardados: {'tipo_tramite': 'CGPE-01-003-B: Entrega periódica de Información General Estadística B. Para Operador que no actualiza ninguno de los supuestos determinados por Servicio con base en su volumen de comercialización y/o provisión de servicios.', 'fecha_registro': '01/06/2026', 'solicitante': '', 'nombre_operador': 'COMNET, S.A. DE C.V.', 'representante_legal': 'ALEJANDRO ACOSTA HERRERA', 'asunto': '', 'descripcion': '', 'registro': '', 'folio': '179746'}
+15:11:01  INFO      [ALT-DL] Descargando DOCUMENTOS ANEXOS para folio 179746
+15:11:05  INFO      [ALT-DL] Seccion DOCUMENTOS ANEXOS localizada: text=DOCUMENTOS ANEXOS
+15:11:06  INFO      [ALT-DL] DOCUMENTOS ANEXOS: Mostrando 1 a 6 de 6
+15:11:06  WARNING   [ALT-DL] 9 botones > 6 esperados -- usando solo los primeros 6
+15:11:06  INFO      [ALT-DL] Pagina 1: 6 botones VER DOCUMENTO
+15:11:06  INFO        [1] nombre=documento_179746_1  tipo=  fecha=
+15:11:07  INFO        [OK] 17803341097402r002-05.csv  (0.0 KB)
+15:11:07  INFO        [2] nombre=documento_179746_2  tipo=  fecha=
+15:11:08  INFO        [OK] 17803340908031r002-04.csv  (0.1 KB)
+15:11:08  INFO        [3] nombre=documento_179746_3  tipo=  fecha=
+15:11:09  INFO        [OK] 17803340702100r002-03.csv  (0.4 KB)
+15:11:09  INFO        [4] nombre=documento_179746_4  tipo=  fecha=
+15:11:10  INFO        [OK] 17803340454084r002-02.csv  (0.1 KB)
+15:11:10  INFO        [5] nombre=documento_179746_5  tipo=  fecha=
+15:11:11  INFO        [OK] 17803339983748r002-01.csv  (0.1 KB)
+15:11:11  INFO        [6] nombre=documento_179746_6  tipo=  fecha=
+15:11:12  INFO        [OK] solicitud179746.pdf  (2231.2 KB)
+15:11:12  INFO      [ALT-DL] Paginacion: mostrando 1 a 6 de 6
+15:11:12  INFO      [ALT-DL] VALIDACION OK: 6/6 documentos descargados
+15:11:12  INFO      [META] metadata_satys.json actualizado con datos de tramite nuevo para folio 179746
+15:11:12  INFO      [META] metadata_completo.json: fuente=DOCUMENTOS_ANEXOS  ok=6/6  estado=OK
+15:11:12  INFO      [BACK] Regresando al tablero...
+15:11:15  INFO      [BACK] Re-navegando al tablero...
+15:11:15  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+15:11:19  INFO      [OK] Tablero de Control cargado
+15:11:24  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+15:11:24  INFO      [OK] Folio 179746: 1 tramite(s) procesado(s), registros: CRT26-022857
+15:11:26  INFO      [W:SATyS_0] ── Folio 179746 OK (6/6 archivos) ──
+15:11:26  INFO      [CONC] [1/1] ✓ Folio 179746 completado: 6 OK / 6 total
+15:11:26  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+15:11:26  INFO      [RESUMEN] resumen_global.json: 1 folios | 1 Exitosos | 0 Incompletos | 0 No encontrados
+15:16:27  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+15:16:27  INFO      [LIST] Folios a procesar (500): 6407, 6408, 6409, 6410, 6411, 6412, 6413, 6414, 6415, 6416, 6417, 6418, 6419, 6420, 6421, 6422, 6423, 6424, 6425, 6426, 6427, 6428, 6429, 6430, 6431, 6432, 6433, 6434, 6435, 6436, 6437, 6438, 6439, 6440, 6441, 6442, 6443, 6444, 6445, 6446, 6447, 6448, 6449, 6450, 6451, 6452, 6453, 6454, 6455, 6456, 6457, 6458, 6459, 6460, 6461, 6462, 6463, 6464, 6465, 6466, 6467, 6468, 6469, 6470, 6471, 6472, 6473, 6474, 6475, 6476, 6477, 6478, 6479, 6480, 6481, 6482, 6483, 6484, 6485, 6486, 6487, 6488, 6489, 6490, 6491, 6492, 6493, 6494, 6495, 6496, 6497, 6498, 6499, 6500, 6501, 6502, 6503, 6504, 6505, 6506, 6507, 6508, 6509, 6510, 6511, 6512, 6513, 6514, 6515, 6516, 6517, 6518, 6519, 6520, 6521, 6522, 6523, 6524, 6525, 6526, 6527, 6528, 6529, 6530, 6531, 6532, 6533, 6534, 6535, 6536, 6537, 6538, 6539, 6540, 6541, 6542, 6543, 6544, 6545, 6546, 6547, 6548, 6549, 6550, 6551, 6552, 6553, 6554, 6555, 6556, 6557, 6558, 6559, 6560, 6561, 6562, 6563, 6564, 6565, 6566, 6567, 6568, 6569, 6570, 6571, 6572, 6573, 6574, 6575, 6576, 6577, 6578, 6579, 6580, 6581, 6582, 6583, 6584, 6585, 6586, 6587, 6588, 6589, 6590, 6591, 6592, 6593, 6594, 6595, 6596, 6597, 6598, 6599, 6600, 6601, 6602, 6603, 6604, 6605, 6606, 6607, 6608, 6609, 6610, 6611, 6612, 6613, 6614, 6615, 6616, 6617, 6618, 6619, 6620, 6621, 6622, 6623, 6624, 6625, 6626, 6627, 6628, 6629, 6630, 6631, 6632, 6633, 6634, 6635, 6636, 6637, 6638, 6639, 6640, 6641, 6642, 6643, 6644, 6645, 6646, 6647, 6648, 6649, 6650, 6651, 6652, 6653, 6654, 6655, 6656, 6657, 6658, 6659, 6660, 6661, 6662, 6663, 6664, 6665, 6666, 6667, 6668, 6669, 6670, 6671, 6672, 6673, 6674, 6675, 6676, 6677, 6678, 6679, 6680, 6681, 6682, 6683, 6684, 6685, 6686, 6687, 6688, 6689, 6690, 6691, 6692, 6693, 6694, 6695, 6696, 6697, 6698, 6699, 6700, 6701, 6702, 6703, 6704, 6705, 6706, 6707, 6708, 6709, 6710, 6711, 6712, 6713, 6714, 6715, 6716, 6717, 6718, 6719, 6720, 6721, 6722, 6723, 6724, 6725, 6726, 6727, 6728, 6729, 6730, 6731, 6732, 6733, 6734, 6735, 6736, 6737, 6738, 6739, 6740, 6741, 6742, 6743, 6744, 6745, 6746, 6747, 6748, 6749, 6750, 6751, 6752, 6753, 6754, 6755, 6756, 6757, 6758, 6759, 6760, 6761, 6762, 6763, 6764, 6765, 6766, 6767, 6768, 6769, 6770, 6771, 6772, 6773, 6774, 6775, 6776, 6777, 6778, 6779, 6780, 6781, 6782, 6783, 6784, 6785, 6786, 6787, 6788, 6789, 6790, 6791, 6792, 6793, 6794, 6795, 6796, 6797, 6798, 6799, 6800, 6801, 6802, 6803, 6804, 6805, 6806, 6807, 6808, 6809, 6810, 6811, 6812, 6813, 6814, 6815, 6816, 6817, 6818, 6819, 6820, 6821, 6822, 6823, 6824, 6825, 6826, 6827, 6828, 6829, 6830, 6831, 6832, 6833, 6834, 6835, 6836, 6837, 6838, 6839, 6840, 6841, 6842, 6843, 6844, 6845, 6846, 6847, 6848, 6849, 6850, 6851, 6852, 6853, 6854, 6855, 6856, 6857, 6858, 6859, 6860, 6861, 6862, 6863, 6864, 6865, 6866, 6867, 6868, 6869, 6870, 6871, 6872, 6873, 6874, 6875, 6876, 6877, 6878, 6879, 6880, 6881, 6882, 6883, 6884, 6885, 6886, 6887, 6888, 6889, 6890, 6891, 6892, 6893, 6894, 6895, 6896, 6897, 6898, 6899, 6900, 6901, 6902, 6903, 6904, 6905, 6906
+15:16:27  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+15:16:29  INFO      [SESION] Probando sesion guardada...
+15:29:31  INFO      [LIST] Folios a procesar (1): 181780
+15:29:31  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+15:29:32  INFO      [SESION] Probando sesion guardada...
+15:29:34  INFO      [OK] Sesion activa recuperada con exito.
+15:29:34  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+15:29:38  INFO      [OK] Tablero de Control cargado
+15:29:38  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+15:29:38  INFO      [MAIN] 1 folio(s) pendientes | 0 ya completados (SKIP)
+15:29:38  INFO      [MAIN] ── FASE 2: Lanzando 1 worker(s) para 1 folio(s) ──
+15:29:38  INFO      [W:SATyS_0] ── Iniciando folio 181780 ──
+15:29:39  INFO      [API] Discovery activo: debug\api_log.jsonl
+15:29:41  INFO      [W:SATyS_0] Sesión activa (folio 181780)
+15:29:41  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+15:29:44  INFO      [OK] Tablero de Control cargado
+15:29:57  WARNING   [WARN] Folio 181780 no encontrado en columna 'Memo / Folio OPC'
+15:29:59  INFO      [W:SATyS_0] ── Folio 181780 OK (0/1 archivos) ──
+15:29:59  INFO      [CONC] [1/1] ✓ Folio 181780 completado: 0 OK / 1 total
+15:29:59  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+15:29:59  INFO      [RESUMEN] resumen_global.json: 1 folios | 0 Exitosos | 0 Incompletos | 1 No encontrados
+15:31:35  INFO      [LIST] Folios a procesar (7): 182510, 182509, 182511, 182517, 182518, 7478, 2038
+15:31:35  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+15:31:36  INFO      [SESION] Probando sesion guardada...
+15:31:36  INFO      [OK] Sesion activa recuperada con exito.
+15:31:36  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+15:31:39  INFO      [OK] Tablero de Control cargado
+15:31:40  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+15:31:40  INFO      [SKIP] Folio 182509 ya descargado. Saltando...
+15:31:40  INFO      [SKIP] Folio 7478 ya descargado. Saltando...
+15:31:40  INFO      [SKIP] Folio 2038 ya descargado. Saltando...
+15:31:40  INFO      [MAIN] 4 folio(s) pendientes | 3 ya completados (SKIP)
+15:31:40  INFO      [MAIN] ── FASE 2: Lanzando 4 worker(s) para 4 folio(s) ──
+15:31:40  INFO      [W:SATyS_0] ── Iniciando folio 182510 ──
+15:31:40  INFO      [W:SATyS_1] ── Iniciando folio 182511 ──
+15:31:40  INFO      [W:SATyS_2] ── Iniciando folio 182517 ──
+15:31:40  INFO      [W:SATyS_3] ── Iniciando folio 182518 ──
+15:31:41  INFO      [API] Discovery activo: debug\api_log.jsonl
+15:31:41  INFO      [API] Discovery activo: debug\api_log.jsonl
+15:31:41  INFO      [API] Discovery activo: debug\api_log.jsonl
+15:31:41  INFO      [API] Discovery activo: debug\api_log.jsonl
+15:31:56  INFO      [W:SATyS_3] Sesión activa (folio 182518)
+15:31:56  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+15:31:57  INFO      [W:SATyS_0] Sesión activa (folio 182510)
+15:31:57  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+15:31:57  INFO      [W:SATyS_2] Sesión activa (folio 182517)
+15:31:57  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+15:31:57  INFO      [W:SATyS_1] Sesión activa (folio 182511)
+15:31:57  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+15:31:59  INFO      [OK] Tablero de Control cargado
+15:32:00  INFO      [OK] Tablero de Control cargado
+15:32:08  INFO      [OK] Tablero de Control cargado
+15:32:08  INFO      [OK] Tablero de Control cargado
+15:32:17  WARNING   [WARN] Folio 182511 no encontrado en columna 'Memo / Folio OPC'
+15:32:19  INFO      [W:SATyS_1] ── Folio 182511 OK (0/1 archivos) ──
+15:32:19  INFO      [CONC] [1/4] ✓ Folio 182511 completado: 0 OK / 1 total
+15:32:20  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+15:32:20  INFO      [VIEW] Abriendo detalle: registro=CRT26-025230, folio=182510
+15:32:23  INFO      [OK] Detalle cargado: registro=CRT26-025230
+15:32:23  INFO      [WEB] Extrayendo metadatos web de SATyS para folio 182510
+15:32:25  INFO      [WEB] Registro encontrado: CRT26-025230
+15:32:28  WARNING   [WARN] Folio 182517 no encontrado en columna 'Memo / Folio OPC'
+15:32:29  WARNING   [WARN] Folio 182518 no encontrado en columna 'Memo / Folio OPC'
+15:32:29  WARNING   [V11-META-FALTANTE] folio=182510 campo=representante_legal es nulo/vacio
+15:32:29  WARNING   [V11-META-FALTANTE] folio=182510 campo=nombre_operador es nulo/vacio
+15:32:29  WARNING   [V11-META-FALTANTE] folio=182510 campo=asunto es nulo/vacio
+15:32:29  INFO      [WEB] Metadatos guardados OK: Rep='None', Ope='None', Asunto='None', Registro='CRT26-025230'
+15:32:30  INFO      [W:SATyS_2] ── Folio 182517 OK (0/1 archivos) ──
+15:32:30  INFO      [W:SATyS_3] ── Folio 182518 OK (0/1 archivos) ──
+15:32:30  INFO      [CONC] [2/4] ✓ Folio 182517 completado: 0 OK / 1 total
+15:32:30  INFO      [CONC] [3/4] ✓ Folio 182518 completado: 0 OK / 1 total
+15:32:31  INFO      [WEB] Extrayendo metadatos web de SATyS para folio 182510
+15:32:33  INFO      [WEB] Registro encontrado: CRT26-025230
+15:33:34  WARNING   [WEB] No se pudo extraer REMITENTE(S): Locator.scroll_into_view_if_needed: Timeout 60000ms exceeded.
+Call log:
+  - attempting scroll into view action
+    2 × waiting for element to be stable
+      - element is not visible
+    - retrying scroll into view action
+    - waiting 20ms
+    2 × waiting for element to be stable
+      - element is not visible
+    - retrying scroll into view action
+      - waiting 100ms
+    113 × waiting for element to be stable
+        - element is not visible
+      - retrying scroll into view action
+        - waiting 500ms
+
+15:33:36  WARNING   [V11-META-FALTANTE] folio=182510 campo=representante_legal es nulo/vacio
+15:33:36  WARNING   [V11-META-FALTANTE] folio=182510 campo=nombre_operador es nulo/vacio
+15:33:36  INFO      [WEB] Metadatos guardados OK: Rep='None', Ope='None', Asunto='Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios', Registro='CRT26-025230'
+15:33:38  INFO      [WEB] Extrayendo metadatos web de SATyS para folio 182510
+15:33:39  INFO      [WEB] Registro encontrado: CRT26-025230
+15:33:41  INFO      [WEB] Fecha de folio OPC extraída: 16-06-2026 19:22:49
+15:33:44  INFO      [WEB] Metadatos guardados OK: Rep='NARCISO VALLE CRUZ', Ope='VALLE TV', Asunto='Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios', Registro='CRT26-025230'
+15:33:44  INFO      [FILES] Descargando archivos del folio 182510...
+15:33:58  INFO      [INFO] Seccion 'ARCHIVOS ASOCIADOS' no existe en folio 182510 -- activar fallback
+15:33:58  INFO      [FUENTE] Sin ARCHIVOS ASOCIADOS -- activando flujo DOCUMENTOS ANEXOS para folio 182510
+15:33:58  INFO      [ALT] Iniciando flujo DOCUMENTOS ANEXOS para folio 182510 (raw=VE-182510)
+15:33:58  INFO      [ALT-NAV] Navegando a Tramites Nuevos...
+15:34:04  INFO      [ALT-NAV] Tramites Nuevos cargado OK
+15:34:04  INFO      [ALT-SEARCH] Buscando folio 182510 en Tramites Nuevos...
+15:34:11  INFO      [ALT-SEARCH] Folio 182510 encontrado en Tramites Nuevos
+15:34:11  INFO      [ALT-REVISAR] Abriendo detalle del tramite 182510...
+15:34:14  INFO      [ALT-REVISAR] Detalle del tramite cargado OK
+15:34:14  INFO      [ALT-META] Extrayendo metadatos de DATOS DEL TRAMITE para folio 182510
+15:34:54  INFO      [ALT-META] Metadatos guardados: {'tipo_tramite': 'CGPE-01-003-N: Entrega periódica de Información General Estadística N. Sobre el Servicio Minorista Fijo de Televisión y/o Audio Restringidos', 'fecha_registro': '16/06/2026', 'solicitante': '', 'nombre_operador': 'VALLE TV, S.A. DE C.V.', 'representante_legal': 'NARCISO VALLE CRUZ', 'asunto': '', 'descripcion': '', 'registro': '', 'folio': '182510'}
+15:34:54  INFO      [ALT-DL] Descargando DOCUMENTOS ANEXOS para folio 182510
+15:34:58  INFO      [ALT-DL] Seccion DOCUMENTOS ANEXOS localizada: text=DOCUMENTOS ANEXOS
+15:34:59  INFO      [ALT-DL] DOCUMENTOS ANEXOS: Mostrando 1 a 3 de 3
+15:34:59  WARNING   [ALT-DL] 6 botones > 3 esperados -- usando solo los primeros 3
+15:34:59  INFO      [ALT-DL] Pagina 1: 3 botones VER DOCUMENTO
+15:34:59  INFO        [1] nombre=documento_182510_1  tipo=  fecha=
+15:35:00  INFO        [OK] 17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf  (211.1 KB)
+15:35:00  INFO        [2] nombre=documento_182510_2  tipo=  fecha=
+15:35:01  INFO        [OK] 17816591373093r024-01.csv  (0.1 KB)
+15:35:01  INFO        [3] nombre=documento_182510_3  tipo=  fecha=
+15:35:02  INFO        [OK] solicitud182510.pdf  (297.6 KB)
+15:35:02  INFO      [ALT-DL] Paginacion: mostrando 1 a 3 de 3
+15:35:02  INFO      [ALT-DL] VALIDACION OK: 3/3 documentos descargados
+15:35:02  INFO      [META] metadata_satys.json actualizado con datos de tramite nuevo para folio 182510
+15:35:02  INFO      [META] metadata_completo.json: fuente=DOCUMENTOS_ANEXOS  ok=3/3  estado=OK
+15:35:02  INFO      [BACK] Regresando al tablero...
+15:35:05  INFO      [BACK] Re-navegando al tablero...
+15:35:05  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+15:35:09  INFO      [OK] Tablero de Control cargado
+15:35:26  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+15:35:26  INFO      [OK] Folio 182510: 1 tramite(s) procesado(s), registros: CRT26-025230
+15:35:28  INFO      [W:SATyS_0] ── Folio 182510 OK (3/3 archivos) ──
+15:35:28  INFO      [CONC] [4/4] ✓ Folio 182510 completado: 3 OK / 3 total
+15:35:28  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+15:35:28  INFO      [RESUMEN] resumen_global.json: 7 folios | 4 Exitosos | 0 Incompletos | 3 No encontrados
+16:02:26  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+16:02:26  INFO      [LIST] Folios a procesar (1): 182510
+16:02:26  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+16:02:28  INFO      [SESION] Probando sesion guardada...
+16:02:32  INFO      [SESION] Sesion expirada, requiere nuevo login.
+16:02:32  INFO      [LOGIN] Iniciando sesion...
+16:02:32  INFO      [NET] Cargando pagina login...
+16:02:32  INFO      [LOGIN] Llenando credenciales...
+16:02:43  WARNING   [WARN] Tablero no encontrado tras login, asumiendo exito...
+16:02:43  INFO      [SESION] Sesion guardada correctamente.
+16:02:43  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:02:47  INFO      [OK] Tablero de Control cargado
+16:02:48  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+16:02:48  INFO      [MAIN] 1 folio(s) pendientes | 0 ya completados (SKIP)
+16:02:48  INFO      [MAIN] ── FASE 2: Lanzando 1 worker(s) para 1 folio(s) ──
+16:02:48  INFO      [W:SATyS_0] ── Iniciando folio 182510 ──
+16:02:49  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:02:55  INFO      [W:SATyS_0] Sesión activa (folio 182510)
+16:02:55  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:02:58  INFO      [OK] Tablero de Control cargado
+16:03:08  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+16:03:08  INFO      [VIEW] Abriendo detalle: registro=CRT26-025230, folio=182510
+16:03:14  INFO      [OK] Detalle cargado: registro=CRT26-025230
+16:03:14  INFO      [WEB] Extrayendo metadatos web de SATyS para folio 182510
+16:03:16  INFO      [WEB] Registro encontrado: 16-06-2026 19:22:49
+16:03:17  INFO      [WEB] Fecha de folio OPC extraída: 16-06-2026 19:22:49
+16:03:21  INFO      [WEB] Metadatos guardados OK: Rep='NARCISO VALLE CRUZ', Ope='VALLE TV', Asunto='Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios', Registro='16-06-2026 19:22:49'
+16:03:21  INFO      [FILES] Descargando archivos del folio 182510...
+16:03:34  INFO      [INFO] Seccion 'ARCHIVOS ASOCIADOS' no existe en folio 182510 -- activar fallback
+16:03:35  INFO      [FUENTE] Sin ARCHIVOS ASOCIADOS -- activando flujo DOCUMENTOS ANEXOS para folio 182510
+16:03:35  INFO      [ALT] Iniciando flujo DOCUMENTOS ANEXOS para folio 182510 (raw=182510)
+16:03:35  INFO      [ALT-NAV] Navegando a Tramites Nuevos...
+16:03:41  INFO      [ALT-NAV] Tramites Nuevos cargado OK
+16:03:41  INFO      [ALT-SEARCH] Buscando folio 182510 en Tramites Nuevos...
+16:03:48  INFO      [ALT-SEARCH] Folio 182510 encontrado en Tramites Nuevos
+16:03:48  INFO      [ALT-REVISAR] Abriendo detalle del tramite 182510...
+16:03:50  INFO      [ALT-REVISAR] Detalle del tramite cargado OK
+16:03:50  INFO      [ALT-META] Extrayendo metadatos de DATOS DEL TRAMITE para folio 182510
+16:04:01  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+16:04:01  INFO      [LIST] Folios a procesar (1): 182510
+16:04:01  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+16:04:02  INFO      [SESION] Probando sesion guardada...
+16:04:03  INFO      [OK] Sesion activa recuperada con exito.
+16:04:03  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:04:06  INFO      [OK] Tablero de Control cargado
+16:04:07  INFO      [ALT-META] Metadatos guardados: {'tipo_tramite': 'CGPE-01-003-N: Entrega periódica de Información General Estadística N. Sobre el Servicio Minorista Fijo de Televisión y/o Audio Restringidos', 'fecha_registro': '16/06/2026', 'solicitante': '', 'nombre_operador': 'VALLE TV, S.A. DE C.V.', 'representante_legal': 'NARCISO VALLE CRUZ', 'asunto': '', 'descripcion': '', 'registro': '', 'folio': '182510'}
+16:04:07  INFO      [ALT-DL] Descargando DOCUMENTOS ANEXOS para folio 182510
+16:04:07  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+16:04:07  INFO      [MAIN] 1 folio(s) pendientes | 0 ya completados (SKIP)
+16:04:07  INFO      [MAIN] ── FASE 2: Lanzando 1 worker(s) para 1 folio(s) ──
+16:04:07  INFO      [W:SATyS_0] ── Iniciando folio 182510 ──
+16:04:08  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:04:10  INFO      [ALT-DL] Seccion DOCUMENTOS ANEXOS localizada: text=DOCUMENTOS ANEXOS
+16:04:11  INFO      [ALT-DL] DOCUMENTOS ANEXOS: Mostrando 1 a 3 de 3
+16:04:11  WARNING   [ALT-DL] 6 botones > 3 esperados -- usando solo los primeros 3
+16:04:11  INFO      [ALT-DL] Pagina 1: 3 botones VER DOCUMENTO
+16:04:11  INFO        [1] nombre=documento_182510_1  tipo=  fecha=
+16:04:12  INFO        [POPUP] Nueva pestana capturada al instante (PDF)
+16:04:12  INFO        [POPUP] Nueva pestana URL: https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf
+16:04:12  INFO        [OK-POPUP] 17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf (211.1 KB)
+16:04:12  INFO        [OK] 17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf  (211.1 KB)
+16:04:13  INFO        [2] nombre=documento_182510_2  tipo=  fecha=
+16:04:13  INFO        [OK] 17816591373093r024-01.csv  (0.1 KB)
+16:04:13  INFO        [3] nombre=documento_182510_3  tipo=  fecha=
+16:04:14  INFO        [POPUP] Nueva pestana capturada al instante (PDF)
+16:04:14  INFO        [POPUP] Nueva pestana URL: https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/182510/solicitud182510.pdf
+16:04:14  INFO        [OK-POPUP] solicitud182510.pdf (297.6 KB)
+16:04:14  INFO        [OK] solicitud182510.pdf  (297.6 KB)
+16:04:14  INFO      [ALT-DL] Paginacion: mostrando 1 a 3 de 3
+16:04:14  INFO      [ALT-DL] VALIDACION OK: 3/3 documentos descargados
+16:04:14  INFO      [META] metadata_satys.json actualizado con datos de tramite nuevo para folio 182510
+16:04:14  INFO      [META] metadata_completo.json: fuente=DOCUMENTOS_ANEXOS  ok=3/3  estado=OK
+16:04:14  INFO      [BACK] Regresando al tablero...
+16:04:17  INFO      [BACK] Re-navegando al tablero...
+16:04:17  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:04:20  INFO      [W:SATyS_0] Sesión activa (folio 182510)
+16:04:20  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:04:22  INFO      [OK] Tablero de Control cargado
+16:04:27  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+16:04:27  INFO      [OK] Folio 182510: 1 tramite(s) procesado(s), registros: CRT26-025230
+16:04:28  INFO      [W:SATyS_0] ── Folio 182510 OK (3/3 archivos) ──
+16:04:28  INFO      [CONC] [1/1] ✓ Folio 182510 completado: 3 OK / 3 total
+16:04:28  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+16:04:28  INFO      [RESUMEN] resumen_global.json: 1 folios | 1 Exitosos | 0 Incompletos | 0 No encontrados
+16:04:33  INFO      [OK] Tablero de Control cargado
+16:04:42  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+16:04:42  INFO      [VIEW] Abriendo detalle: registro=CRT26-025230, folio=182510
+16:04:45  INFO      [OK] Detalle cargado: registro=CRT26-025230
+16:04:45  INFO      [WEB] Extrayendo metadatos web de SATyS para folio 182510
+16:04:47  INFO      [WEB] Registro encontrado: 16-06-2026 19:22:49
+16:04:48  INFO      [WEB] Fecha de folio OPC extraída: 16-06-2026 19:22:49
+16:04:52  INFO      [WEB] Metadatos guardados OK: Rep='NARCISO VALLE CRUZ', Ope='VALLE TV', Asunto='Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios', Registro='16-06-2026 19:22:49'
+16:04:52  INFO      [FILES] Descargando archivos del folio 182510...
+16:05:05  INFO      [INFO] Seccion 'ARCHIVOS ASOCIADOS' no existe en folio 182510 -- activar fallback
+16:05:06  INFO      [FUENTE] Sin ARCHIVOS ASOCIADOS -- activando flujo DOCUMENTOS ANEXOS para folio 182510
+16:05:06  INFO      [ALT] Iniciando flujo DOCUMENTOS ANEXOS para folio 182510 (raw=182510)
+16:05:06  INFO      [ALT-NAV] Navegando a Tramites Nuevos...
+16:05:11  INFO      [ALT-NAV] Tramites Nuevos cargado OK
+16:05:11  INFO      [ALT-SEARCH] Buscando folio 182510 en Tramites Nuevos...
+16:05:18  INFO      [ALT-SEARCH] Folio 182510 encontrado en Tramites Nuevos
+16:05:18  INFO      [ALT-REVISAR] Abriendo detalle del tramite 182510...
+16:05:20  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+16:05:20  INFO      [LIST] Folios a procesar (1): 182510
+16:05:20  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+16:05:20  INFO      [ALT-REVISAR] Detalle del tramite cargado OK
+16:05:20  INFO      [ALT-META] Extrayendo metadatos de DATOS DEL TRAMITE para folio 182510
+16:05:21  INFO      [SESION] Probando sesion guardada...
+16:05:22  INFO      [OK] Sesion activa recuperada con exito.
+16:05:22  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:05:27  INFO      [OK] Tablero de Control cargado
+16:05:27  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+16:05:27  INFO      [SKIP] Folio 182510 ya descargado. Saltando...
+16:05:27  INFO      [MAIN] 0 folio(s) pendientes | 1 ya completados (SKIP)
+16:05:27  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+16:05:27  INFO      [RESUMEN] resumen_global.json: 1 folios | 1 Exitosos | 0 Incompletos | 0 No encontrados
+16:05:39  INFO      [ALT-META] Metadatos guardados: {'tipo_tramite': 'CGPE-01-003-N: Entrega periódica de Información General Estadística N. Sobre el Servicio Minorista Fijo de Televisión y/o Audio Restringidos', 'fecha_registro': '16/06/2026', 'solicitante': '', 'nombre_operador': 'VALLE TV, S.A. DE C.V.', 'representante_legal': 'NARCISO VALLE CRUZ', 'asunto': '', 'descripcion': '', 'registro': '', 'folio': '182510'}
+16:05:39  INFO      [ALT-DL] Descargando DOCUMENTOS ANEXOS para folio 182510
+16:05:39  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+16:05:39  INFO      [LIST] Folios a procesar (1): 182510
+16:05:39  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+16:05:40  INFO      [SESION] Probando sesion guardada...
+16:05:41  INFO      [ALT-DL] Seccion DOCUMENTOS ANEXOS localizada: text=DOCUMENTOS ANEXOS
+16:05:43  INFO      [ALT-DL] DOCUMENTOS ANEXOS: Mostrando 1 a 3 de 3
+16:05:43  WARNING   [ALT-DL] 6 botones > 3 esperados -- usando solo los primeros 3
+16:05:43  INFO      [ALT-DL] Pagina 1: 3 botones VER DOCUMENTO
+16:05:43  INFO        [1] nombre=documento_182510_1  tipo=  fecha=
+16:05:43  INFO        [POPUP] Nueva pestana capturada al instante (PDF)
+16:05:43  INFO        [POPUP] Nueva pestana URL: https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf
+16:05:44  INFO        [OK-POPUP] 17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf (211.1 KB)
+16:05:44  INFO        [OK] 17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf  (211.1 KB)
+16:05:44  INFO        [2] nombre=documento_182510_2  tipo=  fecha=
+16:05:45  INFO        [OK] 17816591373093r024-01.csv  (0.1 KB)
+16:05:45  INFO        [3] nombre=documento_182510_3  tipo=  fecha=
+16:05:46  INFO      [OK] Sesion activa recuperada con exito.
+16:05:46  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:05:46  INFO        [POPUP] Nueva pestana capturada al instante (PDF)
+16:05:46  INFO        [POPUP] Nueva pestana URL: https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/182510/solicitud182510.pdf
+16:05:46  INFO        [OK-POPUP] solicitud182510.pdf (297.6 KB)
+16:05:46  INFO        [OK] solicitud182510.pdf  (297.6 KB)
+16:05:46  INFO      [ALT-DL] Paginacion: mostrando 1 a 3 de 3
+16:05:46  INFO      [ALT-DL] VALIDACION OK: 3/3 documentos descargados
+16:05:46  INFO      [META] metadata_satys.json actualizado con datos de tramite nuevo para folio 182510
+16:05:46  INFO      [META] metadata_completo.json: fuente=DOCUMENTOS_ANEXOS  ok=3/3  estado=OK
+16:05:46  INFO      [BACK] Regresando al tablero...
+16:05:49  INFO      [OK] Tablero de Control cargado
+16:05:49  INFO      [BACK] Re-navegando al tablero...
+16:05:49  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:05:50  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+16:05:50  INFO      [SKIP] Folio 182510 ya descargado. Saltando...
+16:05:50  INFO      [MAIN] 0 folio(s) pendientes | 1 ya completados (SKIP)
+16:05:50  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+16:05:50  INFO      [RESUMEN] resumen_global.json: 1 folios | 1 Exitosos | 0 Incompletos | 0 No encontrados
+16:06:00  INFO      [OK] Tablero de Control cargado
+16:06:05  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+16:06:05  INFO      [OK] Folio 182510: 1 tramite(s) procesado(s), registros: CRT26-025230
+16:06:06  INFO      [W:SATyS_0] ── Folio 182510 OK (3/3 archivos) ──
+16:06:06  INFO      [CONC] [1/1] ✓ Folio 182510 completado: 3 OK / 3 total
+16:06:06  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+16:06:06  INFO      [RESUMEN] resumen_global.json: 1 folios | 1 Exitosos | 0 Incompletos | 0 No encontrados
+16:06:08  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+16:06:08  INFO      [LIST] Folios a procesar (1): 182510
+16:06:08  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+16:06:09  INFO      [SESION] Probando sesion guardada...
+16:06:10  INFO      [OK] Sesion activa recuperada con exito.
+16:06:10  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:06:13  INFO      [OK] Tablero de Control cargado
+16:06:14  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+16:06:14  INFO      [MAIN] 1 folio(s) pendientes | 0 ya completados (SKIP)
+16:06:14  INFO      [MAIN] ── FASE 2: Lanzando 1 worker(s) para 1 folio(s) ──
+16:06:14  INFO      [W:SATyS_0] ── Iniciando folio 182510 ──
+16:06:15  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:06:22  INFO      [W:SATyS_0] Sesión activa (folio 182510)
+16:06:22  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:06:25  INFO      [OK] Tablero de Control cargado
+16:06:32  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+16:06:32  INFO      [VIEW] Abriendo detalle: registro=CRT26-025230, folio=182510
+16:06:36  INFO      [OK] Detalle cargado: registro=CRT26-025230
+16:06:36  INFO      [WEB] Extrayendo metadatos web de SATyS para folio 182510
+16:06:36  INFO      [WEB] Registro encontrado: 16-06-2026 19:22:49
+16:06:38  INFO      [WEB] Fecha de folio OPC extraída: 16-06-2026 19:22:49
+16:06:41  INFO      [WEB] Metadatos guardados OK: Rep='NARCISO VALLE CRUZ', Ope='VALLE TV', Asunto='Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios', Registro='16-06-2026 19:22:49'
+16:06:41  INFO      [FILES] Descargando archivos del folio 182510...
+16:06:55  INFO      [INFO] Seccion 'ARCHIVOS ASOCIADOS' no existe en folio 182510 -- activar fallback
+16:06:55  INFO      [FUENTE] Sin ARCHIVOS ASOCIADOS -- activando flujo DOCUMENTOS ANEXOS para folio 182510
+16:06:55  INFO      [ALT] Iniciando flujo DOCUMENTOS ANEXOS para folio 182510 (raw=182510)
+16:06:55  INFO      [ALT-NAV] Navegando a Tramites Nuevos...
+16:07:04  INFO      [ALT-NAV] Tramites Nuevos cargado OK
+16:07:04  INFO      [ALT-SEARCH] Buscando folio 182510 en Tramites Nuevos...
+16:07:11  INFO      [ALT-SEARCH] Folio 182510 encontrado en Tramites Nuevos
+16:07:11  INFO      [ALT-REVISAR] Abriendo detalle del tramite 182510...
+16:07:16  INFO      [ALT-REVISAR] Detalle del tramite cargado OK
+16:07:16  INFO      [ALT-META] Extrayendo metadatos de DATOS DEL TRAMITE para folio 182510
+16:07:30  INFO      [ALT-META] Metadatos guardados: {'tipo_tramite': 'CGPE-01-003-N: Entrega periódica de Información General Estadística N. Sobre el Servicio Minorista Fijo de Televisión y/o Audio Restringidos', 'fecha_registro': '16/06/2026', 'solicitante': '', 'nombre_operador': 'VALLE TV, S.A. DE C.V.', 'representante_legal': 'NARCISO VALLE CRUZ', 'asunto': '', 'descripcion': '', 'registro': '', 'folio': '182510'}
+16:07:30  INFO      [ALT-DL] Descargando DOCUMENTOS ANEXOS para folio 182510
+16:07:33  INFO      [ALT-DL] Seccion DOCUMENTOS ANEXOS localizada: text=DOCUMENTOS ANEXOS
+16:07:34  INFO      [ALT-DL] DOCUMENTOS ANEXOS: Mostrando 1 a 3 de 3
+16:07:34  WARNING   [ALT-DL] 6 botones > 3 esperados -- usando solo los primeros 3
+16:07:34  INFO      [ALT-DL] Pagina 1: 3 botones VER DOCUMENTO
+16:07:34  INFO        [1] nombre=documento_182510_1  tipo=  fecha=
+16:07:34  INFO        [POPUP] Nueva pestana capturada al instante (PDF)
+16:07:34  INFO        [POPUP] Nueva pestana URL: https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf
+16:07:35  INFO        [OK-POPUP] 17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf (211.1 KB)
+16:07:35  INFO        [OK] 17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf  (211.1 KB)
+16:07:35  INFO        [2] nombre=documento_182510_2  tipo=  fecha=
+16:07:36  INFO        [OK] 17816591373093r024-01.csv  (0.1 KB)
+16:07:36  INFO        [3] nombre=documento_182510_3  tipo=  fecha=
+16:07:36  INFO        [POPUP] Nueva pestana capturada al instante (PDF)
+16:07:36  INFO        [POPUP] Nueva pestana URL: https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/182510/solicitud182510.pdf
+16:07:36  INFO        [OK-POPUP] solicitud182510.pdf (297.6 KB)
+16:07:36  INFO        [OK] solicitud182510.pdf  (297.6 KB)
+16:07:36  INFO      [ALT-DL] Paginacion: mostrando 1 a 3 de 3
+16:07:36  INFO      [ALT-DL] VALIDACION OK: 3/3 documentos descargados
+16:07:36  INFO      [META] metadata_satys.json actualizado con datos de tramite nuevo para folio 182510
+16:07:36  INFO      [META] metadata_completo.json: fuente=DOCUMENTOS_ANEXOS  ok=3/3  estado=OK
+16:07:36  INFO      [BACK] Regresando al tablero...
+16:07:39  INFO      [BACK] Re-navegando al tablero...
+16:07:39  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:07:43  INFO      [OK] Tablero de Control cargado
+16:07:51  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+16:07:51  INFO      [OK] Folio 182510: 1 tramite(s) procesado(s), registros: CRT26-025230
+16:07:52  INFO      [W:SATyS_0] ── Folio 182510 OK (3/3 archivos) ──
+16:07:52  INFO      [CONC] [1/1] ✓ Folio 182510 completado: 3 OK / 3 total
+16:07:52  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+16:07:52  INFO      [RESUMEN] resumen_global.json: 1 folios | 1 Exitosos | 0 Incompletos | 0 No encontrados
+16:08:55  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+16:08:55  INFO      [LIST] Folios a procesar (1): 182510
+16:08:55  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+16:08:56  INFO      [SESION] Probando sesion guardada...
+16:08:57  INFO      [OK] Sesion activa recuperada con exito.
+16:08:57  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:09:00  INFO      [OK] Tablero de Control cargado
+16:09:01  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+16:09:01  INFO      [MAIN] 1 folio(s) pendientes | 0 ya completados (SKIP)
+16:09:01  INFO      [MAIN] ── FASE 2: Lanzando 1 worker(s) para 1 folio(s) ──
+16:09:01  INFO      [W:SATyS_0] ── Iniciando folio 182510 ──
+16:09:02  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:09:03  INFO      [W:SATyS_0] Sesión activa (folio 182510)
+16:09:03  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:09:06  INFO      [OK] Tablero de Control cargado
+16:09:12  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+16:09:12  INFO      [VIEW] Abriendo detalle: registro=CRT26-025230, folio=182510
+16:09:17  INFO      [OK] Detalle cargado: registro=CRT26-025230
+16:09:17  INFO      [WEB] Extrayendo metadatos web de SATyS para folio 182510
+16:09:17  INFO      [WEB] Registro encontrado: 16-06-2026 19:22:49
+16:09:18  INFO      [WEB] Fecha de folio OPC extraída: 16-06-2026 19:22:49
+16:09:21  INFO      [WEB] Metadatos guardados OK: Rep='NARCISO VALLE CRUZ', Ope='VALLE TV', Asunto='Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios', Registro='16-06-2026 19:22:49'
+16:09:21  INFO      [FILES] Descargando archivos del folio 182510...
+16:09:35  INFO      [INFO] Seccion 'ARCHIVOS ASOCIADOS' no existe en folio 182510 -- activar fallback
+16:09:35  INFO      [FUENTE] Sin ARCHIVOS ASOCIADOS -- activando flujo DOCUMENTOS ANEXOS para folio 182510
+16:09:35  INFO      [ALT] Iniciando flujo DOCUMENTOS ANEXOS para folio 182510 (raw=182510)
+16:09:35  INFO      [ALT-NAV] Navegando a Tramites Nuevos...
+16:09:40  INFO      [ALT-NAV] Tramites Nuevos cargado OK
+16:09:40  INFO      [ALT-SEARCH] Buscando folio 182510 en Tramites Nuevos...
+16:09:47  INFO      [ALT-SEARCH] Folio 182510 encontrado en Tramites Nuevos
+16:09:47  INFO      [ALT-REVISAR] Abriendo detalle del tramite 182510...
+16:09:49  INFO      [ALT-REVISAR] Detalle del tramite cargado OK
+16:09:49  INFO      [ALT-META] Extrayendo metadatos de DATOS DEL TRAMITE para folio 182510
+16:10:08  INFO      [ALT-META] Metadatos guardados: {'tipo_tramite': 'CGPE-01-003-N: Entrega periódica de Información General Estadística N. Sobre el Servicio Minorista Fijo de Televisión y/o Audio Restringidos', 'fecha_registro': '16/06/2026', 'solicitante': '', 'nombre_operador': 'VALLE TV, S.A. DE C.V.', 'representante_legal': 'NARCISO VALLE CRUZ', 'asunto': '', 'descripcion': '', 'registro': '', 'folio': '182510'}
+16:10:08  INFO      [ALT-DL] Descargando DOCUMENTOS ANEXOS para folio 182510
+16:10:11  INFO      [ALT-DL] Seccion DOCUMENTOS ANEXOS localizada: text=DOCUMENTOS ANEXOS
+16:10:12  INFO      [ALT-DL] DOCUMENTOS ANEXOS: Mostrando 1 a 3 de 3
+16:10:12  WARNING   [ALT-DL] 6 botones > 3 esperados -- usando solo los primeros 3
+16:10:12  INFO      [ALT-DL] Pagina 1: 3 botones VER DOCUMENTO
+16:10:12  INFO        [1] nombre=documento_182510_1  tipo=  fecha=
+16:10:13  INFO        [POPUP] Nueva pestana capturada al instante (PDF)
+16:10:13  INFO        [POPUP] Nueva pestana URL: https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf
+16:10:13  INFO        [OK-POPUP] 17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf (211.1 KB)
+16:10:13  INFO        [OK] 17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf  (211.1 KB)
+16:10:13  INFO        [2] nombre=documento_182510_2  tipo=  fecha=
+16:10:14  INFO        [OK] 17816591373093r024-01.csv  (0.1 KB)
+16:10:14  INFO        [3] nombre=documento_182510_3  tipo=  fecha=
+16:10:14  INFO        [POPUP] Nueva pestana capturada al instante (PDF)
+16:10:14  INFO        [POPUP] Nueva pestana URL: https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/182510/solicitud182510.pdf
+16:10:14  INFO        [OK-POPUP] solicitud182510.pdf (297.6 KB)
+16:10:14  INFO        [OK] solicitud182510.pdf  (297.6 KB)
+16:10:14  INFO      [ALT-DL] Paginacion: mostrando 1 a 3 de 3
+16:10:14  INFO      [ALT-DL] VALIDACION OK: 3/3 documentos descargados
+16:10:14  INFO      [META] metadata_satys.json actualizado con datos de tramite nuevo para folio 182510
+16:10:14  INFO      [META] metadata_completo.json: fuente=DOCUMENTOS_ANEXOS  ok=3/3  estado=OK
+16:10:14  INFO      [BACK] Regresando al tablero...
+16:10:17  INFO      [BACK] Re-navegando al tablero...
+16:10:17  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:10:21  INFO      [OK] Tablero de Control cargado
+16:10:26  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+16:10:26  INFO      [OK] Folio 182510: 1 tramite(s) procesado(s), registros: CRT26-025230
+16:10:26  INFO      [W:SATyS_0] ── Folio 182510 OK (3/3 archivos) ──
+16:10:26  INFO      [CONC] [1/1] ✓ Folio 182510 completado: 3 OK / 3 total
+16:10:26  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+16:10:26  INFO      [RESUMEN] resumen_global.json: 1 folios | 1 Exitosos | 0 Incompletos | 0 No encontrados
+16:10:57  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+16:10:57  INFO      [LIST] Folios a procesar (1): 182510
+16:10:57  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+16:10:58  INFO      [SESION] Probando sesion guardada...
+16:11:00  INFO      [OK] Sesion activa recuperada con exito.
+16:11:01  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:11:04  INFO      [OK] Tablero de Control cargado
+16:11:04  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+16:11:05  INFO      [MAIN] 1 folio(s) pendientes | 0 ya completados (SKIP)
+16:11:05  INFO      [MAIN] ── FASE 2: Lanzando 1 worker(s) para 1 folio(s) ──
+16:11:05  INFO      [W:SATyS_0] ── Iniciando folio 182510 ──
+16:11:05  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:11:15  INFO      [W:SATyS_0] Sesión activa (folio 182510)
+16:11:15  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:11:18  INFO      [OK] Tablero de Control cargado
+16:11:25  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+16:11:25  INFO      [VIEW] Abriendo detalle: registro=CRT26-025230, folio=182510
+16:11:28  INFO      [OK] Detalle cargado: registro=CRT26-025230
+16:11:28  INFO      [WEB] Extrayendo metadatos web de SATyS para folio 182510
+16:11:29  INFO      [WEB] Registro encontrado: 16-06-2026 19:22:49
+16:11:30  INFO      [WEB] Fecha de folio OPC extraída: 16-06-2026 19:22:49
+16:11:33  INFO      [WEB] Metadatos guardados OK: Rep='NARCISO VALLE CRUZ', Ope='VALLE TV', Asunto='Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios', Registro='16-06-2026 19:22:49'
+16:11:33  INFO      [FILES] Descargando archivos del folio 182510...
+16:11:47  INFO      [INFO] Seccion 'ARCHIVOS ASOCIADOS' no existe en folio 182510 -- activar fallback
+16:11:47  INFO      [FUENTE] Sin ARCHIVOS ASOCIADOS -- activando flujo DOCUMENTOS ANEXOS para folio 182510
+16:11:47  INFO      [ALT] Iniciando flujo DOCUMENTOS ANEXOS para folio 182510 (raw=182510)
+16:11:47  INFO      [ALT-NAV] Navegando a Tramites Nuevos...
+16:11:52  INFO      [ALT-NAV] Tramites Nuevos cargado OK
+16:11:52  INFO      [ALT-SEARCH] Buscando folio 182510 en Tramites Nuevos...
+16:12:00  INFO      [ALT-SEARCH] Folio 182510 encontrado en Tramites Nuevos
+16:12:00  INFO      [ALT-REVISAR] Abriendo detalle del tramite 182510...
+16:12:01  INFO      [ALT-REVISAR] Detalle del tramite cargado OK
+16:12:01  INFO      [ALT-META] Extrayendo metadatos de DATOS DEL TRAMITE para folio 182510
+16:12:21  INFO      [ALT-META] Metadatos guardados: {'tipo_tramite': 'CGPE-01-003-N: Entrega periódica de Información General Estadística N. Sobre el Servicio Minorista Fijo de Televisión y/o Audio Restringidos', 'fecha_registro': '16/06/2026', 'solicitante': '', 'nombre_operador': 'VALLE TV, S.A. DE C.V.', 'representante_legal': 'NARCISO VALLE CRUZ', 'asunto': '', 'descripcion': '', 'registro': '', 'folio': '182510'}
+16:12:21  INFO      [ALT-DL] Descargando DOCUMENTOS ANEXOS para folio 182510
+16:12:24  INFO      [ALT-DL] Seccion DOCUMENTOS ANEXOS localizada: text=DOCUMENTOS ANEXOS
+16:12:25  INFO      [ALT-DL] DOCUMENTOS ANEXOS: Mostrando 1 a 3 de 3
+16:12:25  WARNING   [ALT-DL] 6 botones > 3 esperados -- usando solo los primeros 3
+16:12:25  INFO      [ALT-DL] Pagina 1: 3 botones VER DOCUMENTO
+16:12:25  INFO        [1] nombre=documento_182510_1  tipo=  fecha=
+16:12:25  INFO        [POPUP] Nueva pestana capturada al instante (PDF)
+16:12:25  INFO        [POPUP] Nueva pestana URL: https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf
+16:12:26  INFO        [OK-POPUP] 17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf (211.1 KB)
+16:12:26  INFO        [OK] 17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf  (211.1 KB)
+16:12:26  INFO        [2] nombre=documento_182510_2  tipo=  fecha=
+16:12:26  INFO        [OK] 17816591373093r024-01.csv  (0.1 KB)
+16:12:27  INFO        [3] nombre=documento_182510_3  tipo=  fecha=
+16:12:27  INFO        [POPUP] Nueva pestana capturada al instante (PDF)
+16:12:27  INFO        [POPUP] Nueva pestana URL: https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/182510/solicitud182510.pdf
+16:12:27  INFO        [OK-POPUP] solicitud182510.pdf (297.6 KB)
+16:12:27  INFO        [OK] solicitud182510.pdf  (297.6 KB)
+16:12:27  INFO      [ALT-DL] Paginacion: mostrando 1 a 3 de 3
+16:12:27  INFO      [ALT-DL] VALIDACION OK: 3/3 documentos descargados
+16:12:27  INFO      [META] metadata_satys.json actualizado con datos de tramite nuevo para folio 182510
+16:12:27  INFO      [META] metadata_completo.json: fuente=DOCUMENTOS_ANEXOS  ok=3/3  estado=OK
+16:12:27  INFO      [BACK] Regresando al tablero...
+16:12:30  INFO      [BACK] Re-navegando al tablero...
+16:12:30  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:12:34  INFO      [OK] Tablero de Control cargado
+16:12:38  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+16:12:38  INFO      [OK] Folio 182510: 1 tramite(s) procesado(s), registros: CRT26-025230
+16:12:39  INFO      [W:SATyS_0] ── Folio 182510 OK (3/3 archivos) ──
+16:12:39  INFO      [CONC] [1/1] ✓ Folio 182510 completado: 3 OK / 3 total
+16:12:39  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+16:12:39  INFO      [RESUMEN] resumen_global.json: 1 folios | 1 Exitosos | 0 Incompletos | 0 No encontrados
+16:13:55  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+16:13:55  INFO      [LIST] Folios a procesar (1): 182510
+16:13:55  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+16:13:56  INFO      [SESION] Probando sesion guardada...
+16:13:58  INFO      [OK] Sesion activa recuperada con exito.
+16:13:58  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:14:01  INFO      [OK] Tablero de Control cargado
+16:14:02  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+16:14:02  INFO      [MAIN] 1 folio(s) pendientes | 0 ya completados (SKIP)
+16:14:02  INFO      [MAIN] ── FASE 2: Lanzando 1 worker(s) para 1 folio(s) ──
+16:14:02  INFO      [W:SATyS_0] ── Iniciando folio 182510 ──
+16:14:03  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:14:15  INFO      [W:SATyS_0] Sesión activa (folio 182510)
+16:14:15  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:14:18  INFO      [OK] Tablero de Control cargado
+16:14:34  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+16:14:34  INFO      [VIEW] Abriendo detalle: registro=CRT26-025230, folio=182510
+16:14:35  INFO      [OK] Detalle cargado: registro=CRT26-025230
+16:14:35  INFO      [WEB] Extrayendo metadatos web de SATyS para folio 182510
+16:14:35  INFO      [WEB] Registro encontrado: 16-06-2026 19:22:49
+16:14:37  INFO      [WEB] Fecha de folio OPC extraída: 16-06-2026 19:22:49
+16:14:40  INFO      [WEB] Metadatos guardados OK: Rep='NARCISO VALLE CRUZ', Ope='VALLE TV', Asunto='Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios', Registro='16-06-2026 19:22:49'
+16:14:40  INFO      [FILES] Descargando archivos del folio 182510...
+16:14:54  INFO      [INFO] Seccion 'ARCHIVOS ASOCIADOS' no existe en folio 182510 -- activar fallback
+16:14:54  INFO      [FUENTE] Sin ARCHIVOS ASOCIADOS -- activando flujo DOCUMENTOS ANEXOS para folio 182510
+16:14:54  INFO      [ALT] Iniciando flujo DOCUMENTOS ANEXOS para folio 182510 (raw=182510)
+16:14:54  INFO      [ALT-NAV] Navegando a Tramites Nuevos...
+16:15:00  INFO      [ALT-NAV] Tramites Nuevos cargado OK
+16:15:00  INFO      [ALT-SEARCH] Buscando folio 182510 en Tramites Nuevos...
+16:15:08  INFO      [ALT-SEARCH] Folio 182510 encontrado en Tramites Nuevos
+16:15:08  INFO      [ALT-REVISAR] Abriendo detalle del tramite 182510...
+16:15:10  INFO      [ALT-REVISAR] Detalle del tramite cargado OK
+16:15:10  INFO      [ALT-META] Extrayendo metadatos de DATOS DEL TRAMITE para folio 182510
+16:16:37  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+16:16:37  INFO      [LIST] Folios a procesar (7): 182510, 182509, 182511, 182517, 182518, 7478, 2038
+16:16:37  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+16:16:38  INFO      [SESION] Probando sesion guardada...
+16:16:39  INFO      [OK] Sesion activa recuperada con exito.
+16:16:39  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:16:42  INFO      [OK] Tablero de Control cargado
+16:16:43  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+16:16:43  INFO      [MAIN] 7 folio(s) pendientes | 0 ya completados (SKIP)
+16:16:43  INFO      [MAIN] ── FASE 2: Lanzando 7 worker(s) para 7 folio(s) ──
+16:16:43  INFO      [W:SATyS_0] ── Iniciando folio 182510 ──
+16:16:43  INFO      [W:SATyS_1] ── Iniciando folio 182509 ──
+16:16:43  INFO      [W:SATyS_2] ── Iniciando folio 182511 ──
+16:16:43  INFO      [W:SATyS_3] ── Iniciando folio 182517 ──
+16:16:43  INFO      [W:SATyS_4] ── Iniciando folio 182518 ──
+16:16:43  INFO      [W:SATyS_5] ── Iniciando folio 7478 ──
+16:16:43  INFO      [W:SATyS_6] ── Iniciando folio 2038 ──
+16:16:44  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:16:44  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:16:44  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:16:44  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:16:45  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:16:45  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:16:45  INFO      [API] Discovery activo: debug\api_log.jsonl
+16:16:54  INFO      [W:SATyS_6] Sesión activa (folio 2038)
+16:16:54  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:16:57  INFO      [W:SATyS_0] Sesión activa (folio 182510)
+16:16:57  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:16:57  INFO      [W:SATyS_5] Sesión activa (folio 7478)
+16:16:57  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:16:58  INFO      [OK] Tablero de Control cargado
+16:17:00  INFO      [W:SATyS_4] Sesión activa (folio 182518)
+16:17:00  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:17:00  INFO      [W:SATyS_2] Sesión activa (folio 182511)
+16:17:00  INFO      [W:SATyS_3] Sesión activa (folio 182517)
+16:17:00  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:17:00  INFO      [W:SATyS_1] Sesión activa (folio 182509)
+16:17:00  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:17:00  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:17:06  INFO      [OK] Tablero de Control cargado
+16:17:06  INFO      [OK] Tablero de Control cargado
+16:17:06  INFO      [OK] Tablero de Control cargado
+16:17:11  INFO      [PAGE] Resultados busqueda: mostrando 10 de 12 tramites
+16:17:11  INFO      [VIEW] Abriendo detalle: registro=CRT26-025797, folio=2038
+16:17:17  INFO      [OK] Tablero de Control cargado
+16:17:20  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+16:17:20  INFO      [VIEW] Abriendo detalle: registro=CRT26-025230, folio=182510
+16:17:27  INFO      [OK] Tablero de Control cargado
+16:17:30  WARNING   [WARN] Folio 182511 no encontrado en columna 'Memo / Folio OPC'
+16:17:31  INFO      [OK] Detalle cargado: registro=CRT26-025797
+16:17:31  INFO      [WEB] Extrayendo metadatos web de SATyS para folio 2038
+16:17:31  INFO      [W:SATyS_2] ── Folio 182511 OK (0/1 archivos) ──
+16:17:31  INFO      [CONC] [1/7] ✓ Folio 182511 completado: 0 OK / 1 total
+16:17:32  INFO      [WEB] Registro encontrado: CRT26-025797
+16:17:37  WARNING   [V11-META-FALTANTE] folio=2038 campo=representante_legal es nulo/vacio
+16:17:37  WARNING   [V11-META-FALTANTE] folio=2038 campo=nombre_operador es nulo/vacio
+16:17:37  WARNING   [V11-META-FALTANTE] folio=2038 campo=asunto es nulo/vacio
+16:17:37  INFO      [WEB] Metadatos guardados OK: Rep='None', Ope='None', Asunto='None', Registro='CRT26-025797'
+16:17:38  INFO      [OK] Tablero de Control cargado
+16:17:39  INFO      [OK] Detalle cargado: registro=CRT26-025230
+16:17:39  INFO      [WEB] Extrayendo metadatos web de SATyS para folio 182510
+16:17:39  INFO      [WEB] Extrayendo metadatos web de SATyS para folio 2038
+16:17:40  INFO      [WEB] Registro encontrado: CRT26-025230
+16:17:41  INFO      [WEB] Registro encontrado: CRT26-025797
+16:17:45  INFO      [WEB] Metadatos guardados OK: Rep='NARCISO VALLE CRUZ', Ope='VALLE TV', Asunto='Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios', Registro='CRT26-025230'
+16:17:45  INFO      [FILES] Descargando archivos del folio 182510...
+16:17:59  INFO      [INFO] Seccion 'ARCHIVOS ASOCIADOS' no existe en folio 182510 -- activar fallback
+16:17:59  INFO      [FUENTE] Sin ARCHIVOS ASOCIADOS -- activando flujo DOCUMENTOS ANEXOS para folio 182510
+16:17:59  INFO      [ALT] Iniciando flujo DOCUMENTOS ANEXOS para folio 182510 (raw=VE-182510)
+16:17:59  INFO      [ALT-NAV] Navegando a Tramites Nuevos...
+16:18:07  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+16:18:07  INFO      [VIEW] Abriendo detalle: registro=CRT26-025229, folio=182509
+16:18:08  INFO      [PAGE] Resultados busqueda: mostrando 3 de 3 tramites
+16:18:08  INFO      [VIEW] Abriendo detalle: registro=CRT26-010647, folio=7478
+16:18:10  WARNING   [WARN] Folio 182517 no encontrado en columna 'Memo / Folio OPC'
+16:18:11  INFO      [W:SATyS_3] ── Folio 182517 OK (0/1 archivos) ──
+16:18:11  INFO      [CONC] [2/7] ✓ Folio 182517 completado: 0 OK / 1 total
+16:18:13  WARNING   [WARN] Folio 182518 no encontrado en columna 'Memo / Folio OPC'
+16:18:14  INFO      [W:SATyS_4] ── Folio 182518 OK (0/1 archivos) ──
+16:18:14  INFO      [CONC] [3/7] ✓ Folio 182518 completado: 0 OK / 1 total
+16:18:15  INFO      [OK] Detalle cargado: registro=CRT26-010647
+16:18:15  INFO      [WEB] Extrayendo metadatos web de SATyS para folio 7478
+16:18:15  INFO      [OK] Detalle cargado: registro=CRT26-025229
+16:18:15  INFO      [WEB] Extrayendo metadatos web de SATyS para folio 182509
+16:18:15  INFO      [ALT-NAV] Tramites Nuevos cargado OK
+16:18:15  INFO      [ALT-SEARCH] Buscando folio 182510 en Tramites Nuevos...
+16:18:16  INFO      [WEB] Registro encontrado: CRT26-010647
+16:18:17  INFO      [WEB] Registro encontrado: CRT26-025229
+16:18:18  INFO      [WEB] Fecha de folio OPC extraída: 17-03-2026 00:00:00
+16:18:18  INFO      [WEB] Fecha de folio OPC extraída: 16-06-2026 19:13:32
+16:18:21  INFO      [WEB] Metadatos guardados OK: Rep='ROSA ELENA DELGADO ALMARAZ', Ope='ROSA ELENA DELGADO ALMARAZ', Asunto='FORMATO R024', Registro='CRT26-010647'
+16:18:21  INFO      [FILES] Descargando archivos del folio 7478...
+16:18:21  INFO      [WEB] Metadatos guardados OK: Rep='NARCISO VALLE CRUZ', Ope='VALLE TV', Asunto='Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios', Registro='CRT26-025229'
+16:18:21  INFO      [FILES] Descargando archivos del folio 182509...
+16:18:22  INFO      [ALT-SEARCH] Folio 182510 encontrado en Tramites Nuevos
+16:18:22  INFO      [ALT-REVISAR] Abriendo detalle del tramite 182510...
+16:18:26  INFO      [ALT-REVISAR] Detalle del tramite cargado OK
+16:18:26  INFO      [ALT-META] Extrayendo metadatos de DATOS DEL TRAMITE para folio 182510
+16:18:35  INFO      [INFO] Seccion 'ARCHIVOS ASOCIADOS' no existe en folio 182509 -- activar fallback
+16:18:36  INFO      [FUENTE] Sin ARCHIVOS ASOCIADOS -- activando flujo DOCUMENTOS ANEXOS para folio 182509
+16:18:36  INFO      [ALT] Iniciando flujo DOCUMENTOS ANEXOS para folio 182509 (raw=VE-182509)
+16:18:36  INFO      [ALT-NAV] Navegando a Tramites Nuevos...
+16:18:40  INFO      [ALT-NAV] Tramites Nuevos cargado OK
+16:18:40  INFO      [ALT-SEARCH] Buscando folio 182509 en Tramites Nuevos...
+16:18:42  WARNING   [WEB] No se pudo extraer REMITENTE(S): Locator.scroll_into_view_if_needed: Timeout 59968ms exceeded.
+Call log:
+  - attempting scroll into view action
+    2 × waiting for element to be stable
+      - element is not visible
+    - retrying scroll into view action
+    - waiting 20ms
+    2 × waiting for element to be stable
+      - element is not visible
+    - retrying scroll into view action
+      - waiting 100ms
+    112 × waiting for element to be stable
+        - element is not visible
+      - retrying scroll into view action
+        - waiting 500ms
+
+16:18:44  WARNING   [V11-META-FALTANTE] folio=2038 campo=representante_legal es nulo/vacio
+16:18:44  WARNING   [V11-META-FALTANTE] folio=2038 campo=nombre_operador es nulo/vacio
+16:18:44  INFO      [WEB] Metadatos guardados OK: Rep='None', Ope='None', Asunto='PRESENTA INCONFORMIDAD POR EL REGISTRO DE SU LINEA TELEFONICA SIN AUTORIZACION, POR PARTE DE LA COMPAÑIA MOVISTAR. (Se recibió vía correo electrónico oficialiadepartes@crt.gob.mx) (08:29 p. m.)', Registro='CRT26-025797'
+16:18:46  INFO      [WEB] Extrayendo metadatos web de SATyS para folio 2038
+16:18:47  INFO      [WEB] Registro encontrado: CRT26-025797
+16:18:48  INFO      [ALT-SEARCH] Folio 182509 encontrado en Tramites Nuevos
+16:18:48  INFO      [ALT-REVISAR] Abriendo detalle del tramite 182509...
+16:18:49  INFO      [WEB] Fecha de folio OPC extraída: 22-06-2026 00:00:00
+16:18:51  INFO      [ALT-REVISAR] Detalle del tramite cargado OK
+16:18:51  INFO      [ALT-META] Extrayendo metadatos de DATOS DEL TRAMITE para folio 182509
+16:18:52  INFO      [WEB] Metadatos guardados OK: Rep='RICARDO PLANCARTE', Ope='RICARDO PLANCARTE', Asunto='PRESENTA INCONFORMIDAD POR EL REGISTRO DE SU LINEA TELEFONICA SIN AUTORIZACION, POR PARTE DE LA COMPAÑIA MOVISTAR. (Se recibió vía correo electrónico oficialiadepartes@crt.gob.mx) (08:29 p. m.)', Registro='CRT26-025797'
+16:18:52  INFO      [FILES] Descargando archivos del folio 2038...
+16:19:00  INFO      [ALT-META] Metadatos guardados: {'tipo_tramite': 'CGPE-01-003-N: Entrega periódica de Información General Estadística N. Sobre el Servicio Minorista Fijo de Televisión y/o Audio Restringidos', 'fecha_registro': '16/06/2026', 'solicitante': '', 'nombre_operador': 'VALLE TV, S.A. DE C.V.', 'representante_legal': 'NARCISO VALLE CRUZ', 'asunto': '', 'descripcion': '', 'registro': '', 'folio': '182510'}
+16:19:00  INFO      [ALT-DL] Descargando DOCUMENTOS ANEXOS para folio 182510
+16:19:04  INFO      [ALT-DL] Seccion DOCUMENTOS ANEXOS localizada: text=DOCUMENTOS ANEXOS
+16:19:05  INFO      [ALT-DL] DOCUMENTOS ANEXOS: Mostrando 1 a 3 de 3
+16:19:05  WARNING   [ALT-DL] 6 botones > 3 esperados -- usando solo los primeros 3
+16:19:05  INFO      [ALT-DL] Pagina 1: 3 botones VER DOCUMENTO
+16:19:05  INFO        [1] nombre=documento_182510_1  tipo=  fecha=
+16:19:06  INFO        [POPUP] Nueva pestana capturada al instante (PDF)
+16:19:06  INFO        [POPUP] Nueva pestana URL: https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf
+16:19:07  INFO        [OK-POPUP] 17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf (211.1 KB)
+16:19:07  INFO        [OK] 17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf  (211.1 KB)
+16:19:07  INFO        [2] nombre=documento_182510_2  tipo=  fecha=
+16:19:08  INFO        [OK] 17816591373093r024-01.csv  (0.1 KB)
+16:19:08  INFO        [3] nombre=documento_182510_3  tipo=  fecha=
+16:19:09  INFO        [POPUP] Nueva pestana capturada al instante (PDF)
+16:19:09  INFO        [POPUP] Nueva pestana URL: https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/182510/solicitud182510.pdf
+16:19:10  INFO        [OK-POPUP] solicitud182510.pdf (297.6 KB)
+16:19:10  INFO        [OK] solicitud182510.pdf  (297.6 KB)
+16:19:10  INFO      [ALT-DL] Paginacion: mostrando 1 a 3 de 3
+16:19:10  INFO      [ALT-DL] VALIDACION OK: 3/3 documentos descargados
+16:19:10  INFO      [META] metadata_satys.json actualizado con datos de tramite nuevo para folio 182510
+16:19:10  INFO      [META] metadata_completo.json: fuente=DOCUMENTOS_ANEXOS  ok=3/3  estado=OK
+16:19:10  INFO      [BACK] Regresando al tablero...
+16:19:13  INFO      [BACK] Re-navegando al tablero...
+16:19:13  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:19:18  INFO      [OK] Tablero de Control cargado
+16:19:26  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+16:19:26  INFO      [OK] Folio 182510: 1 tramite(s) procesado(s), registros: CRT26-025230
+16:19:27  INFO      [W:SATyS_0] ── Folio 182510 OK (3/3 archivos) ──
+16:19:27  INFO      [CONC] [4/7] ✓ Folio 182510 completado: 3 OK / 3 total
+16:19:28  INFO      [INFO] Pagina 1: 2 archivo(s) encontrado(s)
+16:19:28  INFO        [1] Descargando: CRT26-010647.pdf
+16:19:29  INFO           [OK] Descarga directa: CRT26-010647.pdf  (2048.0 KB)
+16:19:29  INFO        [2] Descargando: R024-01.csv
+16:19:30  INFO           [OK] Descarga directa: R024-01.csv  (0.0 KB)
+16:19:30  INFO      [INFO] Folio 7478: 2/2 descargados en 1 pagina(s)
+16:19:30  INFO      [FUENTE] ARCHIVOS ASOCIADOS encontrado para folio 7478
+16:19:30  INFO      [META] metadata_completo.json: fuente=ARCHIVOS_ASOCIADOS  ok=2/2  estado=OK
+16:19:30  INFO      [BACK] Regresando al tablero...
+16:19:32  INFO      [ALT-META] Metadatos guardados: {'tipo_tramite': 'CGPE-01-003-B: Entrega periódica de Información General Estadística B. Para Operador que no actualiza ninguno de los supuestos determinados por Servicio con base en su volumen de comercialización y/o provisión de servicios.', 'fecha_registro': '16/06/2026', 'solicitante': '', 'nombre_operador': 'VALLE TV, S.A. DE C.V.', 'representante_legal': 'NARCISO VALLE CRUZ', 'asunto': '', 'descripcion': '', 'registro': '', 'folio': '182509'}
+16:19:32  INFO      [ALT-DL] Descargando DOCUMENTOS ANEXOS para folio 182509
+16:19:35  INFO      [OK] De vuelta en el tablero
+16:19:36  INFO      [ALT-DL] Seccion DOCUMENTOS ANEXOS localizada: text=DOCUMENTOS ANEXOS
+16:19:37  INFO      [ALT-DL] DOCUMENTOS ANEXOS: Mostrando 1 a 3 de 3
+16:19:37  WARNING   [ALT-DL] 6 botones > 3 esperados -- usando solo los primeros 3
+16:19:37  INFO      [ALT-DL] Pagina 1: 3 botones VER DOCUMENTO
+16:19:38  INFO        [1] nombre=documento_182509_1  tipo=  fecha=
+16:19:38  INFO        [POPUP] Nueva pestana capturada al instante (PDF)
+16:19:38  INFO        [POPUP] Nueva pestana URL: https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17816587379988valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf
+16:19:38  INFO        [OK-POPUP] 17816587379988valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf (211.1 KB)
+16:19:38  INFO        [OK] 17816587379988valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf  (211.1 KB)
+16:19:39  INFO        [2] nombre=documento_182509_2  tipo=  fecha=
+16:19:40  INFO        [OK] 17816586766620r025-01.csv  (0.2 KB)
+16:19:40  INFO      [PAGE] Resultados busqueda: mostrando 3 de 3 tramites
+16:19:40  INFO      [OK] Folio 7478: 1 tramite(s) procesado(s), registros: CRT26-010647
+16:19:40  INFO        [3] nombre=documento_182509_3  tipo=  fecha=
+16:19:40  INFO        [POPUP] Nueva pestana capturada al instante (PDF)
+16:19:40  INFO        [POPUP] Nueva pestana URL: https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/182509/solicitud182509.pdf
+16:19:41  INFO        [OK-POPUP] solicitud182509.pdf (289.5 KB)
+16:19:41  INFO        [OK] solicitud182509.pdf  (289.5 KB)
+16:19:41  INFO      [ALT-DL] Paginacion: mostrando 1 a 3 de 3
+16:19:41  INFO      [ALT-DL] VALIDACION OK: 3/3 documentos descargados
+16:19:41  INFO      [META] metadata_satys.json actualizado con datos de tramite nuevo para folio 182509
+16:19:41  INFO      [META] metadata_completo.json: fuente=DOCUMENTOS_ANEXOS  ok=3/3  estado=OK
+16:19:41  INFO      [BACK] Regresando al tablero...
+16:19:41  INFO      [W:SATyS_5] ── Folio 7478 OK (2/2 archivos) ──
+16:19:41  INFO      [CONC] [5/7] ✓ Folio 7478 completado: 2 OK / 2 total
+16:19:44  INFO      [BACK] Re-navegando al tablero...
+16:19:44  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+16:19:49  INFO      [OK] Tablero de Control cargado
+16:19:55  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+16:19:55  INFO      [OK] Folio 182509: 1 tramite(s) procesado(s), registros: CRT26-025229
+16:19:56  INFO      [W:SATyS_1] ── Folio 182509 OK (3/3 archivos) ──
+16:19:56  INFO      [CONC] [6/7] ✓ Folio 182509 completado: 3 OK / 3 total
+16:19:59  INFO      [INFO] Pagina 1: 2 archivo(s) encontrado(s)
+16:19:59  INFO        [1] Descargando: 103980.png
+16:19:59  INFO           [OK] Descarga directa: 103980.png  (237.8 KB)
+16:19:59  INFO        [2] Descargando: MEMORANDUM.pdf
+16:20:00  INFO           [OK] Descarga directa: MEMORANDUM.pdf  (693.2 KB)
+16:20:00  INFO      [INFO] Folio 2038: 2/2 descargados en 1 pagina(s)
+16:20:00  INFO      [FUENTE] ARCHIVOS ASOCIADOS encontrado para folio 2038
+16:20:00  INFO      [META] metadata_completo.json: fuente=ARCHIVOS_ASOCIADOS  ok=2/2  estado=OK
+16:20:00  INFO      [BACK] Regresando al tablero...
+16:20:01  INFO      [OK] De vuelta en el tablero
+16:20:05  INFO      [PAGE] Resultados busqueda: mostrando 10 de 12 tramites
+16:20:06  INFO      [PAGE] Avanzando pagina de busqueda (10/12)...
+16:20:08  INFO      [OK] Folio 2038: 1 tramite(s) procesado(s), registros: CRT26-025797
+16:20:09  INFO      [W:SATyS_6] ── Folio 2038 OK (2/2 archivos) ──
+16:20:09  INFO      [CONC] [7/7] ✓ Folio 2038 completado: 2 OK / 2 total
+16:20:09  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+16:20:09  INFO      [RESUMEN] resumen_global.json: 7 folios | 4 Exitosos | 0 Incompletos | 3 No encontrados

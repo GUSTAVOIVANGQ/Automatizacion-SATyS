@@ -508,7 +508,12 @@ class SATySApp:
             self._append_log_line(f"[{ts}] ❌ Proceso terminó con código {rc}.", LOG_ERROR)
 
         self._set_running(False)
-        self._cargar_resumen_desde_log()
+        try:
+            self._cargar_resumen_desde_log()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            
         self._agregar_a_historial(rc)
         try:
             self.page.update()
@@ -590,6 +595,7 @@ class SATySApp:
             border_radius=ft.BorderRadius.all(10),
             bgcolor=BLUE_INFO,
             content=ft.Row(
+                wrap=True,
                 alignment=ft.MainAxisAlignment.SPACE_AROUND,
                 controls=[
                     self._stat_col("TOTAL FOLIOS", len(resultados)),
@@ -617,6 +623,8 @@ class SATySApp:
         datos_ui = self._cargar_datos_folios(resultados)
         if datos_ui:
             self.resumen_column.controls.append(datos_ui)
+
+        self.resumen_column.visible = True
 
         self.resumen_column.visible = True
 
@@ -655,7 +663,6 @@ class SATySApp:
             score_rpc = r.get("rpc_resultado", {}).get("score", 0) * 100
             score_str = f"{score_rpc:.0f}%" if r.get("rpc_ok") else ("—" if not r.get("pdf_encontrado") else f"⚠️ {score_rpc:.0f}%")
 
-            import os
             archivos_descargados = []
             if carpeta.exists():
                 for f in carpeta.iterdir():
@@ -812,7 +819,7 @@ class SATySApp:
                             ),
                         ],
                     ),
-                    ft.Wrap(spacing=8, run_spacing=8, controls=chips)
+                    ft.Row(wrap=True, spacing=8, run_spacing=8, controls=chips)
                     if chips else ft.Text("Ninguno.", size=12, color=TEXT_MUTED, italic=True),
                 ],
             ),
@@ -996,7 +1003,7 @@ class SATySApp:
 
         # Tarjeta de log
         log_card = ft.Container(
-            expand=True,
+            height=250,
             bgcolor=CARD_BG,
             border_radius=ft.BorderRadius.all(14),
             shadow=ft.BoxShadow(blur_radius=16, color="#10000000", offset=ft.Offset(0, 3)),
@@ -1060,6 +1067,7 @@ class SATySApp:
         return ft.Column(
             spacing=16,
             expand=True,
+            scroll=ft.ScrollMode.AUTO,
             controls=[
                 config_card,
                 log_card,

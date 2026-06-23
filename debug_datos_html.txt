@@ -1,0 +1,55 @@
+
+                                    <div class="panel-heading bg-panel-satys">
+                                        <h6 class="panel-title">
+                                            <a class="collapsed" data-toggle="collapse" href="#datos_sistema_body" aria-expanded="false">
+                                                <i class="icon-cog position-left"></i>
+                                                DATOS DEL SISTEMA
+                                            </a>
+                                        </h6>
+                                    </div>
+                                    <div id="datos_sistema_body" class="panel-collapse collapse in" aria-expanded="true">
+                                        <div class="panel-body">
+                                            <input type="hidden" id="documentoID" name="documentoID" value="">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <div class="form-group">
+                                                        <label for="oficialiaNombre" class="col-lg-4 control-label">Registro</label>
+                                                        <div class="col-lg-8">
+                                                            <input type="text" id="oficialiaNombre" name="oficialiaNombre" class="form-control" value="" readonly="readonly" disabled="disabled">
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-group">
+                                                        <label for="fechaRegistro" class="col-lg-4 control-label">Fecha de registro</label>
+                                                        <div class="col-lg-8">
+                                                            <div class="input-group">
+                                                                <span class="input-group-addon"><i class="icon-calendar"></i></span>
+                                                                <input type="text" id="fechaRegistro" name="fechaRegistro" class="form-control " readonly="readonly" disabled="disabled" ="readonly="readonly" "="">
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <div class="form-group">
+                                                        <label for="capturista" class="col-lg-4 control-label">Capturista</label>
+                                                        <div class="col-lg-8">
+                                                            <input type="text" id="capturista" name="capturista" class="form-control" value="" readonly="readonly" disabled="disabled">
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-group">
+                                                        <label for="estatus" class="col-lg-4 control-label">Estado</label>
+                                                        <div class="col-lg-8">
+                                                            <input type="text" id="estatus" name="estatus" class="form-control" value="" readonly="readonly" disabled="disabled">
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                

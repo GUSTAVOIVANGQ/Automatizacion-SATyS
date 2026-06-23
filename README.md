@@ -5,11 +5,43 @@
 
 ---
 
+## 🖥️ Interfaz Gráfica (¡NUEVO!)
+
+Se ha implementado una nueva **Interfaz Gráfica de Usuario (GUI)** amigable e intuitiva para orquestar todo el flujo de trabajo sin necesidad de usar comandos en la terminal. Desde aquí podrás seguir el progreso en tiempo real y ver un Resumen Ejecutivo interactivo de los resultados.
+
+### 🚀 Mejor Configuración Recomendada (Ideal)
+
+Para asegurar el mejor rendimiento, velocidad y estabilidad, recomendamos ajustar la interfaz de la siguiente forma:
+
+- **Modo:** Utiliza la opción para cargar un **Archivo TXT con folios** (ej. `folios.txt`).
+- **Ventanas Playwright:** Configurar en **10** (permite paralelizar múltiples descargas de manera rápida sin llegar a saturar la red o alentar el navegador).
+- **Mostrar navegador:** Mantener el interruptor **Apagado** (modo "Headless"). Esto evita abrir docenas de ventanas visibles de Chromium, consumiendo muchísima menos memoria y acelerando el tiempo total.
+
+Para iniciar la interfaz, solo necesitas hacer doble clic o ejecutar:
+
+```bash
+.\python-3.11.9-embed-amd64\python.exe ui_satys.py
+```
+
+### 📸 Galería de la Interfaz
+
+A continuación se muestra el aspecto y flujo de la aplicación:
+
+![Pantalla Principal](Screenshots/A1.png)
+![Configuración y Log](Screenshots/A2.png)
+![Procesamiento](Screenshots/A3.png)
+![Resumen Ejecutivo](Screenshots/A4.png)
+![Historial](Screenshots/A5.png)
+
+---
+
 ## 🎯 Descripción General
 
 Automatización completa del flujo de trabajo para la descarga, procesamiento y organización de archivos del sistema SATyS del Instituto Federal de Telecomunicaciones (IFT). El sistema extrae información de documentos PDF, consulta el Registro Público de Concesiones (RPC) y actualiza automáticamente una hoja de cálculo de control.
 
-### 🔄 Flujo Completo del Proceso
+### 🔄 Flujo Completo del Proceso (Actualizado)
+
+*El proceso se ejecuta de inicio a fin de forma consolidada, activando todas las partes del sistema, incluyendo la extracción de datos inteligente y validaciones del PDF.*
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -18,35 +50,39 @@ Automatización completa del flujo de trabajo para la descarga, procesamiento y 
 │                                                              │
 │  PARTE 1 — DESCARGA AUTOMÁTICA                              │
 │  ├── Login en https://satys.ift.org.mx/                     │
-│  ├── Navegación: Enlace/SIGEDO → Oficialía de Partes        │
-│  ├── Búsqueda de folios en DataTable                        │
-│  ├── Descarga de archivos asociados                         │
-│  └── Organización en /descargas/<folio>/                    │
-│                                                              │
-
-│  PARTE 3 — BÚSQUEDA EN RPC                                  │
-│  ├── Consulta en https://rpc.ift.org.mx/vrpc/               │
-│  ├── Búsqueda por nombre del operador                       │
-│  ├── Extracción de folio RPC (FET099560AU-XXXXXX)           │
+│  ├── Búsqueda de folios en listados de Oficialía            │
+│  ├── Descarga en paralelo de todos los archivos asociados   │
+│  └── Organización temporal en /descargas/<folio>/           │
+│                                                             │
+│  PARTE 2 — EXTRACCIÓN DE DATOS PDF (Deshabilitado)          │
+│  ├── Localización del PDF principal en la carpeta           │
+│  ├── Lectura y extracción estructurada de JSON Metadata     │
+│  └── Identificación precisa del Nombre o Razón Social       │
+│                                                             │
+│  PARTE 3 — BÚSQUEDA EN RPC Y DESCARGA DE BD                 │
+│  ├── Verificación y descarga de la última BD de Concesiones │
+│  ├── Búsqueda inteligente por nombre de operador en Excel   │
+│  ├── Extracción de Folio Electrónico y Número RPC           │
 │  └── Construcción de ruta estandarizada                     │
+│                                                             │
+│  PARTE 4 — ACTUALIZACIÓN DE EXCEL Y CARPETAS                │
+│  ├── Localización de fila por folio en Excel de control     │
+│  ├── Inserción de resultados y marcado de formatos descarg. │
+│  └── Traslado final ordenado a carpetas limpias en /output/ │
 │                                                              │
-│  PARTE 4 — ACTUALIZACIÓN DE EXCEL                           │
-│  ├── Localización de fila por folio                         │
-│  ├── Inserción de datos extraídos                           │
-│  ├── Marcado de formatos (1 en columna correspondiente)     │
-│  └── Registro de tipos de archivo descargados               │
-│                                                             │
-│  PARTE 2 — EXTRACCIÓN DE DATOS PDF (No implementado)        │
-│  ├── Localización del archivo PDF en carpeta                │
-│  ├── Extracción de texto con pdfplumber                     │
-│  ├── Identificación de:                                     │
-│  │   ├── Nombre o razón social del Operador                 │
-│  │   ├── Representante Legal                                │
-│  │   └── Formatos marcados con "X" (R001-R027)              │
-│  └── Corrección de errores OCR con fuzzywuzzy               │
-│                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## ✅ Validaciones del Sistema
+
+El programa incorpora múltiples niveles de validación para garantizar la integridad de los datos de principio a fin:
+
+1. **Validación de Identidad del Operador:** Cruza el nombre o ID obtenido en el SATyS contra el padrón oficial actualizado del RPC. Si la precisión (`score`) no es perfecta o hay múltiples empates, se aísla el caso para **revisión manual**, evitando falsos positivos.
+2. **Validación de Integridad PDF/JSON:** Antes de extraer datos o copiar, se certifica que el archivo no esté corrupto y se valida que provenga del trámite esperado.
+3. **Control Automático de Base de Datos:** Cada vez que el programa inicia, consulta para saber si existe una versión más nueva del Excel de Concesiones RPC, actualizándola en segundo plano si es necesario para tener los datos de dictaminación más recientes.
+4. **Resiliencia de Conexión (Timeouts/Retries):** Si la web del SATyS demora en cargar, falla una petición o expira la sesión, el script tiene capacidad de reiniciar la descarga de ese folio y reintentar.
 
 ---
 
@@ -55,339 +91,118 @@ Automatización completa del flujo de trabajo para la descarga, procesamiento y 
 ```
 proyecto_satys/
 │
-├── parte1_descarga.py          # Script de descarga automática
-├── parte2_procesar.py          # Script de extracción y procesamiento
-├── README.md                   # Este archivo
-├── requirements.txt            # Dependencias del proyecto
+├── ui_satys.py                 # 🟢 Interfaz Gráfica Principal (¡NUEVO!)
+├── main_procesar.py            # Orquestador lógico (Ejecuta P1, P3 y P4)
+├── Parte1_descarga.py          # Automatización web de SATyS (Playwright)
+├── Parte3_rpc.py               # Motor de búsqueda y homologación en RPC
+├── Parte4_excel.py             # Escritura final en Excel y carpetas /output/
+├── README.md                   # Documentación actual
 │
-├── descargas/                  # Carpeta de archivos descargados (temporales)
-│   ├── 6801/
-│   ├── 6802/
-│   └── descarga_log.json
+├── descargas/                  # Carpeta de tránsito (archivos recién descargados)
+├── output/                     # 📁 Destino Final: carpetas homologadas y limpias
+│   ├── 518998_telecomunicación.../
+│   └── output_sin_operador/    # Para folios de revisión manual
 │
-├── output/                     # Carpeta de resultados finales (organizados por RPC)
-│   ├── 518998_operador_a/
-│   └── ...
-│
-└── TrámitesCRT.xlsx            # Excel de control (actualizado)
+└── TrámitesCRT.xlsx            # Hoja de cálculo de control maestro
 ```
-
----
-
-## 🔧 Requisitos del Sistema
-
-### Hardware
-- Procesador: 2 GHz o superior
-- RAM: 4 GB mínimo (8 GB recomendado)
-- Espacio en disco: 500 MB para dependencias
-- Conexión a Internet: **Acceso a red del IFT** (obligatorio para SATyS)
-
-### Software
-- **Sistema Operativo**: Windows 10/11, macOS 11+, Linux
-- **Python**: 3.10 o superior
-- **Navegador**: Chromium (instalado automáticamente por Playwright)
-
-### Dependencias Python
-
-```bash
-pip install playwright pdfplumber fuzzywuzzy python-Levenstein openpyxl
-playwright install chromium
-```
-
-Ver `requirements.txt` para lista completa.
 
 ---
 
 ## 📦 Instalación
 
-### 1. Clonar o descargar el proyecto
+*(Si requieres usarlo fuera del empaquetado portable de Python embed)*
+
+1. **Dependencias:**
 
 ```bash
-git clone <repositorio>
-cd proyecto_satys
-```
-
-### 2. Crear entorno virtual (recomendado)
-
-```bash
-# Windows
-python -m venv venv
-venv\Scripts\activate
-
-# macOS/Linux
-python3 -m venv venv
-source venv/bin/activate
-```
-
-### 3. Instalar dependencias
-
-```bash
-pip install -r requirements.txt
+pip install playwright pdfplumber fuzzywuzzy python-Levenstein openpyxl flet
 playwright install chromium
 ```
 
-### 4. Verificar instalación
-
-```bash
-python -c "import playwright; import pdfplumber; import openpyxl; print('✅ Todo listo')"
-```
-
 ---
 
-## 🚀 Uso
+## 🚀 Uso en Terminal (Modo Avanzado)
 
-### Orquestador Principal (Recomendado)
-
-```bash
-# Iniciar el MENÚ INTERACTIVO (Solicita folio inicial y final)
-python main_procesar.py
-
-# Modo desatendido con folios específicos
-python main_procesar.py 6801 6802 6407
-```
-
-### PARTE 1 — Descarga de Archivos (Individual)
+Aunque ahora tenemos la Interfaz (GUI), si necesitas ejecutar todo desde línea de comandos (Powershell/CMD), las instrucciones consolidadas son:
 
 ```bash
-# Con folios por defecto (6801, 6802)
-python parte1_descarga.py
+# Ejecutar TODO el proceso con folios específicos (por argumentos):
+.\python-3.11.9-embed-amd64\python.exe main_procesar.py 164045 164046
 
-# Con folios específicos
-python parte1_descarga.py 6801 6802 6407 9493
+# Ejecutar proceso en segundo plano (Headless) leyendo folios de un TXT y usando 10 ventanas:
+.\python-3.11.9-embed-amd64\python.exe main_procesar.py --archivo-folios folios.txt --headless --workers 10
 
-# Modo headless (sin ventana del navegador)
-# Editar HEADLESS = True en el script
+# Modo Exploración Automática: Buscar y descargar los siguientes 27 folios a partir del 6407:
+.\python-3.11.9-embed-amd64\python.exe main_procesar.py --buscar 27 --desde 6407
+
+# Solo extraer y procesar archivos ya descargados (sin entrar a la web SATyS):
+.\python-3.11.9-embed-amd64\python.exe main_procesar.py --solo-procesar
+
+# Forzar la reconstrucción total de la base de datos local de Concesiones (RPC):
+.\python-3.11.9-embed-amd64\python.exe main_procesar.py --rebuild-catalogo
 ```
 
-**Salida:**
-```
-descargas/
-├── 6801/
-│   ├── CRT26-XXXXXX.pdf
-│   ├── R002-01.xlsx
-│   └── archivo_adicional.docx
-├── 6802/
-│   └── ...
-└── descarga_log.json
-```
+### 📋 Lista completa de argumentos disponibles
 
-### PARTE 2-4 — Procesamiento y Actualización de Excel
-
-```bash
-# Procesar folios específicos
-python parte2_procesar.py 6801 6802
-
-# Procesar todas las carpetas en descargas/
-python parte2_procesar.py
-```
-
-**Acciones realizadas:**
-1. Extrae texto del PDF en cada carpeta
-2. Identifica nombre del operador, representante legal y formatos
-3. Corrige errores de OCR
-4. Busca el operador en el RPC
-5. Actualiza el Excel `TrámitesCRT (1).xlsx`
-
----
-
-## ⚙️ Configuración
-
-### Credenciales SATyS
-
-Editar en `parte1_descarga.py`:
-```python
-USUARIO  = "david.palestina@ift.org.mx"
-PASSWORD = "Crt20261234*"
-```
-
-### Opciones de Visualización
-
-```python
-HEADLESS = False   # True = sin ventana | False = ver navegador
-TIMEOUT  = 30_000  # Timeout en milisegundos
-```
-
-### Folios por Defecto
-
-```python
-FOLIOS_DEFAULT = ["6802", "6801"]
-```
+| Argumento             | Descripción |
+| --------------------- | ----------- |
+| `[folios]`            | (Opcional) Números de folios separados por espacio para procesar directamente. Ej: `main_procesar.py 6801 6802`. |
+| `--archivo-folios`    | Ruta a un archivo `.txt` que contiene un folio por línea. Ej: `--archivo-folios folios.txt`. |
+| `--headless`          | Ejecuta Playwright en segundo plano ocultando la ventana del navegador (recomendado para velocidad). |
+| `--workers N`         | Define el número máximo de ventanas/pestañas simultáneas. Por defecto es `10`. |
+| `--solo-procesar`     | Omite la Parte 1 (automatización web de descarga) y procede directamente a extraer texto y buscar en el RPC usando los PDFs ya guardados localmente. |
+| `--buscar N`          | Automatiza la búsqueda secuencial hacia adelante de `N` folios. |
+| `--desde X`           | Establece el folio base (ej. `6407`) para empezar a sumar secuencialmente si se utiliza `--buscar`. |
+| `--no-organizar`      | Extrae los datos y actualiza el Excel, pero omite el movimiento final de los archivos a la carpeta limpia `output/`. |
+| `--rebuild-catalogo`  | Ignora el archivo caché local de operadores y reconstruye el catálogo RPC desde cero descargándolo de nuevo de la base oficial. |
 
 ---
 
 ## 📊 Columnas del Excel Actualizadas
 
-| Columna | Letra | Contenido | Ejemplo |
-|---------|-------|-----------|---------|
-| 1711 | D | Nombre del PDF sin extensión | CRT26-009493 |
-| Solicitante Promovente | F | Nombre del operador | TELECOMUNICACIÓN Y MERCADOTECNIA DE MONTERREY, S.A. DE C.V. |
-| Representante Legal | G | Nombre del representante | JOSÉ JORGE MENA ORTIZ |
-| Ruta | N | Ruta construida desde RPC | 518998_telecomunicación_y_mercadotecnia_de_monterrey_s_a_de_c_v\01 EN\VE |
-| R001-R027 | O-AQ | "1" si el formato está marcado en PDF | 1 |
-| NOTAS_VICTOR | AP | Tipos de archivo descargados | Archivos: xlsx, csv |
-
----
-
-## 🔍 Formato de Ruta RPC
-
-### Entrada (desde RPC)
-```
-FET099560AU-518998 - TELECOMUNICACIÓN Y MERCADOTECNIA DE MONTERREY, S.A. DE C.V.
-```
-
-### Salida (en Excel)
-```
-518998_telecomunicación_y_mercadotecnia_de_monterrey_s_a_de_c_v\01 EN\VE
-```
-
-### Reglas de conversión:
-1. Extraer número después del guión (518998)
-2. Convertir nombre a minúsculas
-3. Eliminar caracteres especiales (.,)
-4. Reemplazar espacios por guiones bajos
-5. Agregar sufijo `\01 EN\VE`
-
----
-
-## 🛠️ Herramientas Utilizadas
-
-| Herramienta | Versión | Uso | Licencia |
-|-------------|---------|-----|----------|
-| **Playwright** | 1.40+ | Automatización web (SATyS + RPC) | Apache 2.0 |
-| **pdfplumber** | 0.10+ | Extracción de texto PDF | MIT |
-| **openpyxl** | 3.1+ | Lectura/escritura Excel | MIT |
-| **fuzzywuzzy** | 0.18+ | Corrección de texto OCR | GPL v2 |
-| **python-Levenstein** | 0.25+ | Aceleración de fuzzywuzzy | GPL v2 |
-
----
-
-## ⚠️ Limitaciones y Consideraciones
-
-### Acceso a Red
-- **SATyS solo es accesible desde la red interna del IFT**
-- El RPC (rpc.ift.org.mx) es accesible públicamente
-- Se requiere VPN o conexión física a la red del IFT
-
-### Tiempos de Ejecución
-
-| Operación | Tiempo Estimado |
-|-----------|-----------------|
-| Login SATyS | 5-10 segundos |
-| Descarga por folio | 15-30 segundos |
-| Procesamiento PDF | 2-5 segundos |
-| Búsqueda RPC | 5-10 segundos |
-| Actualización Excel | 1-2 segundos |
-
-### Errores Comunes
-
-| Error | Causa | Solución |
-|-------|-------|----------|
-| `Timeout en login` | Credenciales incorrectas o red no disponible | Verificar credenciales y conexión VPN |
-| `Folio no encontrado` | Folio no existe en Documentos en Proceso | Verificar número de folio |
-| `Sin resultados RPC` | Nombre del operador mal extraído del PDF | Revisar calidad del OCR en PDF |
-| `Excel no actualizado` | Archivo abierto en otra aplicación | Cerrar Excel antes de ejecutar |
-
----
-
-## 🔄 Flujo de Trabajo Recomendado
-
-```mermaid
-graph TD
-    A[Inicio] --> B[Conectarse a red IFT]
-    B --> C[Ejecutar parte1_descarga.py]
-    C --> D[Verificar descargas/]
-    D --> E[Ejecutar parte2_procesar.py]
-    E --> F[Revisar Excel actualizado]
-    F --> G[Fin]
-```
-
----
-
-## 📝 Logs y Monitoreo
-
-### Archivos de Log Generados
-
-```
-descargas/descarga_log.json    # Registro detallado de descargas
-```
-
-### Formato del Log
-
-```json
-{
-  "fecha_ejecucion": "2026-01-15T10:30:00",
-  "total_archivos": 4,
-  "total_exitosos": 4,
-  "total_errores": 0,
-  "resultados": [
-    {
-      "folio": "6802",
-      "archivo": "CRT26-009493.pdf",
-      "tipo": "PDF",
-      "ruta": "descargas/6802/CRT26-009493.pdf",
-      "tamano_kb": 245.3,
-      "ok": true
-    }
-  ]
-}
-```
-
----
-
-## 🧪 Pruebas
-
-### Casos de Prueba
-
-```bash
-# Prueba 1: Descarga de un solo folio
-python parte1_descarga.py 6802
-
-# Prueba 2: Procesamiento de PDF
-python parte2_procesar.py 6802
-
-# Prueba 3: Flujo completo con múltiples folios
-python parte1_descarga.py 6802 6801
-python parte2_procesar.py 6802 6801
-```
-
-### Validación
-
-- [ ] Verificar que los archivos se descargan en la carpeta correcta
-- [ ] Confirmar que el nombre del operador se extrae correctamente
-- [ ] Validar que la búsqueda en RPC retorna resultados
-- [ ] Revisar que el Excel se actualiza sin errores
-- [ ] Comprobar que los formatos se marcan con "1" donde corresponde
+| Columna                | Letra | Contenido                       | Ejemplo                                                                   |
+| ---------------------- | ----- | ------------------------------- | ------------------------------------------------------------------------- |
+| Solicitante Promovente | F     | Nombre del operador             | TELECOMUNICACIÓN Y MERCADOTECNIA DE MONTERREY, S.A. DE C.V.              |
+| Ruta                   | N     | Ruta construida desde RPC       | 518998_telecomunicación_y_mercadotecnia_de_monterrey_s_a_de_c_v\01 EN\VE |
+| R001-R027              | O-AQ  | "1" si el formato fue detectado | 1                                                                         |
+| NOTAS_VICTOR           | AP    | Tipos de archivo descargados    | Archivos: xlsx, csv                                                       |
 
 ---
 
 ## 🔮 Próximas Mejoras (Roadmap)
 
-### Fase 1 - Optimización
-- [ ] Descubrimiento de API subyacente de SATyS
-- [ ] Paralelización de descargas
-- [ ] Bloqueo de recursos innecesarios (imágenes, fuentes)
+### Fase 1 - Optimización ✅
 
-### Fase 2 - Robustez
-- [ ] Reintentos automáticos en caso de timeout
-- [ ] Capturas de pantalla automáticas en errores
-- [ ] Validación de integridad de archivos descargados
+- [X] Paralelización de descargas con colas asíncronas de Playwright.
+- [X] Bloqueo de recursos innecesarios y soporte completo de ejecución *Headless*.
+- [X] Búsqueda optimizada contra el archivo Excel local del RPC sin raspar el inestable portal web viejo.
 
-### Fase 3 - Funcionalidades
-- [ ] Interfaz gráfica simple (GUI)
-- [ ] Programación de ejecuciones automáticas
-- [ ] Notificaciones por correo electrónico
+### Fase 2 - Robustez ✅
+
+- [X] Reintentos automáticos en caso de timeout en SATyS.
+- [X] Validación cruzada de identidad usando metadatos.
+- [X] Clasificación inteligente de expedientes confusos y envío automático a `output_sin_operador/`.
+- [X] Deshabilitación completa de la PARTE 2: Las capacidades de extracción e identificación ya funcionan nativamente en el flujo.
+
+### Fase 3 - Interfaz y Reportes 🚀
+
+- [X] **Interfaz gráfica completa (GUI) amigable con resúmenes detallados y botones interactivos.**
+- [X] Programación y carga eficiente de folios desde un `.TXT`.
+- [ ] Exportación de estadísticas en dashboard interactivo.
+- [ ] Soporte para reanudar el último punto exacto en caso de apagón o cierre abrupto de PC.
 
 ---
 
 ## 👤 Autor
 
 **Proyecto desarrollado para:**
+
 - Instituto Federal de Telecomunicaciones (IFT)
 - Coordinación General de Planeación Estratégica
 - Dirección General Adjunta de Estadística y Análisis de Indicadores
 
-**Desarrollador:** David Palestina Ramirez
-
+**Desarrollador Original:** David Palestina Ramirez
+**Actualizaciones y UI:** Equipo de Automatización
 **Contacto:** david.palestina@ift.org.mx
 
 ---
@@ -395,17 +210,3 @@ python parte2_procesar.py 6802 6801
 ## 📄 Licencia
 
 Este proyecto es propiedad del Instituto Federal de Telecomunicaciones (IFT). Uso interno exclusivamente.
-
----
-
-## 📚 Referencias
-
-- [Documentación de Playwright](https://playwright.dev/python/)
-- [Documentación de pdfplumber](https://github.com/jsvine/pdfplumber)
-- [Documentación de openpyxl](https://openpyxl.readthedocs.io/)
-- [Registro Público de Concesiones](https://rpc.ift.org.mx/vrpc/)
-- [SATyS - Sistema Automatizado de Trámites y Servicios](https://satys.ift.org.mx/)
-
----
-
-**Última actualización:** Mayo 2026

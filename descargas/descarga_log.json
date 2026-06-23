@@ -1,5 +1,5 @@
 {
-  "fecha": "2026-06-23T14:07:18.204787",
+  "fecha": "2026-06-23T16:20:09.065447",
   "total": 13,
   "ok": 10,
   "errores": 3,
@@ -68,23 +68,23 @@
       "fuente": "DOCUMENTOS_ANEXOS"
     },
     {
-      "folio": "2038",
-      "archivo": "103980.png",
-      "tipo": "PNG",
-      "ruta": "descargas\\2038\\103980.png",
-      "tamano_kb": 237.8,
+      "folio": "7478",
+      "archivo": "CRT26-010647.pdf",
+      "tipo": "PDF",
+      "ruta": "descargas\\7478\\CRT26-010647.pdf",
+      "tamano_kb": 2048.0,
       "ok": true,
-      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168654_20260622_095035_1782143435641.png",
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/153484_20260317_160724_1773785244465.pdf",
       "fuente": "ARCHIVOS_ASOCIADOS"
     },
     {
-      "folio": "2038",
-      "archivo": "MEMORANDUM.pdf",
-      "tipo": "PDF",
-      "ruta": "descargas\\2038\\MEMORANDUM.pdf",
-      "tamano_kb": 693.2,
+      "folio": "7478",
+      "archivo": "R024-01.csv",
+      "tipo": "CSV",
+      "ruta": "descargas\\7478\\R024-01.csv",
+      "tamano_kb": 0.0,
       "ok": true,
-      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168654_20260622_095039_1782143439724.pdf",
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/153484_20260317_140238_1773777758844.csv",
       "fuente": "ARCHIVOS_ASOCIADOS"
     },
     {
@@ -127,23 +127,23 @@
       "fuente": "DOCUMENTOS_ANEXOS"
     },
     {
-      "folio": "7478",
-      "archivo": "CRT26-010647.pdf",
-      "tipo": "PDF",
-      "ruta": "descargas\\7478\\CRT26-010647.pdf",
-      "tamano_kb": 2048.0,
+      "folio": "2038",
+      "archivo": "103980.png",
+      "tipo": "PNG",
+      "ruta": "descargas\\2038\\103980.png",
+      "tamano_kb": 237.8,
       "ok": true,
-      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/153484_20260317_160724_1773785244465.pdf",
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168654_20260622_095035_1782143435641.png",
       "fuente": "ARCHIVOS_ASOCIADOS"
     },
     {
-      "folio": "7478",
-      "archivo": "R024-01.csv",
-      "tipo": "CSV",
-      "ruta": "descargas\\7478\\R024-01.csv",
-      "tamano_kb": 0.0,
+      "folio": "2038",
+      "archivo": "MEMORANDUM.pdf",
+      "tipo": "PDF",
+      "ruta": "descargas\\2038\\MEMORANDUM.pdf",
+      "tamano_kb": 693.2,
       "ok": true,
-      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/153484_20260317_140238_1773777758844.csv",
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168654_20260622_095039_1782143439724.pdf",
       "fuente": "ARCHIVOS_ASOCIADOS"
     }
   ]
