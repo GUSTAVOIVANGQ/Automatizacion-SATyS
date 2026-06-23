@@ -1,47 +1,28 @@
 {
-  "fecha": "2026-06-19T17:57:41.874293",
-  "total": 3,
-  "ok": 3,
+  "fecha": "2026-06-22T18:07:51.812435",
+  "total": 2,
+  "ok": 2,
   "errores": 0,
   "resultados": [
     {
-      "folio": "182510",
-      "archivo": "17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf",
-      "nombre_original": "documento_182510_1",
-      "tipo": "",
-      "fecha": "",
-      "descripcion": "",
-      "ruta": "descargas\\182510\\17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf",
-      "tamano_kb": 211.1,
+      "folio": "16438",
+      "archivo": "CRT26-025799.pdf",
+      "tipo": "PDF",
+      "ruta": "descargas\\16438\\CRT26-025799.pdf",
+      "tamano_kb": 2948.7,
       "ok": true,
-      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf",
-      "fuente": "DOCUMENTOS_ANEXOS"
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168656_20260622_114353_1782150233107.pdf",
+      "fuente": "ARCHIVOS_ASOCIADOS"
     },
     {
-      "folio": "182510",
-      "archivo": "17816591373093r024-01.csv",
-      "nombre_original": "documento_182510_2",
-      "tipo": "",
-      "fecha": "",
-      "descripcion": "",
-      "ruta": "descargas\\182510\\17816591373093r024-01.csv",
-      "tamano_kb": 0.1,
+      "folio": "16438",
+      "archivo": "Formato CSV.zip",
+      "tipo": "ZIP",
+      "ruta": "descargas\\16438\\Formato CSV.zip",
+      "tamano_kb": 13.9,
       "ok": true,
-      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17816591373093r024-01.csv",
-      "fuente": "DOCUMENTOS_ANEXOS"
-    },
-    {
-      "folio": "182510",
-      "archivo": "solicitud182510.pdf",
-      "nombre_original": "documento_182510_3",
-      "tipo": "",
-      "fecha": "",
-      "descripcion": "",
-      "ruta": "descargas\\182510\\solicitud182510.pdf",
-      "tamano_kb": 297.6,
-      "ok": true,
-      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/182510/solicitud182510.pdf",
-      "fuente": "DOCUMENTOS_ANEXOS"
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168656_20260622_100927_1782144567008.zip",
+      "fuente": "ARCHIVOS_ASOCIADOS"
     }
   ]
 }

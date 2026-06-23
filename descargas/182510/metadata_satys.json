@@ -1,10 +1,14 @@
 {
-  "representante_legal": "VALLE TV, S.A. DE C.V.",
-  "nombre_operador": "NARCISO VALLE CRUZ",
-  "asunto": "",
-  "tipo_tramite": "CGPE-01-003-N: Entrega periódica de Información General Estadística N. Sobre el Servicio Minorista Fijo de Televisión y/o Audio Restringidos",
-  "fecha_registro": "16/06/2026",
-  "solicitante": "",
-  "descripcion": "",
-  "folio": "182510"
+  "representante_legal": null,
+  "nombre_operador": null,
+  "asunto": null,
+  "registro": "CRT26-025230",
+  "fecha_ejecucion": "2026-06-22T16:56:05.574713",
+  "DATOS_DEL_SISTEMA": {
+    "Registro": "CRT26-025230"
+  },
+  "DATOS_DEL_DOCUMENTO": {},
+  "REMITENTES": {},
+  "DESCRIPCION_DEL_DOCUMENTO": {},
+  "HISTORIAL_DE_TURNADOS": []
 }

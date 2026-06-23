@@ -120,33 +120,34 @@ def organizar_archivos(carpeta_folio: Path, ruta: str) -> Path | None:
     destino = OUTPUT_BASE / _ruta_a_path(ruta)
     destino.mkdir(parents=True, exist_ok=True)
 
-    movidos = 0
+    copiados = 0
     for item in carpeta_folio.iterdir():
         if item.resolve() == destino.resolve():
             continue
+            
+        # Excluir archivos JSON de la organización
+        if item.suffix.lower() == ".json":
+            continue
+
         target = _destino_sin_colision(destino, item)
         try:
-            # Si el destino ya existe, lo eliminamos para que shutil.move sobrescriba limpiamente
+            # Si el destino ya existe, lo eliminamos para que shutil.copy sobrescriba limpiamente
             if target.exists():
                 if target.is_file():
                     target.unlink()
                 else:
                     shutil.rmtree(target)
             
-            shutil.move(str(item), str(target))
-            movidos += 1
+            if item.is_file():
+                shutil.copy2(str(item), str(target))
+            else:
+                shutil.copytree(str(item), str(target), dirs_exist_ok=True)
+            copiados += 1
         except Exception as e:
-            log.error("❌ No se pudo mover %s → %s: %s", item.name, target, e)
+            log.error("❌ No se pudo copiar %s → %s: %s", item.name, target, e)
 
-    if movidos:
-        log.info("📁 %d archivos movidos a: %s", movidos, destino)
-
-    if BORRAR_CARPETA_FOLIO_VACIA:
-        try:
-            if not any(carpeta_folio.iterdir()):
-                carpeta_folio.rmdir()
-        except Exception:
-            pass
+    if copiados:
+        log.info("📁 %d archivos copiados a: %s", copiados, destino)
 
     return destino
 
@@ -175,7 +176,7 @@ def _buscar_fila(ws, folio: str) -> int | None:
 
 def actualizar_excel(
     folio: str,
-    pdf_nombre: str = "",
+    registro: str = "",
     nombre_operador: str = "",
     representante_legal: str = "",
     formatos: dict = None,
@@ -227,13 +228,14 @@ def actualizar_excel(
             log.info("📝 Actualizando fila %d para folio %s", fila, folio)
 
         # Escribir datos
-        if pdf_nombre:
-            ws.cell(row=fila, column=col_1711, value=pdf_nombre)
+        if registro:
+            ws.cell(row=fila, column=col_1711, value=registro)
         if nombre_operador:
             ws.cell(row=fila, column=col_solicitante, value=nombre_operador)
         if representante_legal:
             ws.cell(row=fila, column=col_rep, value=representante_legal)
         if fecha_sello:
+            fecha_sello = fecha_sello.replace("-", "/")
             ws.cell(row=fila, column=col_fecha, value=fecha_sello)
             log.info("   📅 Fecha sello → col %s: %s", get_column_letter(col_fecha), fecha_sello)
         if rpc_resultado and rpc_resultado.get("ok"):
@@ -243,7 +245,7 @@ def actualizar_excel(
         for fmt, presente in formatos.items():
             if presente and fmt in encabezados:
                 col = encabezados[fmt]
-                ws.cell(row=fila, column=col, value="x")
+                ws.cell(row=fila, column=col, value=1)
                 log.info("   ✅ Marcado %s en columna %s", fmt, get_column_letter(col))
 
         # NOTAS_VICTOR: solo formato entregado (nunca score RPC)

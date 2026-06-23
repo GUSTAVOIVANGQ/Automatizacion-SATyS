@@ -1,17 +1,17 @@
 {
-  "fecha": "2026-06-19T17:57:41.876924",
+  "fecha": "2026-06-22T18:07:51.812435",
   "total_folios": 1,
   "folios_exitosos": 1,
   "folios_incompletos": 0,
   "folios_no_encontrados": 0,
-  "total_archivos_descargados": 3,
+  "total_archivos_descargados": 2,
   "detalle_folios": [
     {
-      "folio": "182510",
-      "archivos_ok": 3,
+      "folio": "16438",
+      "archivos_ok": 2,
       "archivos_error": 0,
       "estado": "OK",
-      "carpeta": "descargas\\182510"
+      "carpeta": "descargas\\16438"
     }
   ]
 }

@@ -792,25 +792,104 @@ def _retry_if_faltan_metadatos(res):
     return not res.get("representante_legal") or not res.get("asunto")
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), retry=retry_if_result(_retry_if_faltan_metadatos))
-def extraer_metadatos_satys(page, folio: str, carpeta: Path) -> dict:
+def extraer_metadatos_satys(page, folio: str, carpeta: Path, registro_esperado: str = None) -> dict:
     log.info("[WEB] Extrayendo metadatos web de SATyS para folio %s", folio)
     metadatos = {
         "representante_legal": None,
         "nombre_operador": None,
-        "asunto": None
+        "asunto": None,
+        "registro": None,
     }
     try:
         page.evaluate("window.scrollTo(0, 0)")
         page.wait_for_timeout(1500)
-        
+
+        # 0. Extraer campo "Registro" de DATOS DEL SISTEMA (ej. CRT26-025230)
+        try:
+            registro_val = page.evaluate('''() => {
+                // Buscar label "Registro" dentro de DATOS DEL SISTEMA
+                let labels = Array.from(document.querySelectorAll("label"));
+                let lbl = labels.find(el => el.textContent && el.textContent.trim() === "Registro");
+                if (lbl) {
+                    // Puede estar en un input/textarea siguiente o en el mismo form-group
+                    let parent = lbl.parentElement;
+                    if (parent) {
+                        let inp = parent.querySelector("input, textarea");
+                        if (inp) return inp.value.trim();
+                        let sib = lbl.nextElementSibling;
+                        if (sib) return sib.innerText.trim();
+                    }
+                }
+                // Fallback: buscar input cuyo id contenga "registro"
+                let inp2 = document.querySelector("input[id*='registro' i], input[name*='registro' i]");
+                if (inp2) return inp2.value.trim();
+                return "";
+            }''')
+            if not registro_val and registro_esperado:
+                registro_val = registro_esperado
+
+            if registro_val:
+                metadatos["registro"] = registro_val
+                log.info("[WEB] Registro encontrado: %s", registro_val)
+        except Exception as e:
+            log.warning("[WEB] No se pudo extraer campo Registro: %s", e)
+
         # 1. Expandir DATOS DEL DOCUMENTO
         try:
             datos_doc = page.locator("a[data-toggle='collapse']:has-text('DATOS DEL DOCUMENTO'), h4:has-text('DATOS DEL DOCUMENTO')").first
             datos_doc.scroll_into_view_if_needed()
             datos_doc.click()
             page.wait_for_timeout(1000)
-        except Exception:
-            pass
+            
+            # 1.5 Extraer Fecha de folio OPC
+            fecha_opc = page.evaluate('''() => {
+                // Buscar por ID o NAME si es obvio
+                let inputs = Array.from(document.querySelectorAll('input'));
+                for (let inp of inputs) {
+                    let attrs = (inp.name || "") + " " + (inp.id || "");
+                    if (attrs.toLowerCase().includes('fecha') && attrs.toLowerCase().includes('opc')) {
+                        if (inp.value.trim()) return inp.value.trim();
+                    }
+                }
+
+                // Buscar el texto en la pantalla y tomar el siguiente input
+                let allElems = Array.from(document.querySelectorAll('*'));
+                // Buscamos el elemento más profundo que contiene el texto (para evitar agarrar un gran DIV)
+                let targetLabels = allElems.filter(el => {
+                    let t = (el.innerText || el.textContent || "").trim();
+                    return t.includes('Fecha de folio OPC') && t.length < 30;
+                });
+
+                if (targetLabels.length > 0) {
+                    let targetLabel = targetLabels[targetLabels.length - 1]; // El más profundo
+                    for (let inp of inputs) {
+                        if (inp.type !== 'hidden' && (targetLabel.compareDocumentPosition(inp) & Node.DOCUMENT_POSITION_FOLLOWING)) {
+                            return inp.value.trim();
+                        }
+                    }
+                }
+                
+                // Fallback a buscar cualquier label
+                for (let el of allElems) {
+                    if (el.tagName === 'LABEL' && el.textContent.includes('Fecha')) {
+                        let next = el.nextElementSibling;
+                        if (next && next.querySelector('input')) return next.querySelector('input').value.trim();
+                    }
+                }
+
+                return "";
+            }''')
+            if fecha_opc:
+                metadatos["fecha_ejecucion"] = fecha_opc
+                metadatos["fecha_registro"] = fecha_opc
+                metadatos["fecha_folio_opc"] = fecha_opc
+                log.info("[WEB] Fecha de folio OPC extraída: %s", fecha_opc)
+            else:
+                metadatos["fecha_ejecucion"] = datetime.now().isoformat()
+        except Exception as e:
+            log.warning("[WEB] No se pudo extraer Fecha de folio OPC: %s", e)
+            metadatos["fecha_ejecucion"] = datetime.now().isoformat()
+
             
         # 2. Expandir REMITENTE(S)
         try:
@@ -922,6 +1001,9 @@ def extraer_metadatos_satys(page, folio: str, carpeta: Path) -> dict:
                 metadatos[campo] = None
                 log.warning("[V11-META-FALTANTE] folio=%s campo=%s es nulo/vacio",
                             folio, campo)
+        if not metadatos.get("registro"):
+            metadatos["registro"] = None
+            log.warning("[V11-META-FALTANTE] folio=%s campo=registro es nulo/vacio", folio)
 
         # Guardar en archivo
         out_path = carpeta / "metadata_satys.json"
@@ -929,8 +1011,9 @@ def extraer_metadatos_satys(page, folio: str, carpeta: Path) -> dict:
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(metadatos, f, ensure_ascii=False, indent=2)
 
-        log.info("[WEB] Metadatos guardados OK: Rep='%s', Ope='%s', Asunto='%s'",
-                 metadatos["representante_legal"], metadatos["nombre_operador"], metadatos["asunto"])
+        log.info("[WEB] Metadatos guardados OK: Rep='%s', Ope='%s', Asunto='%s', Registro='%s'",
+                 metadatos["representante_legal"], metadatos["nombre_operador"],
+                 metadatos["asunto"], metadatos["registro"])
         return metadatos
     except Exception as e:
         log.error("[WEB] Error extrayendo metadatos web: %s", e)
@@ -1551,7 +1634,7 @@ def procesar_folio_completo(context, page, folio: str, carpeta: Path, folio_raw:
                 log.info("[OK] Detalle cargado: registro=%s", registro)
 
                 # Extraer metadatos web (Representante, Solicitante, Asunto)
-                meta_satys = extraer_metadatos_satys(page, folio, carpeta)
+                meta_satys = extraer_metadatos_satys(page, folio, carpeta, registro_esperado=registro)
                 meta_tramite = {}
 
                 # --- BIFURCACION: intentar ARCHIVOS ASOCIADOS primero ---
@@ -1575,7 +1658,11 @@ def procesar_folio_completo(context, page, folio: str, carpeta: Path, folio_raw:
                     )
                     
                     if meta_tramite and isinstance(meta_tramite, dict):
+                        # Preservar el registro extraído de DATOS DEL SISTEMA si tramite_nuevo no lo tiene
+                        registro_original = meta_satys.get("registro")
                         meta_satys.update(meta_tramite)
+                        if not meta_satys.get("registro") and registro_original:
+                            meta_satys["registro"] = registro_original
                         out_path_satys = carpeta / "metadata_satys.json"
                         with open(out_path_satys, "w", encoding="utf-8") as f:
                             json.dump(meta_satys, f, ensure_ascii=False, indent=2)
@@ -1907,6 +1994,7 @@ def extraer_metadatos_tramite_nuevo(page, folio: str, carpeta: Path) -> dict:
         "representante_legal": "",
         "asunto": "",
         "descripcion": "",
+        "registro": "",
     }
     try:
         page.evaluate("window.scrollTo(0, 0)")
@@ -1934,14 +2022,15 @@ def extraer_metadatos_tramite_nuevo(page, folio: str, carpeta: Path) -> dict:
                 "Tipo": "tipo_tramite",
                 "Trámite": "tipo_tramite",
                 "Folio": "folio",
-                "Solicitante": "solicitante",
-                "Promovente": "nombre_operador",
+                "Solicitante": "nombre_operador",
+                "Promovente": "representante_legal",
                 "Representante": "representante_legal",
-                "Concesionario": "representante_legal",
+                "Concesionario": "nombre_operador",
                 "Asunto": "asunto",
                 "Info. adicional": "asunto",
                 "Descripci": "descripcion",
-                "Fecha de recepción": "fecha_registro"
+                "Fecha de recepción": "fecha_registro",
+                "Fecha de folio OPC": "fecha_ejecucion"
             }
             
             # 1) Buscar valores dentro del mismo texto del label (ej. <label>Concesionario: <span>PANAMSAT...</span></label>)
@@ -2004,6 +2093,31 @@ def extraer_metadatos_tramite_nuevo(page, folio: str, carpeta: Path) -> dict:
                     meta["tipo_tramite"] = tipo
             except Exception:
                 pass
+
+        # Extraer número de Registro desde el encabezado de la página (ej. CRT26-025230)
+        if not meta.get("registro"):
+            try:
+                registro_hdr = page.evaluate(r'''() => {
+                    // El encabezado muestra "CRT26-025230 -> VE-182510" en un select/span
+                    let sel = document.querySelector("select option:checked, .breadcrumb-item.active");
+                    if (sel) {
+                        let m = sel.textContent.match(/(CRT\d+-\d+)/);
+                        if (m) return m[1];
+                    }
+                    // Buscar en cualquier elemento visible del encabezado
+                    let all = Array.from(document.querySelectorAll("select, h1, h2, h3, .page-title, .header-title, nav"));
+                    for (let el of all) {
+                        let t = el.textContent || "";
+                        let m = t.match(/(CRT\d{2}-\d+)/);
+                        if (m) return m[1];
+                    }
+                    return "";
+                }''')
+                if registro_hdr:
+                    meta["registro"] = registro_hdr
+                    log.info("[ALT-META] Registro extraído del encabezado: %s", registro_hdr)
+            except Exception as e:
+                log.warning("[ALT-META] No se pudo extraer Registro del encabezado: %s", e)
 
         # Guardar archivo
         out_path = carpeta / "metadata_tramite_nuevo.json"

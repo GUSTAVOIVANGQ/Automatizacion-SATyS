@@ -70,7 +70,7 @@ MAX_PREFIX_LEN = 5
 SLEEP_SECONDS = 0.2
 
 # Umbral mínimo de score para considerar un match válido
-SCORE_MINIMO = 0.50
+SCORE_MINIMO = 0.80
 
 # ════════════════════════════════════════════════════════
 
@@ -436,7 +436,7 @@ def buscar_en_rpc(nombre_operador: str, catalogo: list | None = None, force_rebu
 
     # Log top 3
     for i, (s, item) in enumerate(top[:3], 1):
-        icono = "✅" if s >= 0.70 else ("⚠️" if s >= 0.50 else "❌")
+        icono = "✅" if s >= 0.85 else ("⚠️" if s >= 0.80 else "❌")
         log.info("  %d. %s %.0f%% → %s", i, icono, s * 100, item["concesionario"][:60])
 
     best_score, best_item = top[0] if top else (0.0, None)
