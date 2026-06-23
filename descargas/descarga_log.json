@@ -1,9 +1,33 @@
 {
-  "fecha": "2026-06-23T12:04:39.213448",
+  "fecha": "2026-06-23T14:07:18.204787",
   "total": 13,
   "ok": 10,
   "errores": 3,
   "resultados": [
+    {
+      "folio": "182511",
+      "archivo": "FOLIO_NO_ENCONTRADO",
+      "tipo": "N/A",
+      "ruta": "",
+      "tamano_kb": 0,
+      "ok": false
+    },
+    {
+      "folio": "182517",
+      "archivo": "FOLIO_NO_ENCONTRADO",
+      "tipo": "N/A",
+      "ruta": "",
+      "tamano_kb": 0,
+      "ok": false
+    },
+    {
+      "folio": "182518",
+      "archivo": "FOLIO_NO_ENCONTRADO",
+      "tipo": "N/A",
+      "ruta": "",
+      "tamano_kb": 0,
+      "ok": false
+    },
     {
       "folio": "182510",
       "archivo": "17816592181584valletvpresentacionr024yr025viviendaspasadasyenlacesactivos.pdf",
@@ -42,6 +66,26 @@
       "ok": true,
       "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/182510/solicitud182510.pdf",
       "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "2038",
+      "archivo": "103980.png",
+      "tipo": "PNG",
+      "ruta": "descargas\\2038\\103980.png",
+      "tamano_kb": 237.8,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168654_20260622_095035_1782143435641.png",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    },
+    {
+      "folio": "2038",
+      "archivo": "MEMORANDUM.pdf",
+      "tipo": "PDF",
+      "ruta": "descargas\\2038\\MEMORANDUM.pdf",
+      "tamano_kb": 693.2,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168654_20260622_095039_1782143439724.pdf",
+      "fuente": "ARCHIVOS_ASOCIADOS"
     },
     {
       "folio": "182509",
@@ -101,50 +145,6 @@
       "ok": true,
       "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/153484_20260317_140238_1773777758844.csv",
       "fuente": "ARCHIVOS_ASOCIADOS"
-    },
-    {
-      "folio": "2038",
-      "archivo": "103980.png",
-      "tipo": "PNG",
-      "ruta": "descargas\\2038\\103980.png",
-      "tamano_kb": 237.8,
-      "ok": true,
-      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168654_20260622_095035_1782143435641.png",
-      "fuente": "ARCHIVOS_ASOCIADOS"
-    },
-    {
-      "folio": "2038",
-      "archivo": "MEMORANDUM.pdf",
-      "tipo": "PDF",
-      "ruta": "descargas\\2038\\MEMORANDUM.pdf",
-      "tamano_kb": 693.2,
-      "ok": true,
-      "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/168654_20260622_095039_1782143439724.pdf",
-      "fuente": "ARCHIVOS_ASOCIADOS"
-    },
-    {
-      "folio": "182517",
-      "archivo": "FOLIO_NO_ENCONTRADO",
-      "tipo": "N/A",
-      "ruta": "",
-      "tamano_kb": 0,
-      "ok": false
-    },
-    {
-      "folio": "182518",
-      "archivo": "FOLIO_NO_ENCONTRADO",
-      "tipo": "N/A",
-      "ruta": "",
-      "tamano_kb": 0,
-      "ok": false
-    },
-    {
-      "folio": "182511",
-      "archivo": "FOLIO_NO_ENCONTRADO",
-      "tipo": "N/A",
-      "ruta": "",
-      "tamano_kb": 0,
-      "ok": false
     }
   ]
 }

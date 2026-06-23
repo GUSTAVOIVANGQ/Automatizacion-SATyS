@@ -22,6 +22,7 @@ Uso:
 import sys
 import io
 import os
+import re
 import json
 import logging
 import argparse
@@ -95,7 +96,7 @@ log = logging.getLogger("SATyS-Main")
 #  PARTE 1: Descarga (importa Parte1_descarga.py)
 # ────────────────────────────────────────────────────────
 
-def ejecutar_descarga(folios: list[str]):
+def ejecutar_descarga(folios: list[str], workers: int = 10, headless: bool = False):
     """Ejecuta la Parte 1: descarga automática desde SATyS."""
     try:
         import Parte1_descarga
@@ -109,25 +110,28 @@ def ejecutar_descarga(folios: list[str]):
     # Configurar Parte1 con nuestros valores
     Parte1_descarga.USUARIO = SATYS_USUARIO
     Parte1_descarga.PASSWORD = SATYS_PASSWORD
-    Parte1_descarga.HEADLESS = HEADLESS
+    Parte1_descarga.HEADLESS = headless
     Parte1_descarga.FOLIOS_DEFAULT = folios
     Parte1_descarga.DESCARGA_BASE = DESCARGA_BASE
 
     import time
 
+    MAX_REINTENTOS = 3
+    headless_flag = ["--headless"] if headless else ["--visible"]
+
     folios_actuales = list(folios)
     intento = 0
 
-    while folios_actuales:
+    while folios_actuales and intento < MAX_REINTENTOS:
         intento += 1
         if intento > 1:
-            log.warning("⚠️  [REINTENTO %d] Descargando %d folios incompletos...", intento, len(folios_actuales))
+            log.warning("⚠️  [REINTENTO %d/%d] Descargando %d folios incompletos...", intento, MAX_REINTENTOS, len(folios_actuales))
             time.sleep(5)
 
         try:
             # Guardar y restaurar sys.argv para que Parte1 use nuestros folios
             original_argv = sys.argv
-            sys.argv = ["Parte1_descarga.py", "--headless", "--workers", "10", "--folios"] + folios_actuales
+            sys.argv = ["Parte1_descarga.py"] + headless_flag + ["--workers", str(workers), "--folios"] + folios_actuales
             Parte1_descarga.main()
             sys.argv = original_argv
         except Exception as e:
@@ -153,16 +157,22 @@ def ejecutar_descarga(folios: list[str]):
             log.info("✅ Todos los folios procesados sin errores incompletos.")
             break
 
-        # Extraer cuáles fueron los folios incompletos
+        # Extraer cuáles fueron los folios incompletos.
+        # Parte1_descarga.guardar_resumen_global() escribe la clave "estado"
+        # (no "err" ni "no_encontrado", que no existen en el JSON real).
         nuevos_folios = []
         for d in resumen.get("detalle_folios", []):
-            if not d.get("no_encontrado") and d.get("err", 0) > 0:
+            if d.get("estado") == "INCOMPLETO":
                 nuevos_folios.append(str(d.get("folio")))
-                
+
         if not nuevos_folios:
             break
-            
+
         folios_actuales = nuevos_folios
+
+    if folios_actuales and intento >= MAX_REINTENTOS:
+        log.warning("⚠️  Se alcanzó el límite de %d reintentos. Folios aún incompletos: %s",
+                    MAX_REINTENTOS, ", ".join(folios_actuales))
 
     return True
 
@@ -242,7 +252,6 @@ def procesar_folio(
     # 1. Extract RXXX format from asunto
     formatos_dict = {}
     if asunto:
-        import re
         for m in re.finditer(r"(R\d{3})", asunto, re.IGNORECASE):
             formatos_dict[m.group(1).upper()] = True
 
@@ -525,6 +534,10 @@ Ejemplos:
                         help="Folio inicial para la búsqueda (ej: 6407)")
     parser.add_argument("--archivo-folios", type=str, default="",
                         help="Ruta a un archivo .txt con la lista de folios a procesar (uno por línea)")
+    parser.add_argument("--workers", type=int, default=10,
+                        help="Número de ventanas de navegador a usar en Playwright (Parte 1)")
+    parser.add_argument("--headless", action="store_true",
+                        help="Ocultar navegador de Playwright (ejecución en segundo plano).")
     args = parser.parse_args()
 
     # Configuración local
@@ -596,12 +609,11 @@ Ejemplos:
         print("─" * 70)
         print("  PARTE 1: DESCARGA AUTOMÁTICA DESDE SATyS")
         print("─" * 70)
-        if not ejecutar_descarga(folios):
+        if not ejecutar_descarga(folios, workers=args.workers, headless=args.headless):
             log.error("❌ La descarga falló o no pudo completar todos los folios. Cancelando el proceso.")
             return
         print()
 
-    import re
     def normalizar_folio_local(folio_str: str) -> str:
         m = re.search(r"(\d+)$", str(folio_str).strip())
         return str(int(m.group(1))) if m else str(folio_str).strip()
@@ -645,19 +657,37 @@ Ejemplos:
         
         bd_dir = Path(_script_dir) / "base_de_datos_rpc"
         bd_dir.mkdir(exist_ok=True)
-        
-        log.info("⬇️  Verificando/Descargando la base de datos más reciente...")
-        # Capturamos la salida estándar para que no ensucie demasiado el log de main_procesar, o simplemente la dejamos
-        descargado_path = descargar_bd(str(bd_dir))
-        
-        if descargado_path:
-            excel_path_full = Path(descargado_path)
+
+        def _catalogo_existente_mas_reciente(bd_dir: Path):
+            archivos = sorted(
+                bd_dir.glob("03_concesiones_permisos_autorizaciones_*.xlsx"),
+                key=lambda p: p.stat().st_mtime, reverse=True,
+            )
+            return archivos[0] if archivos else None
+
+        def _catalogo_necesita_actualizacion(bd_dir: Path, max_dias: int = 7) -> bool:
+            mas_reciente = _catalogo_existente_mas_reciente(bd_dir)
+            if mas_reciente is None:
+                return True
+            edad_dias = (datetime.now().timestamp() - mas_reciente.stat().st_mtime) / 86400
+            return edad_dias > max_dias
+
+        excel_path_full = None
+        if args.rebuild_catalogo or _catalogo_necesita_actualizacion(bd_dir):
+            log.info("⬇️  Verificando/Descargando la base de datos más reciente...")
+            descargado_path = descargar_bd(str(bd_dir))
+            if descargado_path:
+                excel_path_full = Path(descargado_path)
         else:
+            mas_reciente = _catalogo_existente_mas_reciente(bd_dir)
+            excel_path_full = mas_reciente
+            log.info("✅ Catálogo reciente (%s), se omite la descarga.", mas_reciente.name)
+
+        if excel_path_full is None:
             # Fallback a buscar el xlsx más reciente en la carpeta si falló la descarga
-            archivos_xlsx = list(bd_dir.glob("03_concesiones_permisos_autorizaciones_*.xlsx"))
-            if archivos_xlsx:
-                # Ordenar por fecha de modificación (el más reciente primero) o por nombre
-                excel_path_full = sorted(archivos_xlsx, key=lambda p: p.stat().st_mtime, reverse=True)[0]
+            mas_reciente = _catalogo_existente_mas_reciente(bd_dir)
+            if mas_reciente is not None:
+                excel_path_full = mas_reciente
                 log.info("Usando archivo existente (offline fallback): %s", excel_path_full.name)
             else:
                 # Fallback final a la antigua carpeta si base_de_datos_rpc está vacío
