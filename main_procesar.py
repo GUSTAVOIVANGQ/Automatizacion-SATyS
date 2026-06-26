@@ -122,10 +122,15 @@ def ejecutar_descarga(folios: list[str], workers: int = 10, headless: bool = Fal
     folios_actuales = list(folios)
     intento = 0
 
-    while folios_actuales and intento < MAX_REINTENTOS:
+    # ═══════════════════════════════════════════════════════════════════════════
+    # BUCLE DE REINTENTOS AUTOMÁTICOS — ACTIVO
+    # Para desactivarlo: comenta el bloque 'while' de abajo y descomenta el bloque
+    # 'EJECUCIÓN ÚNICA' que le sigue.
+    # ═══════════════════════════════════════════════════════════════════════════
+    while folios_actuales:
         intento += 1
         if intento > 1:
-            log.warning("⚠️  [REINTENTO %d/%d] Descargando %d folios incompletos...", intento, MAX_REINTENTOS, len(folios_actuales))
+            log.warning("⚠️  [REINTENTO %d] Descargando %d folios incompletos...", intento, len(folios_actuales))
             time.sleep(5)
 
         try:
@@ -169,12 +174,30 @@ def ejecutar_descarga(folios: list[str], workers: int = 10, headless: bool = Fal
             break
 
         folios_actuales = nuevos_folios
+    # ═══════════════════════════════════════════════════════════════════════════
+    # FIN BUCLE DE REINTENTOS
+    # ═══════════════════════════════════════════════════════════════════════════
 
-    if folios_actuales and intento >= MAX_REINTENTOS:
-        log.warning("⚠️  Se alcanzó el límite de %d reintentos. Folios aún incompletos: %s",
-                    MAX_REINTENTOS, ", ".join(folios_actuales))
+    # ───────────────────────────────────────────────────────────────────────────
+    # EJECUCIÓN ÚNICA (sin reintentos automáticos) — ACTUALMENTE DESACTIVADO
+    # Para activar: comenta el bloque 'while' de arriba y descomenta este bloque.
+    # ───────────────────────────────────────────────────────────────────────────
+    # try:
+    #     original_argv = sys.argv
+    #     sys.argv = ["Parte1_descarga.py"] + headless_flag + ["--workers", str(workers), "--folios"] + folios_actuales
+    #     Parte1_descarga.main()
+    #     sys.argv = original_argv
+    # except Exception as e:
+    #     log.error("❌ Error en descarga: %s", e)
+    #     sys.argv = original_argv
+    #     return False
+    # log.info("✅ Descarga completada (ejecución única sin reintentos automáticos).")
+    # ───────────────────────────────────────────────────────────────────────────
+    # FIN EJECUCIÓN ÚNICA
+    # ───────────────────────────────────────────────────────────────────────────
 
     return True
+
 
 
 # ────────────────────────────────────────────────────────

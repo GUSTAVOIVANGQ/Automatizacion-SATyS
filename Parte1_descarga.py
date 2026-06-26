@@ -22,6 +22,7 @@ import os
 import re
 import time
 import json
+import zipfile
 import logging
 import argparse
 import threading
@@ -130,6 +131,23 @@ def crear_carpeta(folio: str) -> Path:
     p = DESCARGA_BASE / folio
     p.mkdir(parents=True, exist_ok=True)
     return p
+
+
+def extraer_zip_si_aplica(archivo: Path, carpeta: Path) -> list:
+    archivos_extraidos = []
+    if archivo.suffix.lower() == '.zip':
+        log.info("[ZIP] Archivo ZIP detectado, descomprimiendo: %s", archivo.name)
+        try:
+            with zipfile.ZipFile(archivo, 'r') as zip_ref:
+                for member in zip_ref.infolist():
+                    if not member.is_dir():
+                        zip_ref.extract(member, carpeta)
+                        archivos_extraidos.append(carpeta / member.filename)
+            log.info("[ZIP] Descomprimido correctamente: %s. Eliminando ZIP original.", archivo.name)
+            archivo.unlink(missing_ok=True)
+        except Exception as e:
+            log.error("[ZIP] Error descomprimiendo %s: %s", archivo.name, e)
+    return archivos_extraidos
 
 
 def screenshot(page, nombre: str):
@@ -356,7 +374,15 @@ def _avanzar_pagina_datatables(page, scope=None):
         except Exception:
             pass
         btn_sig.click()
-        page.wait_for_timeout(2_000)
+        # Esperar que DataTables actualice la página (más rápido que tiempo fijo)
+        try:
+            page.wait_for_function(
+                "() => { const p = document.querySelector('.dataTables_processing'); "
+                "return !p || p.style.display === 'none' || p.style.display === ''; }",
+                timeout=6_000
+            )
+        except Exception:
+            page.wait_for_timeout(800)
         return True
     except Exception:
         return False
@@ -395,10 +421,18 @@ def _avanzar_pagina_datatables_v2(page, mostrado_hasta: int, total: int, scope=N
             except Exception:
                 pass
             btn_sig.click()
-            page.wait_for_timeout(2_000)
+            # Esperar que DataTables actualice la página (más rápido que tiempo fijo)
+            try:
+                page.wait_for_function(
+                    "() => { const p = document.querySelector('.dataTables_processing'); "
+                    "return !p || p.style.display === 'none' || p.style.display === ''; }",
+                    timeout=6_000
+                )
+            except Exception:
+                page.wait_for_timeout(800)
             return True
         except Exception:
-            page.wait_for_timeout(1_000)
+            page.wait_for_timeout(500)
     return False
 
 
@@ -565,12 +599,19 @@ def navegar_a_tablero(page) -> bool:
         # Esperar menu lateral
         sidebar = page.locator("nav, .sidebar, aside").first
         sidebar.wait_for(state="visible", timeout=TIMEOUT_NAV)
-        page.wait_for_timeout(1_000)
+        page.wait_for_timeout(300)  # Reducido de 1000ms: mínima estabilización
 
         # 2.1 Click en "Enlace/SIGEDO" para expandir el acordeon del menu
         if not _click_menu_text(sidebar, re.compile(r"Enlace\s*/\s*SIGEDO", re.I), TIMEOUT_NAV):
             _click_menu_text(page, re.compile(r"Enlace\s*/\s*SIGEDO", re.I), TIMEOUT_NAV)
-        page.wait_for_timeout(1_500)
+        # Esperar que el submenú sea visible en lugar de tiempo fijo
+        try:
+            page.wait_for_selector(
+                "a:has-text('Oficialía'), a:has-text('Officialia'), a:has-text('Ofic')",
+                timeout=8_000, state="visible"
+            )
+        except Exception:
+            page.wait_for_timeout(800)
 
         # 2.2 Click en "Enlace Oficialia de Partes" (subitem del acordeon)
         # El elemento tiene onclick="callAdminSolicitudesPages('muestraGestionSIGEDO');"
@@ -645,7 +686,15 @@ def buscar_y_abrir_folio(page, folio: str) -> bool:
             search.click()
             page.keyboard.press("Control+A")
         search.fill(folio)
-        page.wait_for_timeout(2_000)
+        # Esperar que DataTables termine de filtrar (más rápido que espera fija)
+        try:
+            page.wait_for_function(
+                "() => { const p = document.querySelector('.dataTables_processing'); "
+                "return !p || p.style.display === 'none' || p.style.display === ''; }",
+                timeout=8_000
+            )
+        except Exception:
+            page.wait_for_timeout(800)
 
         # 3.3 Verificar resultados
         tbody = page.locator("table tbody").first
@@ -698,30 +747,20 @@ def buscar_y_abrir_folio(page, folio: str) -> bool:
                     texto_celda = fila.inner_text() # fallback
 
                 if _fila_contiene_folio(texto_celda, folio):
-                    for sel in [
-                        "a[title*='Ver']",
-                        "button[title*='Ver']",
-                        "a:has(i.fa-eye)",
-                        "button:has(i.fa-eye)",
-                        "a:has(i.icon-eye)",
-                        "button:has(i.icon-eye)",
-                        "a:has(i.glyphicon-eye-open)",
-                        "button:has(i.glyphicon-eye-open)",
-                        "a[data-action='ver']",
-                        "a.js-gestor-sigedo-open-tramite",
-                        "a.btn-info",
-                        "button.btn-info",
-                        "a.btn-primary",
-                        "button.btn-primary",
-                        "a, button",
-                    ]:
-                        try:
-                            c = fila.locator(sel).first
-                            c.wait_for(state="visible", timeout=1_000)
-                            boton_ver = c
-                            break
-                        except Exception:
-                            continue
+                    # Selector CSS combinado: más rápido que iterar 14 selectores uno a uno
+                    try:
+                        boton_ver = fila.locator(
+                            "a[title*='Ver'], button[title*='Ver'], "
+                            "a:has(i.fa-eye), button:has(i.fa-eye), "
+                            "a:has(i.icon-eye), button:has(i.icon-eye), "
+                            "a:has(i.glyphicon-eye-open), button:has(i.glyphicon-eye-open), "
+                            "a[data-action='ver'], a.js-gestor-sigedo-open-tramite, "
+                            "a.btn-info, button.btn-info, a.btn-primary, button.btn-primary, "
+                            "a, button"
+                        ).first
+                        boton_ver.wait_for(state="visible", timeout=3_000)
+                    except Exception:
+                        boton_ver = None
                     if boton_ver is not None:
                         break
                         
@@ -742,7 +781,14 @@ def buscar_y_abrir_folio(page, folio: str) -> bool:
                     break # Ultima pagina alcanzada
                     
                 btn_siguiente.click()
-                page.wait_for_timeout(1_500)
+                try:
+                    page.wait_for_function(
+                        "() => { const p = document.querySelector('.dataTables_processing'); "
+                        "return !p || p.style.display === 'none' || p.style.display === ''; }",
+                        timeout=5_000
+                    )
+                except Exception:
+                    page.wait_for_timeout(600)
             except Exception as e:
                 log.debug("No se pudo avanzar a la siguiente pagina: %s", e)
                 break
@@ -804,7 +850,34 @@ def extraer_metadatos_satys(page, folio: str, carpeta: Path, registro_esperado: 
     }
     try:
         page.evaluate("window.scrollTo(0, 0)")
-        page.wait_for_timeout(1500)
+        # ── Expandir TODAS las secciones colapsadas de un solo golpe ──────────────
+        # Ahorra ~4 s de esperas fijas vs clics individuales con wait por sección.
+        # Filtra aria-expanded='false' para no colapsar lo que ya está abierto.
+        try:
+            page.evaluate("""
+                document.querySelectorAll("a[data-toggle='collapse'][aria-expanded='false']").forEach(function(el) {
+                    try { el.click(); } catch(e) {}
+                });
+            """)
+            # Bug A fix: apuntar a la tabla de REMITENTE(S)/Solicitante específicamente.
+            # Una condición sobre *cualquier* celda resolvía en falso-positivo al instante
+            # porque otras tablas de la vista ya tenían texto en el primer render.
+            page.wait_for_function(
+                """
+                () => {
+                    const tablas = Array.from(document.querySelectorAll('table'));
+                    return tablas.some(function(t) {
+                        const head = (t.querySelector('thead') ? t.querySelector('thead').innerText : '').toLowerCase();
+                        if (!head.includes('solicitante') && !head.includes('representante legal')) return false;
+                        const celda = t.querySelector('tbody tr td');
+                        return celda && celda.innerText.trim().length > 0 && !celda.classList.contains('dataTables_empty');
+                    });
+                }
+                """,
+                timeout=8_000
+            )
+        except Exception:
+            page.wait_for_timeout(1_500)
 
         # 0. Extraer campo "Registro" de DATOS DEL SISTEMA (ej. CRT26-025230)
         try:
@@ -836,13 +909,8 @@ def extraer_metadatos_satys(page, folio: str, carpeta: Path, registro_esperado: 
         except Exception as e:
             log.warning("[WEB] No se pudo extraer campo Registro: %s", e)
 
-        # 1. Expandir DATOS DEL DOCUMENTO
+        # 1. DATOS DEL DOCUMENTO (ya expandido por JS al inicio de la función)
         try:
-            datos_doc = page.locator("a[data-toggle='collapse']:has-text('DATOS DEL DOCUMENTO'), h4:has-text('DATOS DEL DOCUMENTO')").first
-            datos_doc.scroll_into_view_if_needed()
-            datos_doc.click()
-            page.wait_for_timeout(1000)
-            
             # 1.5 Extraer Fecha de folio OPC
             fecha_opc = page.evaluate('''() => {
                 // Buscar por ID o NAME si es obvio
@@ -893,13 +961,8 @@ def extraer_metadatos_satys(page, folio: str, carpeta: Path, registro_esperado: 
             metadatos["fecha_ejecucion"] = datetime.now().isoformat()
 
             
-        # 2. Expandir REMITENTE(S)
+        # 2. REMITENTE(S) (ya expandido por JS al inicio de la función)
         try:
-            remitentes = page.locator("a[data-toggle='collapse']:has-text('REMITENTE(S)'), legend:has-text('REMITENTE(S)'), h5:has-text('REMITENTE(S)')").first
-            remitentes.scroll_into_view_if_needed()
-            remitentes.click()
-            page.wait_for_timeout(1500)
-            
             # 2.1 Extraer Representante legal e ID (de Tabla de representantes legales)
             rep_nombre = ""
             rep_id = ""
@@ -976,14 +1039,8 @@ def extraer_metadatos_satys(page, folio: str, carpeta: Path, registro_esperado: 
         except Exception as e:
             log.warning("[WEB] No se pudo extraer REMITENTE(S): %s", e)
             
-        # 3. Expandir DESCRIPCIÓN DEL DOCUMENTO
+        # 3. DESCRIPCIÓN DEL DOCUMENTO (ya expandido por JS al inicio de la función)
         try:
-            page.evaluate("window.scrollBy(0, 300)")
-            desc_doc = page.locator("a[data-toggle='collapse']:has-text('DESCRIPCIÓN DEL DOCUMENTO'), h4:has-text('DESCRIPCIÓN DEL DOCUMENTO')").first
-            desc_doc.scroll_into_view_if_needed()
-            desc_doc.click()
-            page.wait_for_timeout(1500)
-            
             # Extraer 'Asunto'
             asunto = page.evaluate('''() => {
                 // Buscamos un label que diga "Asunto"
@@ -1060,7 +1117,7 @@ def descargar_archivos(context, page, folio: str, carpeta: Path) -> tuple:
     try:
         # 4.1 Scroll al fondo
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        page.wait_for_timeout(1_500)
+        page.wait_for_timeout(500)  # Reducido de 1500ms: solo estabilización mínima
 
         # 4.2 Encontrar y expandir "ARCHIVOS ASOCIADOS"
         seccion = None
@@ -1086,12 +1143,17 @@ def descargar_archivos(context, page, folio: str, carpeta: Path) -> tuple:
             return resultados, False  # (resultados, seccion_encontrada)
 
         seccion.scroll_into_view_if_needed()
-        page.wait_for_timeout(500)
 
-        # Intentar expandir si esta colapsado
+        # Intentar expandir si esta colapsado; esperar tabla en lugar de tiempo fijo
         try:
             seccion.click()
-            page.wait_for_timeout(2_000)
+            try:
+                page.wait_for_selector(
+                    "table:has(th:has-text('Nombre')), table:has(th:has-text('Acci'))",
+                    timeout=5_000, state="visible"
+                )
+            except Exception:
+                page.wait_for_timeout(600)
         except Exception:
             pass
 
@@ -1099,15 +1161,25 @@ def descargar_archivos(context, page, folio: str, carpeta: Path) -> tuple:
         if tabla is None:
             try:
                 seccion.click()
-                page.wait_for_timeout(2_000)
+                try:
+                    page.wait_for_selector(
+                        "table:has(th:has-text('Nombre')), table:has(th:has-text('Acci'))",
+                        timeout=4_000, state="visible"
+                    )
+                except Exception:
+                    page.wait_for_timeout(600)
             except Exception:
                 pass
             tabla = _encontrar_tabla_archivos(page)
 
         if tabla is None:
-            log.error("[ERROR] No se encontro la tabla de archivos asociados")
+            log.warning(
+                "[WARN] No se encontró tabla en 'ARCHIVOS ASOCIADOS' para folio %s -- "
+                "no se puede confirmar si está vacía o aún no cargó bajo carga. "
+                "Se intentará también DOCUMENTOS ANEXOS como respaldo.", folio
+            )
             screenshot(page, f"no_tabla_{folio}")
-            return resultados, True  # Seccion existe pero tabla vacia
+            return resultados, False  # antes: True -- declaraba "sin archivos" sin probar el fallback
 
         # 4.3 Intentar mostrar TODOS los archivos de una vez (cambiar paginacion)
         try:
@@ -1120,7 +1192,15 @@ def descargar_archivos(context, page, folio: str, carpeta: Path) -> tuple:
                     val = opciones.nth(oi).get_attribute("value") or ""
                     if val in ("-1", "100", "50"):
                         select_mostrar.select_option(value=val)
-                        page.wait_for_timeout(2_000)
+                        # Esperar que DataTables actualice la lista en lugar de tiempo fijo
+                        try:
+                            page.wait_for_function(
+                                "() => { const p = document.querySelector('.dataTables_processing'); "
+                                "return !p || p.style.display === 'none' || p.style.display === ''; }",
+                                timeout=6_000
+                            )
+                        except Exception:
+                            page.wait_for_timeout(600)
                         tabla = _encontrar_tabla_archivos(page)
                         break
         except Exception:
@@ -1204,13 +1284,25 @@ def descargar_archivos(context, page, folio: str, carpeta: Path) -> tuple:
                                 break
 
                     if descargado_ok:
-                        log.info("     [OK] Descarga directa: %s  (%.1f KB)", fname, size_kb)
-                        resultados.append({
-                            "folio": folio, "archivo": fname,
-                            "tipo": Path(fname).suffix.upper().lstrip("."),
-                            "ruta": str(dest), "tamano_kb": round(size_kb, 1),
-                            "ok": True, "url": url,
-                        })
+                        extraidos = extraer_zip_si_aplica(dest, carpeta)
+                        if extraidos:
+                            for ex in extraidos:
+                                size_ex = ex.stat().st_size / 1024 if ex.exists() else 0
+                                resultados.append({
+                                    "folio": folio, "archivo": ex.name,
+                                    "tipo": ex.suffix.upper().lstrip("."),
+                                    "ruta": str(ex), "tamano_kb": round(size_ex, 1),
+                                    "ok": True, "url": url,
+                                })
+                            log.info("     [OK] Descarga directa (ZIP extraído): %s (%d archivos)", fname, len(extraidos))
+                        else:
+                            log.info("     [OK] Descarga directa: %s  (%.1f KB)", fname, size_kb)
+                            resultados.append({
+                                "folio": folio, "archivo": fname,
+                                "tipo": Path(fname).suffix.upper().lstrip("."),
+                                "ruta": str(dest), "tamano_kb": round(size_kb, 1),
+                                "ok": True, "url": url,
+                            })
                         continue
 
                     dl_obj = None
@@ -1239,16 +1331,27 @@ def descargar_archivos(context, page, folio: str, carpeta: Path) -> tuple:
                         fname = dl_obj.suggested_filename or fname
                         dest = carpeta / fname
                         dl_obj.save_as(str(dest))
+                        extraidos = extraer_zip_si_aplica(dest, carpeta)
 
-                        size_kb = dest.stat().st_size / 1024
-                        log.info("     [OK] Guardado: %s  (%.1f KB)", fname, size_kb)
-
-                        resultados.append({
-                            "folio": folio, "archivo": fname,
-                            "tipo": Path(fname).suffix.upper().lstrip("."),
-                            "ruta": str(dest), "tamano_kb": round(size_kb, 1), "ok": True,
-                            "url": dl_obj.url if hasattr(dl_obj, "url") and dl_obj.url else url,
-                        })
+                        if extraidos:
+                            for ex in extraidos:
+                                size_ex = ex.stat().st_size / 1024 if ex.exists() else 0
+                                resultados.append({
+                                    "folio": folio, "archivo": ex.name,
+                                    "tipo": ex.suffix.upper().lstrip("."),
+                                    "ruta": str(ex), "tamano_kb": round(size_ex, 1), "ok": True,
+                                    "url": dl_obj.url if hasattr(dl_obj, "url") and dl_obj.url else url,
+                                })
+                            log.info("     [OK] Guardado (ZIP extraído): %s (%d archivos)", fname, len(extraidos))
+                        else:
+                            size_kb = dest.stat().st_size / 1024 if dest.exists() else 0
+                            log.info("     [OK] Guardado: %s  (%.1f KB)", fname, size_kb)
+                            resultados.append({
+                                "folio": folio, "archivo": fname,
+                                "tipo": Path(fname).suffix.upper().lstrip("."),
+                                "ruta": str(dest), "tamano_kb": round(size_kb, 1), "ok": True,
+                                "url": dl_obj.url if hasattr(dl_obj, "url") and dl_obj.url else url,
+                            })
                         
                     elif np_obj:
                         log.info("     [POPUP] Nueva pestana capturada (PDF) en ARCHIVOS ASOCIADOS")
@@ -1270,14 +1373,26 @@ def descargar_archivos(context, page, folio: str, carpeta: Path) -> tuple:
                                 
                             ok_popup = _descargar_directo(context, page, url_popup, dest_popup)
                             if ok_popup and dest_popup.stat().st_size > 0:
-                                size_kb = dest_popup.stat().st_size / 1024
-                                log.info("     [OK-POPUP] Guardado: %s (%.1f KB)", dest_popup.name, size_kb)
-                                resultados.append({
-                                    "folio": folio, "archivo": dest_popup.name,
-                                    "tipo": dest_popup.suffix.upper().lstrip("."),
-                                    "ruta": str(dest_popup), "tamano_kb": round(size_kb, 1), "ok": True,
-                                    "url": url_popup,
-                                })
+                                extraidos = extraer_zip_si_aplica(dest_popup, carpeta)
+                                if extraidos:
+                                    for ex in extraidos:
+                                        size_ex = ex.stat().st_size / 1024 if ex.exists() else 0
+                                        resultados.append({
+                                            "folio": folio, "archivo": ex.name,
+                                            "tipo": ex.suffix.upper().lstrip("."),
+                                            "ruta": str(ex), "tamano_kb": round(size_ex, 1), "ok": True,
+                                            "url": url_popup,
+                                        })
+                                    log.info("     [OK-POPUP] Guardado (ZIP extraído): %s (%d archivos)", dest_popup.name, len(extraidos))
+                                else:
+                                    size_kb = dest_popup.stat().st_size / 1024 if dest_popup.exists() else 0
+                                    log.info("     [OK-POPUP] Guardado: %s (%.1f KB)", dest_popup.name, size_kb)
+                                    resultados.append({
+                                        "folio": folio, "archivo": dest_popup.name,
+                                        "tipo": dest_popup.suffix.upper().lstrip("."),
+                                        "ruta": str(dest_popup), "tamano_kb": round(size_kb, 1), "ok": True,
+                                        "url": url_popup,
+                                    })
                             else:
                                 raise Exception("Fallo descarga directa desde popup")
                         else:
@@ -1472,7 +1587,14 @@ def _buscar_folio_en_tabla(page, folio: str):
             ).first
             tab.wait_for(state="visible", timeout=3_000)
             tab.click()
-            page.wait_for_timeout(1_500)
+            # Esperar que el campo de búsqueda esté listo en lugar de tiempo fijo
+            try:
+                page.wait_for_selector(
+                    "input[type='search'], .dataTables_filter input",
+                    timeout=5_000, state="visible"
+                )
+            except Exception:
+                page.wait_for_timeout(600)
         except Exception:
             pass
 
@@ -1489,7 +1611,15 @@ def _buscar_folio_en_tabla(page, folio: str):
             search.click()
             page.keyboard.press("Control+A")
         search.fill(folio)
-        page.wait_for_timeout(2_000)
+        # Esperar que DataTables termine de filtrar (más rápido que espera fija)
+        try:
+            page.wait_for_function(
+                "() => { const p = document.querySelector('.dataTables_processing'); "
+                "return !p || p.style.display === 'none' || p.style.display === ''; }",
+                timeout=8_000
+            )
+        except Exception:
+            page.wait_for_timeout(800)
 
         # Verificar resultados
         tbody = page.locator("table tbody").first
@@ -1530,29 +1660,27 @@ def _obtener_registro_fila(fila, reg_col_idx: int = 1) -> str:
 
 def _encontrar_boton_ver(fila):
     """Busca el boton 'Ver detalle' en una fila de la tabla."""
-    for sel in [
-        "a[title*='Ver']",
-        "button[title*='Ver']",
-        "a:has(i.fa-eye)",
-        "button:has(i.fa-eye)",
-        "a:has(i.icon-eye)",
-        "button:has(i.icon-eye)",
-        "a:has(i.glyphicon-eye-open)",
-        "button:has(i.glyphicon-eye-open)",
-        "a[data-action='ver']",
-        "a.js-gestor-sigedo-open-tramite",
-        "a.btn-info",
-        "button.btn-info",
-        "a.btn-primary",
-        "button.btn-primary",
-        "a, button",
-    ]:
-        try:
-            c = fila.locator(sel).first
-            c.wait_for(state="visible", timeout=1_000)
-            return c
-        except Exception:
-            continue
+    # Selector CSS combinado: mucho más rápido que iterar 14 selectores uno por uno
+    try:
+        combinado = fila.locator(
+            "a[title*='Ver'], button[title*='Ver'], "
+            "a:has(i.fa-eye), button:has(i.fa-eye), "
+            "a:has(i.icon-eye), button:has(i.icon-eye), "
+            "a:has(i.glyphicon-eye-open), button:has(i.glyphicon-eye-open), "
+            "a[data-action='ver'], a.js-gestor-sigedo-open-tramite, "
+            "a.btn-info, button.btn-info, a.btn-primary, button.btn-primary"
+        ).first
+        combinado.wait_for(state="visible", timeout=3_000)
+        return combinado
+    except Exception:
+        pass
+    # Fallback: cualquier enlace o botón visible en la fila
+    try:
+        fallback = fila.locator("a, button").first
+        fallback.wait_for(state="visible", timeout=1_000)
+        return fallback
+    except Exception:
+        pass
     return None
 
 
@@ -1664,7 +1792,24 @@ def procesar_folio_completo(context, page, folio: str, carpeta: Path, folio_raw:
                 log.info("[OK] Detalle cargado: registro=%s", registro)
 
                 # Extraer metadatos web (Representante, Solicitante, Asunto)
-                meta_satys = extraer_metadatos_satys(page, folio, carpeta, registro_esperado=registro)
+                # Bug B fix: capturar RetryError para que un fallo en metadatos
+                # nunca cancele la descarga de archivos (dato que realmente importa).
+                # En el peor caso la fila del Excel queda con esos campos vacios.
+                try:
+                    from tenacity import RetryError as _RetryError
+                    meta_satys = extraer_metadatos_satys(page, folio, carpeta, registro_esperado=registro)
+                except _RetryError as _re:
+                    log.warning(
+                        "[WEB] Metadatos incompletos tras reintentos para folio %s (%s) "
+                        "-- se continua con la descarga de archivos.",
+                        folio, _re
+                    )
+                    meta_satys = {
+                        "representante_legal": None,
+                        "nombre_operador": None,
+                        "asunto": None,
+                        "registro": registro,
+                    }
                 meta_tramite = {}
 
                 # --- BIFURCACION: intentar ARCHIVOS ASOCIADOS primero ---
@@ -1717,7 +1862,7 @@ def procesar_folio_completo(context, page, folio: str, carpeta: Path, folio_raw:
 
                 # Regresar al tablero para buscar el siguiente tramite
                 volver_al_tablero(page)
-                time.sleep(1)
+                page.wait_for_timeout(300)  # Reducido de 1 s: mínima estabilización post-tablero
                 fila_encontrada = True
                 break  # Reiniciar busqueda desde el inicio
 
@@ -1819,7 +1964,14 @@ def navegar_a_tramites_nuevos(page) -> bool:
             try:
                 admin_btn.scroll_into_view_if_needed()
                 admin_btn.click()
-                page.wait_for_timeout(1_500)
+                # Esperar que el submenú Trámites Nuevos sea visible en lugar de tiempo fijo
+                try:
+                    page.wait_for_selector(
+                        "a:has-text('Trámites Nuevos'), a:has-text('Tramites Nuevos')",
+                        timeout=6_000, state="visible"
+                    )
+                except Exception:
+                    page.wait_for_timeout(600)
             except Exception as e:
                 log.debug("[ALT-NAV] Click menu admin: %s", e)
         else:
@@ -1847,8 +1999,7 @@ def navegar_a_tramites_nuevos(page) -> bool:
         tramites_btn.scroll_into_view_if_needed()
         tramites_btn.click()
 
-        # Esperar spinner y confirmar llegada
-        page.wait_for_timeout(1_500)
+        # Esperar spinner y confirmar llegada (_esperar_fin_spinner ya maneja el tiempo)
         _esperar_fin_spinner(page, timeout_s=30)
 
         for sel in [
@@ -2607,25 +2758,44 @@ def descargar_via_documentos_anexos(context, page, folio: str, carpeta: Path) ->
                         continue
 
                 if descargado:
-                    try:
-                        size_kb = dest.stat().st_size / 1024
-                    except Exception:
-                        size_kb = 0
-                    es_ok = size_kb > 0
-                    log.info("  [%s] %s  (%.1f KB)", "OK" if es_ok else "WARN", fname, size_kb)
-                    resultados.append({
-                        "folio": folio,
-                        "archivo": fname,
-                        "nombre_original": nombre_doc,
-                        "tipo": tipo_doc,
-                        "fecha": fecha_doc,
-                        "descripcion": descripcion_doc,
-                        "ruta": str(dest),
-                        "tamano_kb": round(size_kb, 1),
-                        "ok": es_ok,
-                        "url": url_doc,
-                        "fuente": "DOCUMENTOS_ANEXOS",
-                    })
+                    extraidos = extraer_zip_si_aplica(dest, carpeta)
+                    if extraidos:
+                        for ex in extraidos:
+                            size_ex = ex.stat().st_size / 1024 if ex.exists() else 0
+                            log.info("  [OK] %s (%.1f KB) [extraído de %s]", ex.name, size_ex, fname)
+                            resultados.append({
+                                "folio": folio,
+                                "archivo": ex.name,
+                                "nombre_original": nombre_doc,
+                                "tipo": ex.suffix.upper().lstrip("."),
+                                "fecha": fecha_doc,
+                                "descripcion": descripcion_doc,
+                                "ruta": str(ex),
+                                "tamano_kb": round(size_ex, 1),
+                                "ok": True,
+                                "url": url_doc,
+                                "fuente": "DOCUMENTOS_ANEXOS",
+                            })
+                    else:
+                        try:
+                            size_kb = dest.stat().st_size / 1024
+                        except Exception:
+                            size_kb = 0
+                        es_ok = size_kb > 0
+                        log.info("  [%s] %s  (%.1f KB)", "OK" if es_ok else "WARN", fname, size_kb)
+                        resultados.append({
+                            "folio": folio,
+                            "archivo": fname,
+                            "nombre_original": nombre_doc,
+                            "tipo": tipo_doc,
+                            "fecha": fecha_doc,
+                            "descripcion": descripcion_doc,
+                            "ruta": str(dest),
+                            "tamano_kb": round(size_kb, 1),
+                            "ok": es_ok,
+                            "url": url_doc,
+                            "fuente": "DOCUMENTOS_ANEXOS",
+                        })
 
             # Verificar paginacion de DOCUMENTOS ANEXOS
             desde_act, hasta_act, total_act = _parsear_paginacion_documentos(page)
@@ -2925,7 +3095,7 @@ def _worker_folio(folio: str, folio_raw: str) -> tuple:
         with sync_playwright() as pw:
             browser = pw.chromium.launch(
                 headless=HEADLESS,
-                slow_mo=50,          # Reducido vs 100 del hilo principal: N browsers en paralelo
+                slow_mo=0 if HEADLESS else 50,  # 0 en headless (producción); 50 en visible para depuración
             )
             context_args = {
                 "accept_downloads": True,

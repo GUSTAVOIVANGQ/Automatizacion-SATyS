@@ -1,0 +1,9 @@
+{
+  "folio_ini": "6407",
+  "folio_fin": "6433",
+  "workers": "6",
+  "modo": "archivo",
+  "ver_navegador": false,
+  "python_path": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\python-3.11.9-embed-amd64\\python.exe",
+  "script_path": "main_procesar.py"
+}
