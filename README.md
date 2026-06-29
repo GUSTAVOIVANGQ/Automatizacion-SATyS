@@ -1,7 +1,7 @@
 # 📋 Proyecto SATyS - Automatización de Descargas y Procesamiento
 
 **Sistema Automatizado de Trámites y Servicios (SATyS)**  
-**Instituto Federal de Telecomunicaciones (IFT)**
+**Comisión Reguladora de Telecomunicaciones (IFT)**
 
 ---
 
@@ -33,7 +33,7 @@ Para iniciar la interfaz ejecuta:
 
 ## 🎯 Descripción General
 
-Automatización completa del flujo de trabajo para la **descarga, procesamiento y organización de archivos** del sistema SATyS del Instituto Federal de Telecomunicaciones (IFT). El sistema:
+Automatización completa del flujo de trabajo para la **descarga, procesamiento y organización de archivos** del sistema SATyS del Comisión Reguladora de Telecomunicaciones (IFT). El sistema:
 
 - Extrae metadatos de los trámites directamente de la web (sin OCR).
 - Consulta el Registro Público de Concesiones (RPC) vía API REST y Fuzzy Matching.
@@ -250,7 +250,7 @@ El orquestador actualiza columnas específicas de este Excel de control:
 
 **Proyecto desarrollado para:**
 
-- Instituto Federal de Telecomunicaciones (IFT)
+- Comisión Reguladora de Telecomunicaciones (IFT)
 - Coordinación General de Planeación Estratégica
 - Dirección General Adjunta de Estadística y Análisis de Indicadores
 
@@ -262,4 +262,4 @@ El orquestador actualiza columnas específicas de este Excel de control:
 
 ## 📄 Licencia
 
-Este proyecto es propiedad del Instituto Federal de Telecomunicaciones (IFT). Uso interno exclusivamente.
+Este proyecto es propiedad del Comisión Reguladora de Telecomunicaciones (IFT). Uso interno exclusivamente.
