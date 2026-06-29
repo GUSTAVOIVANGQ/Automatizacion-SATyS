@@ -515,8 +515,8 @@ def procesar_folio(
     # Organizar archivos
     if ORGANIZAR_DESCARGAS:
         if rpc_resultado and rpc_resultado.get("ok"):
-            # RPC exitoso → carpeta estandarizada del concesionario + folio
-            ruta_destino = f"{rpc_resultado['ruta']}\\{folio_id}"
+            # RPC exitoso → carpeta estandarizada del concesionario
+            ruta_destino = f"{rpc_resultado['ruta']}"
             destino = organizar_archivos(carpeta, ruta_destino)
             if destino:
                 resultado["organizado_ok"] = True

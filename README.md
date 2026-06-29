@@ -239,6 +239,7 @@ El orquestador actualiza columnas específicas de este Excel de control:
 
 - [ ] Dashboard interactivo de estadísticas
 - [ ] Soporte para reanudar desde el último punto en caso de apagón o cierre abrupto
+- [ ] Encontrar o crear una API para la el sitio SATyS
 
 ---
 
@@ -248,10 +249,14 @@ El orquestador actualiza columnas específicas de este Excel de control:
 
 - Comisión Reguladora de Telecomunicaciones (CRT)
 - Coordinación General de Planeación Estratégica
-- Dirección Ejecutiva de Indicadores
+- Dirección Ejecutiva de Indicadores (DEI)
 
-**Desarrolladores:** Gustavo Ivan Garcia Quiroz, David Palestina Ramirez
-**Actualizaciones y UI:** Equipo de la **Dirección Ejecutiva de Indicadores**
+**Desarrolladores:**
+
+- Gustavo Ivan Garcia Quiroz
+- David Palestina Ramirez
+
+**Actualizaciones y UI:** Equipo de la Dirección Ejecutiva de Indicadores
 **Contacto:** david.palestina@ift.org.mx
 
 ---
