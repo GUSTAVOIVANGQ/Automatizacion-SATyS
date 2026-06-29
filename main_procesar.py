@@ -123,75 +123,85 @@ def ejecutar_descarga(folios: list[str], workers: int = 10, headless: bool = Fal
     intento = 0
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # BUCLE DE REINTENTOS AUTOMÁTICOS — ACTIVO
-    # Para desactivarlo: comenta el bloque 'while' de abajo y descomenta el bloque
-    # 'EJECUCIÓN ÚNICA' que le sigue.
+    # BUCLE DE REINTENTOS AUTOMÁTICOS — COMENTADO
+    # Fue desactivado porque cada archivo ya tiene 3 intentos propios dentro de
+    # Parte1_descarga (MAX_INTENTOS_ARCHIVO=3). Si el archivo sigue fallando
+    # después de esos 3 intentos, es un error del servidor y no tiene sentido
+    # volver a intentarlo desde aquí.
+    # Para reactivar: descomenta el bloque 'while' y comenta la sección
+    # 'EJECUCIÓN ÚNICA' que está debajo.
     # ═══════════════════════════════════════════════════════════════════════════
-    while folios_actuales:
-        intento += 1
-        if intento > 1:
-            log.warning("⚠️  [REINTENTO %d] Descargando %d folios incompletos...", intento, len(folios_actuales))
-            time.sleep(5)
-
-        try:
-            # Guardar y restaurar sys.argv para que Parte1 use nuestros folios
-            original_argv = sys.argv
-            sys.argv = ["Parte1_descarga.py"] + headless_flag + ["--workers", str(workers), "--folios"] + folios_actuales
-            Parte1_descarga.main()
-            sys.argv = original_argv
-        except Exception as e:
-            log.error("❌ Error en descarga: %s", e)
-            sys.argv = original_argv
-            return False
-
-        # Leer resumen_global.json para ver si hay incompletos
-        resumen_path = DESCARGA_BASE / "resumen_global.json"
-        if not resumen_path.exists():
-            log.error("❌ No se generó resumen_global.json")
-            return False
-
-        try:
-            with open(resumen_path, "r", encoding="utf-8") as f:
-                resumen = json.load(f)
-        except Exception as e:
-            log.error("❌ Error leyendo resumen_global.json: %s", e)
-            return False
-
-        folios_incompletos_count = resumen.get("folios_incompletos", 0)
-        if folios_incompletos_count == 0:
-            log.info("✅ Todos los folios procesados sin errores incompletos.")
-            break
-
-        # Extraer cuáles fueron los folios incompletos.
-        # Parte1_descarga.guardar_resumen_global() escribe la clave "estado"
-        # (no "err" ni "no_encontrado", que no existen en el JSON real).
-        nuevos_folios = []
-        for d in resumen.get("detalle_folios", []):
-            if d.get("estado") == "INCOMPLETO":
-                nuevos_folios.append(str(d.get("folio")))
-
-        if not nuevos_folios:
-            break
-
-        folios_actuales = nuevos_folios
+    # while folios_actuales and intento < MAX_REINTENTOS:
+    #     intento += 1
+    #     if intento > 1:
+    #         log.warning("⚠️  [REINTENTO %d/%d] Descargando %d folios con errores de red...",
+    #                     intento, MAX_REINTENTOS, len(folios_actuales))
+    #         time.sleep(5)
+    #     try:
+    #         original_argv = sys.argv
+    #         sys.argv = ["Parte1_descarga.py"] + headless_flag + ["--workers", str(workers), "--folios"] + folios_actuales
+    #         Parte1_descarga.main()
+    #         sys.argv = original_argv
+    #     except Exception as e:
+    #         log.error("❌ Error en descarga: %s", e)
+    #         sys.argv = original_argv
+    #         return False
+    #     resumen_path = DESCARGA_BASE / "resumen_global.json"
+    #     if not resumen_path.exists():
+    #         log.error("❌ No se generó resumen_global.json")
+    #         return False
+    #     try:
+    #         with open(resumen_path, "r", encoding="utf-8") as f:
+    #             resumen = json.load(f)
+    #     except Exception as e:
+    #         log.error("❌ Error leyendo resumen_global.json: %s", e)
+    #         return False
+    #     nuevos_folios = []
+    #     folios_solo_servidor = []
+    #     for d in resumen.get("detalle_folios", []):
+    #         if d.get("estado") == "INCOMPLETO":
+    #             folio_id = str(d.get("folio"))
+    #             archivos_folio = [
+    #                 a for a in resumen.get("archivos", [])
+    #                 if str(a.get("folio")) == folio_id and not a.get("ok")
+    #             ]
+    #             solo_servidor = all(
+    #                 a.get("tipo") == "ERROR_SERVIDOR" for a in archivos_folio
+    #             ) if archivos_folio else False
+    #             if solo_servidor:
+    #                 folios_solo_servidor.append(folio_id)
+    #                 log.warning("⏭️  Folio %s omitido en reintento: ERROR_SERVIDOR.", folio_id)
+    #             else:
+    #                 nuevos_folios.append(folio_id)
+    #     if folios_solo_servidor:
+    #         log.info("ℹ️  %d folio(s) con errores de servidor (sin reintento): %s",
+    #                  len(folios_solo_servidor), ", ".join(folios_solo_servidor))
+    #     if not nuevos_folios:
+    #         log.info("✅ Sin folios pendientes de reintento por red. Terminando bucle.")
+    #         break
+    #     folios_actuales = nuevos_folios
+    # if intento >= MAX_REINTENTOS and folios_actuales:
+    #     log.warning("⚠️  Se alcanzó el máximo de %d reintentos. Folios pendientes: %s",
+    #                 MAX_REINTENTOS, ", ".join(folios_actuales))
     # ═══════════════════════════════════════════════════════════════════════════
-    # FIN BUCLE DE REINTENTOS
+    # FIN BUCLE DE REINTENTOS (comentado)
     # ═══════════════════════════════════════════════════════════════════════════
 
     # ───────────────────────────────────────────────────────────────────────────
-    # EJECUCIÓN ÚNICA (sin reintentos automáticos) — ACTUALMENTE DESACTIVADO
-    # Para activar: comenta el bloque 'while' de arriba y descomenta este bloque.
+    # EJECUCIÓN ÚNICA — ACTIVA
+    # Cada archivo tiene 3 intentos propios dentro de Parte1_descarga.
+    # Si falla tras 3 intentos → ERROR_SERVIDOR (problema externo, sin reintento).
     # ───────────────────────────────────────────────────────────────────────────
-    # try:
-    #     original_argv = sys.argv
-    #     sys.argv = ["Parte1_descarga.py"] + headless_flag + ["--workers", str(workers), "--folios"] + folios_actuales
-    #     Parte1_descarga.main()
-    #     sys.argv = original_argv
-    # except Exception as e:
-    #     log.error("❌ Error en descarga: %s", e)
-    #     sys.argv = original_argv
-    #     return False
-    # log.info("✅ Descarga completada (ejecución única sin reintentos automáticos).")
+    try:
+        original_argv = sys.argv
+        sys.argv = ["Parte1_descarga.py"] + headless_flag + ["--workers", str(workers), "--folios"] + folios_actuales
+        Parte1_descarga.main()
+        sys.argv = original_argv
+    except Exception as e:
+        log.error("❌ Error en descarga: %s", e)
+        sys.argv = original_argv
+        return False
+    log.info("✅ Descarga completada (ejecución única; reintentos por archivo manejados internamente).")
     # ───────────────────────────────────────────────────────────────────────────
     # FIN EJECUCIÓN ÚNICA
     # ───────────────────────────────────────────────────────────────────────────
@@ -219,6 +229,7 @@ def procesar_folio(
         "pdf_encontrado": False,
         "nombre_operador": None,
         "representante_legal": None,
+        "id_solicitante": "",    # ID del solicitante para búsqueda exacta en catálogo RPC
         "formatos": {},
         "imagen_sello": None,
         "fecha_sello": None,
@@ -293,6 +304,7 @@ def procesar_folio(
     resultado["pdf_encontrado"] = bool(pdf_nombre)
     resultado["nombre_operador"] = nombre_operador
     resultado["representante_legal"] = representante_legal
+    resultado["id_solicitante"] = id_solicitante   # Guardar para el reporte
     resultado["formatos"] = formatos_dict
     resultado["imagen_sello"] = None
     resultado["fecha_sello"] = fecha_registro
@@ -342,54 +354,54 @@ def procesar_folio(
         # Se activa cuando:
         #   - El JSON no tiene id_solicitante, O
         #   - El id_solicitante no se encontró en el catálogo.
-        if rpc_resultado is None:
-            nombre_pdf = datos_pdf.get("nombre_operador")
-            nombre_web = datos_pdf.get("nombre_operador_web")
-            nombres_a_probar = []
-            if nombre_web: nombres_a_probar.append((nombre_web, "Web"))
-            if nombre_pdf and nombre_pdf != nombre_web: nombres_a_probar.append((nombre_pdf, "PDF"))
-
-            if nombres_a_probar:
-                log.info("🌐 [PARTE 3 - FALLBACK] Buscando por similitud de nombre...")
-                mejor_score = -1
-                mejor_match = None
-                empate = False
-                for nom, origen in nombres_a_probar:
-                    matches = bc.buscar_coincidencias(nom, catalogo, top_n=5)
-                    if matches:
-                        score, best_match = matches[0]
-                        if score > mejor_score:
-                            mejor_score = score
-                            mejor_match = best_match
-                            origen_ganador = origen
-                            nombre_original_usado = nom
-
-                            # Revisar empate de IDs distintos con el mismo score
-                            empate = False
-                            if len(matches) > 1 and matches[1][0] == score:
-                                id1 = best_match.get("idBp")
-                                for s2, m2 in matches[1:]:
-                                    if s2 == score and m2.get("idBp") != id1:
-                                        empate = True
-                                        break
-
-                SCORE_MINIMO_FUZZY = 0.80
-                if mejor_match and mejor_score >= SCORE_MINIMO_FUZZY:
-                    rpc_resultado = {
-                        "nombre_completo": mejor_match["concesionario"],
-                        "numero_rpc":      mejor_match.get("idBp", ""),
-                        "idBp":            mejor_match.get("idBp", ""),
-                        "ruta":            construir_ruta(mejor_match["concesionario"], mejor_match.get("idBp", "")),
-                        "score":           mejor_score,
-                        "ok":              not empate,
-                        "empate":          empate,
-                        "metodo":          "fuzzy_nombre",
-                    }
-                elif mejor_match:
-                    log.warning("⚠️  Mejor score fuzzy %.0f%% < mínimo %.0f%%. Sin coincidencia.",
-                                mejor_score * 100, SCORE_MINIMO_FUZZY * 100)
-            else:
-                log.warning("⚠️  Sin nombre de operador en PDF ni Web, se omite búsqueda RPC")
+        # if rpc_resultado is None:
+        #     nombre_pdf = datos_pdf.get("nombre_operador")
+        #     nombre_web = datos_pdf.get("nombre_operador_web")
+        #     nombres_a_probar = []
+        #     if nombre_web: nombres_a_probar.append((nombre_web, "Web"))
+        #     if nombre_pdf and nombre_pdf != nombre_web: nombres_a_probar.append((nombre_pdf, "PDF"))
+        # 
+        #     if nombres_a_probar:
+        #         log.info("🌐 [PARTE 3 - FALLBACK] Buscando por similitud de nombre...")
+        #         mejor_score = -1
+        #         mejor_match = None
+        #         empate = False
+        #         for nom, origen in nombres_a_probar:
+        #             matches = bc.buscar_coincidencias(nom, catalogo, top_n=5)
+        #             if matches:
+        #                 score, best_match = matches[0]
+        #                 if score > mejor_score:
+        #                     mejor_score = score
+        #                     mejor_match = best_match
+        #                     origen_ganador = origen
+        #                     nombre_original_usado = nom
+        # 
+        #                     # Revisar empate de IDs distintos con el mismo score
+        #                     empate = False
+        #                     if len(matches) > 1 and matches[1][0] == score:
+        #                         id1 = best_match.get("idBp")
+        #                         for s2, m2 in matches[1:]:
+        #                             if s2 == score and m2.get("idBp") != id1:
+        #                                 empate = True
+        #                                 break
+        # 
+        #         SCORE_MINIMO_FUZZY = 0.80
+        #         if mejor_match and mejor_score >= SCORE_MINIMO_FUZZY:
+        #             rpc_resultado = {
+        #                 "nombre_completo": mejor_match["concesionario"],
+        #                 "numero_rpc":      mejor_match.get("idBp", ""),
+        #                 "idBp":            mejor_match.get("idBp", ""),
+        #                 "ruta":            construir_ruta(mejor_match["concesionario"], mejor_match.get("idBp", "")),
+        #                 "score":           mejor_score,
+        #                 "ok":              not empate,
+        #                 "empate":          empate,
+        #                 "metodo":          "fuzzy_nombre",
+        #             }
+        #         elif mejor_match:
+        #             log.warning("⚠️  Mejor score fuzzy %.0f%% < mínimo %.0f%%. Sin coincidencia.",
+        #                         mejor_score * 100, SCORE_MINIMO_FUZZY * 100)
+        #     else:
+        #         log.warning("⚠️  Sin nombre de operador en PDF ni Web, se omite búsqueda RPC")
     else:
         # Catálogo sin 'norm' → usar Parte3_rpc directamente (sin Excel)
         nombre_pdf = datos_pdf.get("nombre_operador", "")
@@ -455,16 +467,21 @@ def procesar_folio(
             destino = organizar_archivos(carpeta, ruta_destino)
             if destino:
                 resultado["organizado_ok"] = True
-        elif resultado["pdf_encontrado"]:
+        else:
             # Sin operador o coincidencia insuficiente → copiar carpeta a output\_sin_operador\{folio}
+            # Usa rglob para copiar recursivamente (incluye archivos en subcarpetas de ZIPs extraídos)
             sin_op_dir = OUTPUT_BASE / "_sin_operador" / folio
             sin_op_dir.mkdir(parents=True, exist_ok=True)
             archivos_copiados = []
-            for archivo in carpeta.iterdir():
+            for archivo in carpeta.rglob("*"):
                 if archivo.is_file() and archivo.suffix.lower() != ".json":
+                    # Reconstruir la ruta relativa para preservar subcarpetas
+                    ruta_relativa = archivo.relative_to(carpeta)
+                    destino_archivo = sin_op_dir / ruta_relativa
+                    destino_archivo.parent.mkdir(parents=True, exist_ok=True)
                     try:
-                        shutil.copy2(archivo, sin_op_dir / archivo.name)
-                        archivos_copiados.append(archivo.name)
+                        shutil.copy2(archivo, destino_archivo)
+                        archivos_copiados.append(str(ruta_relativa))
                     except Exception as e_copy:
                         log.warning("⚠️  No se pudo copiar %s: %s", archivo.name, e_copy)
             resultado["archivos_pendientes"] = archivos_copiados
@@ -484,17 +501,44 @@ def imprimir_reporte(resultados: list):
     print("  RESUMEN EJECUTIVO — ACCIONES REQUERIDAS")
     print("═" * 70)
 
-    exitosos = [r for r in resultados if r.get('rpc_ok') and r.get('organizado_ok') and r.get('excel_ok')]
-    dudosos = [r for r in resultados if r.get('pdf_encontrado') and not r.get('rpc_ok') and not r.get('rpc_resultado', {}).get('empate')]
-    empates = [r for r in resultados if r.get('pdf_encontrado') and r.get('rpc_resultado', {}).get('empate')]
-    errores = [r for r in resultados if not r.get('pdf_encontrado') or (r.get('rpc_ok') and not r.get('excel_ok'))]
+    # Éxito: RPC con match exacto (id_exacto o fuzzy >= 80%) Y Excel actualizado
+    exitosos = [
+        r for r in resultados
+        if r.get('rpc_ok') and r.get('organizado_ok') and r.get('excel_ok')
+    ]
+    # Empates: más de un operador con el mismo score
+    empates = [
+        r for r in resultados
+        if r.get('rpc_resultado', {}).get('empate')
+    ]
+    # Coincidencia baja: hay rpc_resultado pero ok=False y no es empate (score < 80%)
+    dudosos = [
+        r for r in resultados
+        if r.get('rpc_resultado') and not r.get('rpc_ok')
+        and not r.get('rpc_resultado', {}).get('empate')
+        and not r.get('organizado_ok')  # evitar duplicar exitosos con empate=False
+    ]
+    # Sin operador: no hay rpc_resultado en absoluto (id_solicitante no en catálogo
+    # Y no hay nombre de operador disponible para búsqueda)
+    sin_operador = [
+        r for r in resultados
+        if not r.get('rpc_ok') and not r.get('rpc_resultado')
+        and not r.get('organizado_ok')
+    ]
+    # Errores reales: folios donde no hay nombre de operador de ninguna fuente
+    errores = [
+        r for r in resultados
+        if not r.get('rpc_ok')
+        and not r.get('nombre_operador')
+        and not r.get('organizado_ok')
+    ]
 
     print(f"\n  🟢 ÉXITO TOTAL ({len(exitosos)} folios):")
     if not exitosos:
         print("       Ninguno.")
     for r in exitosos:
         print(f"       ✓ {r['folio']} -> Organizado en: {r.get('rpc_resultado', {}).get('nombre_completo', 'N/A')}")
-        
+
     print(f"\n  🟠 DUPLICADOS EN RPC ({len(empates)} folios) - REVISIÓN MANUAL:")
     if not empates:
         print("       Ninguno.")
@@ -508,19 +552,26 @@ def imprimir_reporte(resultados: list):
         print("       Ninguno.")
     for r in dudosos:
         score = r.get('rpc_resultado', {}).get('score', 0) * 100 if r.get('rpc_resultado') else 0
-        nombre_web = r.get('nombre_operador', 'N/A')
+        nombre_detectado = r.get('rpc_resultado', {}).get('nombre_completo', 'N/A')
+        sin_op = r.get('sin_operador_dir', f'output\\_sin_operador\\{r["folio"]}')
         print(f"       ⚠️ {r['folio']}")
-        print(f"          Coincidencia insuficiente: {score:.0f}% (El sistema detectó '{nombre_web}')")
-        print(f"          👉 ACCIÓN: Mueve los archivos desde 'output\\_sin_operador\\{r['folio']}' a la carpeta correcta.")
+        print(f"          Coincidencia insuficiente: {score:.0f}% (El sistema detectó '{nombre_detectado}')")
+        print(f"          👉 ACCIÓN: Mueve los archivos desde '{sin_op}' a la carpeta correcta.")
+
+    print(f"\n  📁 SIN OPERADOR EN CATÁLOGO ({len(sin_operador)} folios) - EN _sin_operador:")
+    if not sin_operador:
+        print("       Ninguno.")
+    for r in sin_operador:
+        id_sol = r.get('id_solicitante', 'N/A')
+        sin_op = r.get('sin_operador_dir', f'output\\_sin_operador\\{r["folio"]}')
+        print(f"       📂 {r['folio']} -> id_solicitante={id_sol} no encontrado en catálogo RPC.")
+        print(f"          👉 ACCIÓN: Mueve los archivos desde '{sin_op}' a la carpeta del operador correcto.")
 
     print(f"\n  🔴 ERRORES ({len(errores)} folios):")
     if not errores:
         print("       Ninguno.")
     for r in errores:
-        if not r.get('pdf_encontrado'):
-            print(f"       ✗ {r['folio']} -> No se descargó PDF. Revisa el portal SATyS.")
-        else:
-            print(f"       ✗ {r['folio']} -> Error al organizar o al actualizar el Excel.")
+        print(f"       ✗ {r['folio']} -> No se encontró nombre de operador en ninguna fuente. Revisa el portal SATyS.")
 
     print("\n" + "═" * 70 + "\n")
 

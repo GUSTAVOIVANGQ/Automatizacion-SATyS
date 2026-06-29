@@ -1,10 +1,10 @@
 {
-  "fecha": "2026-06-25T18:42:13.496964",
-  "total_folios": 3,
-  "folios_exitosos": 3,
+  "fecha": "2026-06-26T14:11:56.042906",
+  "total_folios": 4,
+  "folios_exitosos": 4,
   "folios_incompletos": 0,
   "folios_no_encontrados": 0,
-  "total_archivos_descargados": 39,
+  "total_archivos_descargados": 57,
   "detalle_folios": [
     {
       "folio": "2014",
@@ -15,17 +15,24 @@
     },
     {
       "folio": "178065",
-      "archivos_ok": 12,
+      "archivos_ok": 14,
       "archivos_error": 0,
       "estado": "OK",
       "carpeta": "descargas\\178065"
     },
     {
       "folio": "178112",
-      "archivos_ok": 12,
+      "archivos_ok": 15,
       "archivos_error": 0,
       "estado": "OK",
       "carpeta": "descargas\\178112"
+    },
+    {
+      "folio": "178113",
+      "archivos_ok": 13,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\178113"
     }
   ]
 }

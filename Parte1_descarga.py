@@ -150,6 +150,45 @@ def extraer_zip_si_aplica(archivo: Path, carpeta: Path) -> list:
     return archivos_extraidos
 
 
+def descomprimir_todos_zips_en_carpeta(carpeta: Path) -> int:
+    """Descomprime TODOS los archivos ZIP presentes en la carpeta del folio,
+    incluyendo ZIPs dentro de ZIPs (recursivo por iteracion).
+    Retorna el total de archivos extraidos.
+    """
+    total_extraidos = 0
+    iteracion = 0
+    while True:
+        iteracion += 1
+        # Buscar todos los ZIPs en la carpeta (recursivamente en subcarpetas)
+        zips_encontrados = list(carpeta.rglob("*.zip"))
+        if not zips_encontrados:
+            break  # No quedan ZIPs, terminamos
+        log.info("[ZIP-ALL] Iteracion %d: encontrados %d ZIP(s) en carpeta %s",
+                 iteracion, len(zips_encontrados), carpeta.name)
+        for zip_path in zips_encontrados:
+            # Extraer en la misma carpeta donde esta el ZIP (preserva estructura)
+            carpeta_destino = zip_path.parent
+            try:
+                with zipfile.ZipFile(zip_path, 'r') as zf:
+                    miembros_extraidos = [m for m in zf.infolist() if not m.is_dir()]
+                    for member in miembros_extraidos:
+                        zf.extract(member, carpeta_destino)
+                log.info("[ZIP-ALL] Extraidos %d archivos de: %s — eliminando ZIP.",
+                         len(miembros_extraidos), zip_path.name)
+                zip_path.unlink(missing_ok=True)
+                total_extraidos += len(miembros_extraidos)
+            except Exception as e:
+                log.error("[ZIP-ALL] Error descomprimiendo %s: %s", zip_path.name, e)
+                # Si hay error de lectura, no eliminar el ZIP y salir del loop
+                zips_encontrados = []  # Forzar salida para evitar loop infinito
+                break
+        if not list(carpeta.rglob("*.zip")):
+            break  # Confirmacion: no quedan ZIPs
+    if total_extraidos > 0:
+        log.info("[ZIP-ALL] Total archivos extraidos de todos los ZIPs: %d", total_extraidos)
+    return total_extraidos
+
+
 def screenshot(page, nombre: str):
     d = Path("debug")
     d.mkdir(exist_ok=True)
@@ -250,8 +289,10 @@ def _extraer_url_from_onclick(onclick: str) -> str:
     m = re.search(r"'(.*?)'", onclick)
     return m.group(1) if m else ""
 
+def _return_false(retry_state):
+    return False
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), retry=retry_if_result(_retry_if_false))
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), retry=retry_if_result(_retry_if_false), retry_error_callback=_return_false)
 def _descargar_directo(context, page, url: str, dest: Path) -> bool:
     if not DIRECT_DOWNLOAD or not url:
         return False
@@ -271,7 +312,10 @@ def _descargar_directo(context, page, url: str, dest: Path) -> bool:
 def _retry_if_both_none(res):
     return res[0] is None and res[1] is None
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), retry=retry_if_result(_retry_if_both_none))
+def _return_both_none(retry_state):
+    return None, None
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), retry=retry_if_result(_retry_if_both_none), retry_error_callback=_return_both_none)
 def _click_y_esperar_descarga(page, context, boton_ver_doc):
     dl_obj = None
     np_obj = None
@@ -833,13 +877,47 @@ def buscar_y_abrir_folio(page, folio: str) -> bool:
 # ------------------------------------------------------------
 #  PASO 3.5 -- EXTRAER METADATOS WEB
 # ------------------------------------------------------------
-def _retry_if_faltan_metadatos(res):
-    # Reintenta si faltan los metadatos importantes
-    return not res.get("representante_legal") or not res.get("asunto")
+def _campos_criticos_completos(res: dict) -> bool:
+    """Verifica que todos los campos críticos del metadata estén presentes y no vacios."""
+    campos = ("id_solicitante", "nombre_operador", "representante_legal", "registro")
+    faltantes = [c for c in campos if not res.get(c)]
+    if faltantes:
+        log.warning("[META-RETRY] Campos faltantes: %s", faltantes)
+        return False
+    return True
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), retry=retry_if_result(_retry_if_faltan_metadatos))
 def extraer_metadatos_satys(page, folio: str, carpeta: Path, registro_esperado: str = None) -> dict:
-    log.info("[WEB] Extrayendo metadatos web de SATyS para folio %s", folio)
+    """Extrae metadatos del folio con bucle infinito hasta capturar todos los campos criticos.
+    Los campos 'representante_legal', 'id_representante_legal', 'nombre_operador' e
+    'id_solicitante' son OBLIGATORIOS: la pagina siempre los tiene, solo tarda en
+    cargarlos via JS. El bucle espera hasta que aparezcan sin limite de intentos.
+    """
+    ESPERA_ENTRE_INTENTOS = 3      # segundos entre reintentos
+    intento = 0
+
+    while True:
+        intento += 1
+        log.info("[WEB] Extrayendo metadatos web (intento %d) para folio %s", intento, folio)
+        metadatos = _extraer_metadatos_satys_una_vez(page, folio, carpeta, registro_esperado)
+
+        if _campos_criticos_completos(metadatos):
+            log.info("[META-RETRY] Todos los campos criticos capturados en intento %d para folio %s",
+                     intento, folio)
+            return metadatos
+
+        log.warning("[META-RETRY] Intento %d fallido para folio %s. Reintentando en %ds...",
+                    intento, folio, ESPERA_ENTRE_INTENTOS)
+        try:
+            page.evaluate("window.scrollTo(0, 0)")
+        except Exception:
+            pass
+        page.wait_for_timeout(ESPERA_ENTRE_INTENTOS * 1000)
+
+
+
+
+def _extraer_metadatos_satys_una_vez(page, folio: str, carpeta: Path, registro_esperado: str = None) -> dict:
+    log.info("[WEB] Extrayendo metadatos web (una vez) de SATyS para folio %s", folio)
     metadatos = {
         "representante_legal": None,
         "id_representante_legal": None,
@@ -874,10 +952,10 @@ def extraer_metadatos_satys(page, folio: str, carpeta: Path, registro_esperado: 
                     });
                 }
                 """,
-                timeout=8_000
+                timeout=15_000  # 15s para paginas lentas
             )
         except Exception:
-            page.wait_for_timeout(1_500)
+            page.wait_for_timeout(3_000)  # Aumentado a 3s para paginas lentas
 
         # 0. Extraer campo "Registro" de DATOS DEL SISTEMA (ej. CRT26-025230)
         try:
@@ -1181,28 +1259,45 @@ def descargar_archivos(context, page, folio: str, carpeta: Path) -> tuple:
             screenshot(page, f"no_tabla_{folio}")
             return resultados, False  # antes: True -- declaraba "sin archivos" sin probar el fallback
 
-        # 4.3 Intentar mostrar TODOS los archivos de una vez (cambiar paginacion)
+        # 4.3 Cambiar paginacion a 100 para descargar todos los archivos de una vez.
+        # Buscamos el select DENTRO del contenedor de la seccion ARCHIVOS ASOCIADOS
+        # (no el selector del tablero principal) para evitar cambiar la pagina equivocada.
         try:
-            select_mostrar = page.locator(
-                "select[name*='_length'], .dataTables_length select"
-            ).last
-            if select_mostrar.count() > 0:
+            # Intentar encontrar el select dentro del contenedor de ARCHIVOS ASOCIADOS
+            # El contenedor es el ancestro más cercano que engloba la sección
+            select_mostrar = None
+            # Buscar el select que está visible y cercano a la tabla de archivos
+            selects_pagina = page.locator("select[name*='_length'], .dataTables_length select")
+            total_selects = selects_pagina.count()
+            if total_selects > 0:
+                # Preferir el ÚLTIMO select visible (en la seccion ARCHIVOS ASOCIADOS
+                # el select aparece al final de la pagina, por eso usamos el último)
+                select_mostrar = selects_pagina.last
+
+            if select_mostrar and select_mostrar.count() > 0:
+                # Seleccionar 100 (preferido) o el valor máximo disponible
                 opciones = select_mostrar.locator("option")
+                mejor_val = None
                 for oi in range(opciones.count()):
                     val = opciones.nth(oi).get_attribute("value") or ""
-                    if val in ("-1", "100", "50"):
-                        select_mostrar.select_option(value=val)
-                        # Esperar que DataTables actualice la lista en lugar de tiempo fijo
-                        try:
-                            page.wait_for_function(
-                                "() => { const p = document.querySelector('.dataTables_processing'); "
-                                "return !p || p.style.display === 'none' || p.style.display === ''; }",
-                                timeout=6_000
-                            )
-                        except Exception:
-                            page.wait_for_timeout(600)
-                        tabla = _encontrar_tabla_archivos(page)
+                    if val == "100":
+                        mejor_val = val
                         break
+                    elif val in ("-1", "50") and mejor_val is None:
+                        mejor_val = val
+                if mejor_val:
+                    log.info("[INFO] Cambiando paginacion ARCHIVOS ASOCIADOS a '%s' elementos", mejor_val)
+                    select_mostrar.select_option(value=mejor_val)
+                    # Esperar que DataTables actualice la lista
+                    try:
+                        page.wait_for_function(
+                            "() => { const p = document.querySelector('.dataTables_processing'); "
+                            "return !p || p.style.display === 'none' || p.style.display === ''; }",
+                            timeout=6_000
+                        )
+                    except Exception:
+                        page.wait_for_timeout(800)
+                    tabla = _encontrar_tabla_archivos(page)
         except Exception:
             pass
 
@@ -1265,115 +1360,88 @@ def descargar_archivos(context, page, folio: str, carpeta: Path) -> tuple:
                             fname = url_name
 
                     dest = carpeta / fname
-                    # V-07: Verificar tamano y reintentar si el archivo es 0 KB
-                    descargado_ok = False
-                    if url:
-                        for _reintentoD in range(3):  # hasta 3 intentos
-                            intento_ok = _descargar_directo(context, page, url, dest)
-                            if intento_ok:
-                                size_kb = dest.stat().st_size / 1024
-                                if size_kb > 0:
-                                    descargado_ok = True
-                                    break
-                                else:
-                                    log.warning("[V07] Archivo 0 KB en descarga directa: %s (intento %d)",
-                                                fname, _reintentoD + 1)
-                                    dest.unlink(missing_ok=True)
-                                    page.wait_for_timeout(3_000)
-                            else:
-                                break
 
-                    if descargado_ok:
-                        extraidos = extraer_zip_si_aplica(dest, carpeta)
-                        if extraidos:
-                            for ex in extraidos:
-                                size_ex = ex.stat().st_size / 1024 if ex.exists() else 0
+                    # ── REINTENTOS POR ARCHIVO: hasta 3 intentos antes de marcar ERROR_SERVIDOR ──
+                    # Si el archivo falla 3 veces seguidas se considera que no está disponible en
+                    # el servidor (error externo) y se continúa con el siguiente archivo.
+                    MAX_INTENTOS_ARCHIVO = 3
+                    descargado_ok = False
+                    archivo_ok_final = False
+
+                    for _intento_archivo in range(1, MAX_INTENTOS_ARCHIVO + 1):
+                        descargado_ok = False
+
+                        # ── Intento 1: descarga directa rápida (sin clic) ──
+                        # V-07: Verificar tamano y reintentar si el archivo es 0 KB
+                        if url:
+                            for _reintentoD in range(3):  # hasta 3 sub-intentos internos
+                                intento_ok = _descargar_directo(context, page, url, dest)
+                                if intento_ok:
+                                    size_kb = dest.stat().st_size / 1024
+                                    if size_kb > 0:
+                                        descargado_ok = True
+                                        break
+                                    else:
+                                        log.warning("[V07] Archivo 0 KB en descarga directa: %s (intento %d)",
+                                                    fname, _reintentoD + 1)
+                                        dest.unlink(missing_ok=True)
+                                        page.wait_for_timeout(3_000)
+                                else:
+                                    break
+
+                        if descargado_ok:
+                            extraidos = extraer_zip_si_aplica(dest, carpeta)
+                            if extraidos:
+                                for ex in extraidos:
+                                    size_ex = ex.stat().st_size / 1024 if ex.exists() else 0
+                                    resultados.append({
+                                        "folio": folio, "archivo": ex.name,
+                                        "tipo": ex.suffix.upper().lstrip("."),
+                                        "ruta": str(ex), "tamano_kb": round(size_ex, 1),
+                                        "ok": True, "url": url,
+                                    })
+                                log.info("     [OK] Descarga directa (ZIP extraído): %s (%d archivos)", fname, len(extraidos))
+                            else:
+                                log.info("     [OK] Descarga directa: %s  (%.1f KB)", fname, size_kb)
                                 resultados.append({
-                                    "folio": folio, "archivo": ex.name,
-                                    "tipo": ex.suffix.upper().lstrip("."),
-                                    "ruta": str(ex), "tamano_kb": round(size_ex, 1),
+                                    "folio": folio, "archivo": fname,
+                                    "tipo": Path(fname).suffix.upper().lstrip("."),
+                                    "ruta": str(dest), "tamano_kb": round(size_kb, 1),
                                     "ok": True, "url": url,
                                 })
-                            log.info("     [OK] Descarga directa (ZIP extraído): %s (%d archivos)", fname, len(extraidos))
-                        else:
-                            log.info("     [OK] Descarga directa: %s  (%.1f KB)", fname, size_kb)
-                            resultados.append({
-                                "folio": folio, "archivo": fname,
-                                "tipo": Path(fname).suffix.upper().lstrip("."),
-                                "ruta": str(dest), "tamano_kb": round(size_kb, 1),
-                                "ok": True, "url": url,
-                            })
-                        continue
+                            archivo_ok_final = True
+                            break  # Archivo descargado OK, salir del bucle de reintentos
 
-                    dl_obj = None
-                    np_obj = None
-                    
-                    def on_dl(d): nonlocal dl_obj; dl_obj = d
-                    def on_pg(p): nonlocal np_obj; np_obj = p
-                    
-                    page.on("download", on_dl)
-                    context.on("page", on_pg)
-                    
-                    btn.click()
-                    
-                    import time
-                    start_t = time.time()
-                    timeout_sec = TIMEOUT_DL / 1000.0
-                    while time.time() - start_t < timeout_sec:
-                        if dl_obj or np_obj:
-                            break
-                        page.wait_for_timeout(200)
-                        
-                    page.remove_listener("download", on_dl)
-                    context.remove_listener("page", on_pg)
-
-                    if dl_obj:
-                        fname = dl_obj.suggested_filename or fname
-                        dest = carpeta / fname
-                        dl_obj.save_as(str(dest))
-                        extraidos = extraer_zip_si_aplica(dest, carpeta)
-
-                        if extraidos:
-                            for ex in extraidos:
-                                size_ex = ex.stat().st_size / 1024 if ex.exists() else 0
-                                resultados.append({
-                                    "folio": folio, "archivo": ex.name,
-                                    "tipo": ex.suffix.upper().lstrip("."),
-                                    "ruta": str(ex), "tamano_kb": round(size_ex, 1), "ok": True,
-                                    "url": dl_obj.url if hasattr(dl_obj, "url") and dl_obj.url else url,
-                                })
-                            log.info("     [OK] Guardado (ZIP extraído): %s (%d archivos)", fname, len(extraidos))
-                        else:
-                            size_kb = dest.stat().st_size / 1024 if dest.exists() else 0
-                            log.info("     [OK] Guardado: %s  (%.1f KB)", fname, size_kb)
-                            resultados.append({
-                                "folio": folio, "archivo": fname,
-                                "tipo": Path(fname).suffix.upper().lstrip("."),
-                                "ruta": str(dest), "tamano_kb": round(size_kb, 1), "ok": True,
-                                "url": dl_obj.url if hasattr(dl_obj, "url") and dl_obj.url else url,
-                            })
-                        
-                    elif np_obj:
-                        log.info("     [POPUP] Nueva pestana capturada (PDF) en ARCHIVOS ASOCIADOS")
-                        url_popup = ""
+                        # ── Intento 2: descarga por clic en el botón (respaldo) ──
                         try:
-                            np_obj.wait_for_load_state("domcontentloaded", timeout=10_000)
-                            url_popup = np_obj.url
-                            np_obj.close()
-                        except Exception as ep:
-                            log.info("     [POPUP] No se pudo leer URL: %s", ep)
-                            
-                        if url_popup and url_popup != page.url:
-                            from urllib.parse import urlparse
-                            url_fname = Path(urlparse(url_popup).path).name
-                            if url_fname:
-                                dest_popup = carpeta / url_fname
-                            else:
-                                dest_popup = dest
-                                
-                            ok_popup = _descargar_directo(context, page, url_popup, dest_popup)
-                            if ok_popup and dest_popup.stat().st_size > 0:
-                                extraidos = extraer_zip_si_aplica(dest_popup, carpeta)
+                            dl_obj = None
+                            np_obj = None
+
+                            def on_dl(d): nonlocal dl_obj; dl_obj = d
+                            def on_pg(p): nonlocal np_obj; np_obj = p
+
+                            page.on("download", on_dl)
+                            context.on("page", on_pg)
+
+                            btn.click()
+
+                            import time
+                            start_t = time.time()
+                            timeout_sec = TIMEOUT_DL / 1000.0
+                            while time.time() - start_t < timeout_sec:
+                                if dl_obj or np_obj:
+                                    break
+                                page.wait_for_timeout(200)
+
+                            page.remove_listener("download", on_dl)
+                            context.remove_listener("page", on_pg)
+
+                            if dl_obj:
+                                fname = dl_obj.suggested_filename or fname
+                                dest = carpeta / fname
+                                dl_obj.save_as(str(dest))
+                                extraidos = extraer_zip_si_aplica(dest, carpeta)
+
                                 if extraidos:
                                     for ex in extraidos:
                                         size_ex = ex.stat().st_size / 1024 if ex.exists() else 0
@@ -1381,25 +1449,88 @@ def descargar_archivos(context, page, folio: str, carpeta: Path) -> tuple:
                                             "folio": folio, "archivo": ex.name,
                                             "tipo": ex.suffix.upper().lstrip("."),
                                             "ruta": str(ex), "tamano_kb": round(size_ex, 1), "ok": True,
-                                            "url": url_popup,
+                                            "url": dl_obj.url if hasattr(dl_obj, "url") and dl_obj.url else url,
                                         })
-                                    log.info("     [OK-POPUP] Guardado (ZIP extraído): %s (%d archivos)", dest_popup.name, len(extraidos))
+                                    log.info("     [OK] Guardado (ZIP extraído): %s (%d archivos)", fname, len(extraidos))
                                 else:
-                                    size_kb = dest_popup.stat().st_size / 1024 if dest_popup.exists() else 0
-                                    log.info("     [OK-POPUP] Guardado: %s (%.1f KB)", dest_popup.name, size_kb)
+                                    size_kb = dest.stat().st_size / 1024 if dest.exists() else 0
+                                    log.info("     [OK] Guardado: %s  (%.1f KB)", fname, size_kb)
                                     resultados.append({
-                                        "folio": folio, "archivo": dest_popup.name,
-                                        "tipo": dest_popup.suffix.upper().lstrip("."),
-                                        "ruta": str(dest_popup), "tamano_kb": round(size_kb, 1), "ok": True,
-                                        "url": url_popup,
+                                        "folio": folio, "archivo": fname,
+                                        "tipo": Path(fname).suffix.upper().lstrip("."),
+                                        "ruta": str(dest), "tamano_kb": round(size_kb, 1), "ok": True,
+                                        "url": dl_obj.url if hasattr(dl_obj, "url") and dl_obj.url else url,
                                     })
+                                archivo_ok_final = True
+                                break  # Archivo descargado OK, salir del bucle de reintentos
+
+                            elif np_obj:
+                                log.info("     [POPUP] Nueva pestana capturada (PDF) en ARCHIVOS ASOCIADOS")
+                                url_popup = ""
+                                try:
+                                    np_obj.wait_for_load_state("domcontentloaded", timeout=10_000)
+                                    url_popup = np_obj.url
+                                    np_obj.close()
+                                except Exception as ep:
+                                    log.info("     [POPUP] No se pudo leer URL: %s", ep)
+
+                                if url_popup and url_popup != page.url:
+                                    from urllib.parse import urlparse
+                                    url_fname = Path(urlparse(url_popup).path).name
+                                    if url_fname:
+                                        dest_popup = carpeta / url_fname
+                                    else:
+                                        dest_popup = dest
+
+                                    ok_popup = _descargar_directo(context, page, url_popup, dest_popup)
+                                    if ok_popup and dest_popup.stat().st_size > 0:
+                                        extraidos = extraer_zip_si_aplica(dest_popup, carpeta)
+                                        if extraidos:
+                                            for ex in extraidos:
+                                                size_ex = ex.stat().st_size / 1024 if ex.exists() else 0
+                                                resultados.append({
+                                                    "folio": folio, "archivo": ex.name,
+                                                    "tipo": ex.suffix.upper().lstrip("."),
+                                                    "ruta": str(ex), "tamano_kb": round(size_ex, 1), "ok": True,
+                                                    "url": url_popup,
+                                                })
+                                            log.info("     [OK-POPUP] Guardado (ZIP extraído): %s (%d archivos)", dest_popup.name, len(extraidos))
+                                        else:
+                                            size_kb = dest_popup.stat().st_size / 1024 if dest_popup.exists() else 0
+                                            log.info("     [OK-POPUP] Guardado: %s (%.1f KB)", dest_popup.name, size_kb)
+                                            resultados.append({
+                                                "folio": folio, "archivo": dest_popup.name,
+                                                "tipo": dest_popup.suffix.upper().lstrip("."),
+                                                "ruta": str(dest_popup), "tamano_kb": round(size_kb, 1), "ok": True,
+                                                "url": url_popup,
+                                            })
+                                        archivo_ok_final = True
+                                        break  # Archivo descargado OK, salir del bucle de reintentos
+                                    else:
+                                        log.warning("     [REINTENTO %d/%d] Fallo descarga popup: %s",
+                                                    _intento_archivo, MAX_INTENTOS_ARCHIVO, nombre_previo)
+                                else:
+                                    log.warning("     [REINTENTO %d/%d] Popup sin URL valida: %s",
+                                                _intento_archivo, MAX_INTENTOS_ARCHIVO, nombre_previo)
                             else:
-                                raise Exception("Fallo descarga directa desde popup")
-                        else:
-                            raise Exception("Popup no tiene URL valida")
-                            
-                    else:
-                        raise PWTimeout("Timeout descargando o esperando popup")
+                                log.warning("     [REINTENTO %d/%d] Timeout sin descarga ni popup: %s",
+                                            _intento_archivo, MAX_INTENTOS_ARCHIVO, nombre_previo)
+
+                        except Exception as _e_click:
+                            log.warning("     [REINTENTO %d/%d] Error en clic: %s — %s",
+                                        _intento_archivo, MAX_INTENTOS_ARCHIVO, nombre_previo, _e_click)
+
+                        if _intento_archivo < MAX_INTENTOS_ARCHIVO:
+                            page.wait_for_timeout(3_000)  # Esperar antes del siguiente reintento
+
+                    # Fin del bucle de reintentos por archivo
+                    if not archivo_ok_final:
+                        log.error("     [ERROR_SERVIDOR] %s — no disponible tras %d intentos (problema externo)",
+                                  nombre_previo, MAX_INTENTOS_ARCHIVO)
+                        resultados.append({
+                            "folio": folio, "archivo": nombre_previo,
+                            "tipo": "ERROR_SERVIDOR", "ruta": "", "tamano_kb": 0, "ok": False
+                        })
 
                 except PWTimeout:
                     log.error("     [ERROR] Timeout descargando %s", nombre_previo)
@@ -1888,6 +2019,10 @@ def procesar_folio_completo(context, page, folio: str, carpeta: Path, folio_raw:
     if registros_procesados:
         log.info("[OK] Folio %s: %d tramite(s) procesado(s), registros: %s",
                  folio, len(registros_procesados), ", ".join(registros_procesados))
+
+    # Paso final: descomprimir TODOS los ZIPs que queden en la carpeta del folio.
+    # Cubre el caso de multiples ZIPs (ej. folio 1660) y ZIPs dentro de ZIPs.
+    descomprimir_todos_zips_en_carpeta(carpeta)
 
     return todos_resultados
 
@@ -2505,6 +2640,82 @@ def descargar_via_documentos_anexos(context, page, folio: str, carpeta: Path) ->
             )
         else:
             log.warning("[ALT-DL] No se pudo determinar total de documentos")
+
+        # Cambiar el selector de paginacion de 10 a 100 para ver todos los documentos.
+        # En DOCUMENTOS ANEXOS el selector dice 'Mostrar [10 v] Documentos'.
+        # Esta tabla NO usa DataTables estandar (name*='_length') sino un selector
+        # propio de la SPA. Usamos JS para encontrar el <select> cercano al texto "Documentos".
+        try:
+            cambiado = page.evaluate(r"""
+            () => {
+                // Buscar todos los <select> de la pagina
+                const selects = Array.from(document.querySelectorAll('select'));
+                for (const sel of selects) {
+                    // Verificar si el select o su contenedor cercano menciona "Documentos"
+                    let parent = sel.parentElement;
+                    for (let i = 0; i < 4; i++) {
+                        if (!parent) break;
+                        const txt = parent.textContent || '';
+                        if (txt.includes('Documentos') && !txt.includes('trámites')) {
+                            // Cambiar a 100 o al valor maximo disponible
+                            const opciones = Array.from(sel.options);
+                            let valorElegido = null;
+                            for (const op of opciones) {
+                                if (op.value === '100') { valorElegido = '100'; break; }
+                                if (op.value === '-1') valorElegido = '-1';
+                                else if (op.value === '50' && valorElegido === null) valorElegido = '50';
+                            }
+                            if (valorElegido) {
+                                sel.value = valorElegido;
+                                sel.dispatchEvent(new Event('change', { bubbles: true }));
+                                return valorElegido;
+                            }
+                        }
+                        parent = parent.parentElement;
+                    }
+                }
+                // Fallback: si no encontramos por "Documentos", probar el ultimo select visible
+                for (let i = selects.length - 1; i >= 0; i--) {
+                    const sel = selects[i];
+                    if (sel.offsetParent !== null) {  // visible
+                        const opciones = Array.from(sel.options);
+                        let valorElegido = null;
+                        for (const op of opciones) {
+                            if (op.value === '100') { valorElegido = '100'; break; }
+                            if (op.value === '-1') valorElegido = '-1';
+                        }
+                        if (valorElegido) {
+                            sel.value = valorElegido;
+                            sel.dispatchEvent(new Event('change', { bubbles: true }));
+                            return valorElegido + '_fallback';
+                        }
+                    }
+                }
+                return null;
+            }
+            """)
+            if cambiado:
+                log.info("[ALT-DL] Selector DOCUMENTOS ANEXOS cambiado a: %s", cambiado)
+                # Esperar que la tabla actualice despues del cambio
+                try:
+                    page.wait_for_function(
+                        "() => { const p = document.querySelector('.dataTables_processing'); "
+                        "return !p || p.style.display === 'none' || p.style.display === ''; }",
+                        timeout=6_000
+                    )
+                except Exception:
+                    page.wait_for_timeout(1_000)
+                # Re-leer el total ahora que se muestran mas documentos
+                desde_ini, hasta_ini, total_esperado = _parsear_paginacion_documentos(page)
+                if total_esperado > 0:
+                    log.info(
+                        "[ALT-DL] DOCUMENTOS ANEXOS (post-100): Mostrando %d a %d de %d",
+                        desde_ini, hasta_ini, total_esperado
+                    )
+            else:
+                log.warning("[ALT-DL] No se encontro selector de paginacion en DOCUMENTOS ANEXOS")
+        except Exception as e:
+            log.warning("[ALT-DL] No se pudo cambiar paginacion a 100: %s", e)
 
         # Loop de paginacion
         # ESTRATEGIA: localizar directamente los botones VER DOCUMENTO con Playwright
@@ -3157,7 +3368,52 @@ def _worker_folio(folio: str, folio_raw: str) -> tuple:
                     "tamano_kb": 0, "ok": False,
                 }]
 
-            # ── Procesar el folio ─────────────────────────────────────
+            # ── Procesar el folio (ejecución única; los reintentos por archivo se manejan
+            #    dentro de descargar_archivos_folio con MAX_INTENTOS_ARCHIVO=3)
+            # ── NOTA: El ciclo infinito de reintentos por INCOMPLETO fue comentado porque
+            #    causaba que el programa se colgara al encontrar archivos no disponibles en
+            #    el servidor. Ahora cada archivo tiene 3 intentos propios y si falla se marca
+            #    como ERROR_SERVIDOR para que el flujo continúe. El ciclo externo en
+            #    main_procesar.py reintenta los folios genuinamente incompletos hasta 3 veces.
+            # ── (Si necesitas restaurar el ciclo infinito, descomenta el bloque 'while True'
+            #    que está debajo y comenta el bloque 'ejecución única'.)
+            # ────────────────────────────────────────────────────────────────────────────────
+            # CICLO INFINITO COMENTADO — era causa de colgado cuando hay archivos de servidor
+            # ────────────────────────────────────────────────────────────────────────────────
+            # intento = 0
+            # while True:
+            #     intento += 1
+            #     try:
+            #         res = procesar_folio_completo(
+            #             context, page, folio, carpeta, folio_raw=folio_raw
+            #         )
+            #         resultados = res if res else [{
+            #             "folio": folio, "archivo": "FOLIO_NO_ENCONTRADO",
+            #             "tipo": "N/A", "ruta": "", "tamano_kb": 0, "ok": False,
+            #         }]
+            #     except Exception as e:
+            #         log.error("[W:%s] Error procesando folio %s: %s", tname, folio, e)
+            #         screenshot(page, f"fatal_{folio}")
+            #         resultados = [{
+            #             "folio": folio, "archivo": "ERROR_FATAL",
+            #             "tipo": "ERROR", "ruta": str(e)[:120], "tamano_kb": 0, "ok": False,
+            #         }]
+            #     ok_c = sum(1 for r in resultados if r.get("ok"))
+            #     errores_descarga = sum(1 for r in resultados if not r.get("ok") and r.get("archivo") not in ("FOLIO_NO_ENCONTRADO", "ERROR_FATAL", "ERROR_SESION", "ERROR_TABLERO"))
+            #     log.info("[W:%s] ── Folio %s OK (%d/%d archivos) en intento %d ──",
+            #              tname, folio, ok_c, len(resultados), intento)
+            #     if errores_descarga == 0:
+            #         break  # Todo exitoso, salir del ciclo
+            #     log.warning("[W:%s] ⚠️ Folio %s INCOMPLETO (%d errores). Reintentando (intento %d)...",
+            #                 tname, folio, errores_descarga, intento + 1)
+            #     page.wait_for_timeout(5000)
+            #     try:
+            #         navegar_a_tablero(page)
+            #     except Exception:
+            #         pass
+            # ────────────────────────────────────────────────────────────────────────────────
+            # EJECUCIÓN ÚNICA — activa
+            # ────────────────────────────────────────────────────────────────────────────────
             carpeta = crear_carpeta(folio)
             try:
                 res = procesar_folio_completo(
@@ -3175,10 +3431,15 @@ def _worker_folio(folio: str, folio_raw: str) -> tuple:
                     "tipo": "ERROR", "ruta": str(e)[:120], "tamano_kb": 0, "ok": False,
                 }]
 
-            browser.close()
             ok_c = sum(1 for r in resultados if r.get("ok"))
-            log.info("[W:%s] ── Folio %s OK (%d/%d archivos) ──",
-                     tname, folio, ok_c, len(resultados))
+            errores_servidor = sum(1 for r in resultados if r.get("tipo") == "ERROR_SERVIDOR")
+            errores_otros    = sum(1 for r in resultados if not r.get("ok") and r.get("tipo") not in
+                                   ("ERROR_SERVIDOR", "N/A") and r.get("archivo") not in
+                                   ("FOLIO_NO_ENCONTRADO", "ERROR_FATAL", "ERROR_SESION", "ERROR_TABLERO"))
+            log.info("[W:%s] ── Folio %s: %d/%d OK | %d error(es) servidor | %d error(es) red ──",
+                     tname, folio, ok_c, len(resultados), errores_servidor, errores_otros)
+
+            browser.close()
 
     except Exception as e:
         log.error("[W:%s] Error crítico en worker para folio %s: %s", tname, folio, e)

@@ -1,104 +1,22 @@
 {
-  "fecha_ejecucion": "2026-06-25T18:42:16.616957",
+  "fecha_ejecucion": "2026-06-26T15:11:32.535459",
   "modo_extraccion": "azure",
-  "total_folios": 4,
+  "total_folios": 1,
   "total_exitosos": 0,
   "resultados": [
     {
-      "folio": "2014",
+      "folio": "1660",
       "pdf_encontrado": false,
-      "nombre_operador": "JUAN ARIAS MONTIEL",
-      "representante_legal": "JUANA RAMOS MONTIEL",
+      "nombre_operador": null,
+      "representante_legal": null,
+      "id_solicitante": "",
       "formatos": {},
       "imagen_sello": null,
-      "fecha_sello": "18-06-2026 00:00:00",
-      "rpc_ok": true,
+      "fecha_sello": null,
+      "rpc_ok": false,
       "excel_ok": false,
-      "organizado_ok": true,
-      "modo_extraccion": "lectura_json",
-      "rpc_resultado": {
-        "nombre_completo": "JUAN ARIAS MONTIEL",
-        "numero_rpc": "517214",
-        "idBp": "517214",
-        "ruta": "517214_juan_arias_montiel\\01 EN\\VE",
-        "score": 0.9091,
-        "ok": true,
-        "empate": false,
-        "metodo": "fuzzy_nombre"
-      }
-    },
-    {
-      "folio": "178113",
-      "pdf_encontrado": false,
-      "nombre_operador": "CMC SERVICE NETWORK, S.A. DE C.V.",
-      "representante_legal": "BLANCA ESTELA CABALLERO BOLAÑOS",
-      "formatos": {},
-      "imagen_sello": null,
-      "fecha_sello": "22/05/2026",
-      "rpc_ok": true,
-      "excel_ok": false,
-      "organizado_ok": true,
-      "modo_extraccion": "lectura_json",
-      "rpc_resultado": {
-        "nombre_completo": "CMC SERVICE NETWORK, S.A. DE C.V.",
-        "numero_rpc": "520983",
-        "idBp": "520983",
-        "ruta": "520983_cmc_service_network_s_a_de_c_v\\01 EN\\VE",
-        "score": 1.0,
-        "ok": true,
-        "empate": false,
-        "metodo": "id_exacto"
-      }
-    },
-    {
-      "folio": "178112",
-      "pdf_encontrado": false,
-      "nombre_operador": "COMUNÍCALO DE MÉXICO, S.A. DE C.V.",
-      "representante_legal": "JOSÉ LUIS CARRILLO SALAS",
-      "formatos": {},
-      "imagen_sello": null,
-      "fecha_sello": "22/05/2026",
-      "rpc_ok": true,
-      "excel_ok": false,
-      "organizado_ok": true,
-      "modo_extraccion": "lectura_json",
-      "rpc_resultado": {
-        "nombre_completo": "COMUNÍCALO DE MÉXICO, S.A. DE C.V.",
-        "numero_rpc": "106476",
-        "idBp": "106476",
-        "ruta": "106476_comunícalo_de_méxico_s_a_de_c_v\\01 EN\\VE",
-        "score": 1.0,
-        "ok": true,
-        "empate": false,
-        "metodo": "id_exacto"
-      }
-    },
-    {
-      "folio": "178065",
-      "pdf_encontrado": false,
-      "nombre_operador": "TELEVERA RED, S.A.P.I. DE C.V.",
-      "representante_legal": "MARIA ALEJANDRA AGUIRRE BARRAGAN",
-      "formatos": {
-        "R001": true,
-        "R011": true,
-        "R015": true
-      },
-      "imagen_sello": null,
-      "fecha_sello": "22/05/2026",
-      "rpc_ok": true,
-      "excel_ok": false,
-      "organizado_ok": true,
-      "modo_extraccion": "lectura_json",
-      "rpc_resultado": {
-        "nombre_completo": "TELEVERA RED, S.A.P.I. DE C.V.",
-        "numero_rpc": "105790",
-        "idBp": "105790",
-        "ruta": "105790_televera_red_s_a_p_i_de_c_v\\01 EN\\VE",
-        "score": 1.0,
-        "ok": true,
-        "empate": false,
-        "metodo": "id_exacto"
-      }
+      "organizado_ok": false,
+      "modo_extraccion": null
     }
   ]
 }
