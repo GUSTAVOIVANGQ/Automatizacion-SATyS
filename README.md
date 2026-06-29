@@ -1,7 +1,7 @@
 # 📋 Proyecto SATyS - Automatización de Descargas y Procesamiento
 
-**Sistema Automatizado de Trámites y Servicios (SATyS)**  
-**Comisión Reguladora de Telecomunicaciones (IFT)**
+**Sistema Automatizado de Trámites y Servicios (SATyS)**
+**Comisión Reguladora de Telecomunicaciones (CRT)**
 
 ---
 
@@ -33,7 +33,7 @@ Para iniciar la interfaz ejecuta:
 
 ## 🎯 Descripción General
 
-Automatización completa del flujo de trabajo para la **descarga, procesamiento y organización de archivos** del sistema SATyS del Comisión Reguladora de Telecomunicaciones (IFT). El sistema:
+Automatización completa del flujo de trabajo para la **descarga, procesamiento y organización de archivos** del sistema SATyS del Comisión Reguladora de Telecomunicaciones (CRT). El sistema:
 
 - Extrae metadatos de los trámites directamente de la web (sin OCR).
 - Consulta el Registro Público de Concesiones (RPC) vía API REST y Fuzzy Matching.
@@ -83,13 +83,9 @@ Automatización completa del flujo de trabajo para la **descarga, procesamiento 
 ## ✅ Comportamiento Clave del Sistema
 
 1. **Metadatos extraídos directamente del SATyS (vía JavaScript):** Los campos `representante_legal`, `id_representante_legal`, `nombre_operador` e `id_solicitante` se obtienen de la página web del trámite mediante un bucle infinito que espera a que los datos carguen. Son campos obligatorios y siempre están presentes en el portal.
-
 2. **Reintentos de descarga por archivo (3 intentos):** Cada archivo se intenta descargar hasta 3 veces. Si falla en los 3, se marca como `ERROR_SERVIDOR` (problema externo al programa) y el flujo continúa con el siguiente archivo.
-
 3. **Validación de Identidad del Operador:** Cruza el nombre/ID obtenido en el SATyS contra el padrón del RPC. Si no hay coincidencia confiable, el folio va a `/output/_sin_operador/` para revisión manual.
-
 4. **Base de Datos RPC Automática:** Al iniciar, el programa verifica si existe una versión más reciente del catálogo de concesiones y lo descarga en segundo plano.
-
 5. **Excel Consolidado:** Al terminar de procesar, genera o actualiza `output/Folios_Datos_Completos.xlsx` agregando una fila por folio con todos sus metadatos. Si el archivo ya existe, solo se agregan filas nuevas al final.
 
 ---
@@ -175,17 +171,17 @@ AZURE_DOCUMENT_INTELLIGENCE_KEY=tu_clave_azure
 
 ### 📋 Lista de argumentos disponibles
 
-| Argumento            | Descripción |
-| -------------------- | ----------- |
-| `[folios]`           | Números de folios separados por espacio. Ej: `main_procesar.py 176464 179220` |
-| `--archivo-folios`   | Ruta a un `.txt` con un folio por línea. Ej: `--archivo-folios folios.txt` |
-| `--headless`         | Oculta el navegador Playwright (recomendado para velocidad) |
-| `--workers N`        | Número de ventanas del navegador en paralelo. Por defecto `10` |
-| `--solo-procesar`    | Omite la Parte 1 (descarga web) y procesa archivos ya descargados localmente |
-| `--buscar N`         | Busca y procesa `N` folios secuencialmente a partir de `--desde` |
-| `--desde X`          | Folio base para la búsqueda secuencial. Por defecto `6407` |
-| `--no-organizar`     | Extrae y actualiza el Excel, pero no mueve archivos a `/output/` |
-| `--rebuild-catalogo` | Reconstruye el catálogo RPC desde cero descargándolo de nuevo |
+| Argumento              | Descripción                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------- |
+| `[folios]`           | Números de folios separados por espacio. Ej:`main_procesar.py 176464 179220` |
+| `--archivo-folios`   | Ruta a un`.txt` con un folio por línea. Ej: `--archivo-folios folios.txt`  |
+| `--headless`         | Oculta el navegador Playwright (recomendado para velocidad)                     |
+| `--workers N`        | Número de ventanas del navegador en paralelo. Por defecto`10`                |
+| `--solo-procesar`    | Omite la Parte 1 (descarga web) y procesa archivos ya descargados localmente    |
+| `--buscar N`         | Busca y procesa`N` folios secuencialmente a partir de `--desde`             |
+| `--desde X`          | Folio base para la búsqueda secuencial. Por defecto`6407`                    |
+| `--no-organizar`     | Extrae y actualiza el Excel, pero no mueve archivos a`/output/`               |
+| `--rebuild-catalogo` | Reconstruye el catálogo RPC desde cero descargándolo de nuevo                 |
 
 ---
 
@@ -193,19 +189,19 @@ AZURE_DOCUMENT_INTELLIGENCE_KEY=tu_clave_azure
 
 Generado automáticamente al finalizar cada corrida, con una fila por folio:
 
-| Columna                | Fuente JSON |
-| ---------------------- | ----------- |
-| `FOLIO`                | `metadata_satys.json` |
-| `REGISTRO`             | `metadata_satys.json` |
-| `ASUNTO`               | `metadata_satys.json` / `metadata_tramite_nuevo.json` |
-| `NOMBRE_OPERADOR`      | `metadata_satys.json` / `metadata_tramite_nuevo.json` |
-| `REPRESENTANTE_LEGAL`  | `metadata_satys.json` / `metadata_tramite_nuevo.json` |
-| `ID_REPRESENTANTE_LEGAL` | `metadata_satys.json` |
-| `ID_SOLICITANTE`       | `metadata_satys.json` |
-| `TIPO_TRAMITE`         | `metadata_satys.json` / `metadata_tramite_nuevo.json` |
-| `FECHA_REGISTRO`       | `metadata_satys.json` / `metadata_tramite_nuevo.json` |
-| `FECHA_EJECUCION`      | `metadata_satys.json` |
-| `FECHA_FOLIO_OPC`      | `metadata_satys.json` |
+| Columna                    | Fuente JSON                                               |
+| -------------------------- | --------------------------------------------------------- |
+| `FOLIO`                  | `metadata_satys.json`                                   |
+| `REGISTRO`               | `metadata_satys.json`                                   |
+| `ASUNTO`                 | `metadata_satys.json` / `metadata_tramite_nuevo.json` |
+| `NOMBRE_OPERADOR`        | `metadata_satys.json` / `metadata_tramite_nuevo.json` |
+| `REPRESENTANTE_LEGAL`    | `metadata_satys.json` / `metadata_tramite_nuevo.json` |
+| `ID_REPRESENTANTE_LEGAL` | `metadata_satys.json`                                   |
+| `ID_SOLICITANTE`         | `metadata_satys.json`                                   |
+| `TIPO_TRAMITE`           | `metadata_satys.json` / `metadata_tramite_nuevo.json` |
+| `FECHA_REGISTRO`         | `metadata_satys.json` / `metadata_tramite_nuevo.json` |
+| `FECHA_EJECUCION`        | `metadata_satys.json`                                   |
+| `FECHA_FOLIO_OPC`        | `metadata_satys.json`                                   |
 
 > Si el archivo Excel ya existe, los nuevos folios se agregan al final sin borrar los anteriores. Cierra el archivo antes de ejecutar el programa para evitar errores de permisos.
 
@@ -215,11 +211,11 @@ Generado automáticamente al finalizar cada corrida, con una fila por folio:
 
 El orquestador actualiza columnas específicas de este Excel de control:
 
-| Columna                | Letra | Contenido |
-| ---------------------- | ----- | --------- |
-| Solicitante Promovente | F     | Nombre del operador encontrado en RPC |
-| Ruta                   | N     | Ruta construida desde el padrón RPC |
-| R001–R027              | O–AQ  | `"1"` si el formato fue detectado en los archivos |
+| Columna                | Letra | Contenido                                           |
+| ---------------------- | ----- | --------------------------------------------------- |
+| Solicitante Promovente | F     | Nombre del operador encontrado en RPC               |
+| Ruta                   | N     | Ruta construida desde el padrón RPC                |
+| R001–R027             | O–AQ | `"1"` si el formato fue detectado en los archivos |
 | NOTAS_VICTOR           | AP    | Tipos de archivo descargados (xlsx, csv, pdf, etc.) |
 
 ---
@@ -228,16 +224,16 @@ El orquestador actualiza columnas específicas de este Excel de control:
 
 ### ✅ Completado
 
-- [x] Paralelización de descargas con múltiples workers de Playwright
-- [x] Ejecución Headless (sin ventanas visibles)
-- [x] Extracción de metadatos directamente del SATyS (sin OCR)
-- [x] Reintentos automáticos por archivo (3 intentos por archivo)
-- [x] Descompresión automática de todos los `.zip` en la carpeta del folio
-- [x] Búsqueda en RPC vía API REST + Fuzzy Matching con catálogo Excel
-- [x] Actualización automática del catálogo RPC
-- [x] Clasificación de expedientes: operador encontrado → `/output/<operador>/` | no encontrado → `/output/_sin_operador/`
-- [x] Interfaz gráfica completa (GUI) con log en tiempo real y Resumen Ejecutivo
-- [x] Exportación de Excel consolidado `Folios_Datos_Completos.xlsx`
+- [X] Paralelización de descargas con múltiples workers de Playwright
+- [X] Ejecución Headless (sin ventanas visibles)
+- [X] Extracción de metadatos directamente del SATyS (sin OCR)
+- [X] Reintentos automáticos por archivo (3 intentos por archivo)
+- [X] Descompresión automática de todos los `.zip` en la carpeta del folio
+- [X] Búsqueda en RPC vía API REST + Fuzzy Matching con catálogo Excel
+- [X] Actualización automática del catálogo RPC
+- [X] Clasificación de expedientes: operador encontrado → `/output/<operador>/` | no encontrado → `/output/_sin_operador/`
+- [X] Interfaz gráfica completa (GUI) con log en tiempo real y Resumen Ejecutivo
+- [X] Exportación de Excel consolidado `Folios_Datos_Completos.xlsx`
 
 ### 🔲 Pendiente
 
@@ -250,16 +246,16 @@ El orquestador actualiza columnas específicas de este Excel de control:
 
 **Proyecto desarrollado para:**
 
-- Comisión Reguladora de Telecomunicaciones (IFT)
+- Comisión Reguladora de Telecomunicaciones (CRT)
 - Coordinación General de Planeación Estratégica
-- Dirección General Adjunta de Estadística y Análisis de Indicadores
+- Dirección Ejecutiva de Indicadores
 
-**Desarrollador Original:** David Palestina Ramirez  
-**Actualizaciones y UI:** Equipo de Automatización  
+**Desarrolladores:** Gustavo Ivan Garcia Quiroz, David Palestina Ramirez
+**Actualizaciones y UI:** Equipo de la **Dirección Ejecutiva de Indicadores**
 **Contacto:** david.palestina@ift.org.mx
 
 ---
 
 ## 📄 Licencia
 
-Este proyecto es propiedad del Comisión Reguladora de Telecomunicaciones (IFT). Uso interno exclusivamente.
+Este proyecto es propiedad del Comisión Reguladora de Telecomunicaciones (CRT). Uso interno exclusivamente.
