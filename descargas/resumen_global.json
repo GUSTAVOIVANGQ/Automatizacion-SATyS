@@ -1,45 +1,654 @@
 {
-  "fecha": "2026-06-29T14:55:42.301082",
-  "total_folios": 5,
-  "folios_exitosos": 4,
-  "folios_incompletos": 1,
+  "fecha": "2026-06-29T17:36:14.557786",
+  "total_folios": 92,
+  "folios_exitosos": 92,
+  "folios_incompletos": 0,
   "folios_no_encontrados": 0,
-  "total_archivos_descargados": 63,
+  "total_archivos_descargados": 1111,
   "detalle_folios": [
     {
-      "folio": "2014",
+      "folio": "176455",
+      "archivos_ok": 2,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\176455"
+    },
+    {
+      "folio": "12910",
+      "archivos_ok": 10,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12910"
+    },
+    {
+      "folio": "12908",
+      "archivos_ok": 10,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12908"
+    },
+    {
+      "folio": "12909",
+      "archivos_ok": 17,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12909"
+    },
+    {
+      "folio": "12911",
+      "archivos_ok": 16,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12911"
+    },
+    {
+      "folio": "12912",
+      "archivos_ok": 25,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12912"
+    },
+    {
+      "folio": "176322",
+      "archivos_ok": 2,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\176322"
+    },
+    {
+      "folio": "176321",
+      "archivos_ok": 2,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\176321"
+    },
+    {
+      "folio": "176318",
+      "archivos_ok": 2,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\176318"
+    },
+    {
+      "folio": "176310",
+      "archivos_ok": 10,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\176310"
+    },
+    {
+      "folio": "12883",
+      "archivos_ok": 76,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12883"
+    },
+    {
+      "folio": "176195",
+      "archivos_ok": 23,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\176195"
+    },
+    {
+      "folio": "176178",
+      "archivos_ok": 8,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\176178"
+    },
+    {
+      "folio": "176162",
+      "archivos_ok": 9,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\176162"
+    },
+    {
+      "folio": "176144",
       "archivos_ok": 15,
       "archivos_error": 0,
       "estado": "OK",
-      "carpeta": "descargas\\2014"
+      "carpeta": "descargas\\176144"
     },
     {
-      "folio": "178113",
-      "archivos_ok": 13,
+      "folio": "176143",
+      "archivos_ok": 36,
       "archivos_error": 0,
       "estado": "OK",
-      "carpeta": "descargas\\178113"
+      "carpeta": "descargas\\176143"
     },
     {
-      "folio": "178112",
-      "archivos_ok": 15,
+      "folio": "176141",
+      "archivos_ok": 30,
       "archivos_error": 0,
       "estado": "OK",
-      "carpeta": "descargas\\178112"
+      "carpeta": "descargas\\176141"
     },
     {
-      "folio": "178065",
+      "folio": "176110",
+      "archivos_ok": 20,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\176110"
+    },
+    {
+      "folio": "12793",
+      "archivos_ok": 21,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12793"
+    },
+    {
+      "folio": "12773",
+      "archivos_ok": 1,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12773"
+    },
+    {
+      "folio": "12771",
+      "archivos_ok": 1,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12771"
+    },
+    {
+      "folio": "12772",
+      "archivos_ok": 1,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12772"
+    },
+    {
+      "folio": "12770",
+      "archivos_ok": 1,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12770"
+    },
+    {
+      "folio": "12768",
+      "archivos_ok": 30,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12768"
+    },
+    {
+      "folio": "12769",
+      "archivos_ok": 1,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12769"
+    },
+    {
+      "folio": "12757",
       "archivos_ok": 14,
       "archivos_error": 0,
       "estado": "OK",
-      "carpeta": "descargas\\178065"
+      "carpeta": "descargas\\12757"
     },
     {
-      "folio": "1660",
+      "folio": "12758",
+      "archivos_ok": 9,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12758"
+    },
+    {
+      "folio": "176091",
+      "archivos_ok": 5,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\176091"
+    },
+    {
+      "folio": "176088",
+      "archivos_ok": 3,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\176088"
+    },
+    {
+      "folio": "176087",
+      "archivos_ok": 3,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\176087"
+    },
+    {
+      "folio": "12745",
+      "archivos_ok": 12,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12745"
+    },
+    {
+      "folio": "12731",
+      "archivos_ok": 18,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12731"
+    },
+    {
+      "folio": "12730",
+      "archivos_ok": 20,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12730"
+    },
+    {
+      "folio": "175953",
       "archivos_ok": 6,
-      "archivos_error": 4,
-      "estado": "INCOMPLETO",
-      "carpeta": "descargas\\1660"
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175953"
+    },
+    {
+      "folio": "175949",
+      "archivos_ok": 9,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175949"
+    },
+    {
+      "folio": "175945",
+      "archivos_ok": 7,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175945"
+    },
+    {
+      "folio": "175905",
+      "archivos_ok": 20,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175905"
+    },
+    {
+      "folio": "12709",
+      "archivos_ok": 22,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12709"
+    },
+    {
+      "folio": "12708",
+      "archivos_ok": 1,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12708"
+    },
+    {
+      "folio": "12707",
+      "archivos_ok": 1,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12707"
+    },
+    {
+      "folio": "12705",
+      "archivos_ok": 1,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12705"
+    },
+    {
+      "folio": "12706",
+      "archivos_ok": 1,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12706"
+    },
+    {
+      "folio": "12704",
+      "archivos_ok": 1,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12704"
+    },
+    {
+      "folio": "175878",
+      "archivos_ok": 3,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175878"
+    },
+    {
+      "folio": "175877",
+      "archivos_ok": 3,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175877"
+    },
+    {
+      "folio": "175876",
+      "archivos_ok": 2,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175876"
+    },
+    {
+      "folio": "175834",
+      "archivos_ok": 11,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175834"
+    },
+    {
+      "folio": "12541",
+      "archivos_ok": 5,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12541"
+    },
+    {
+      "folio": "12540",
+      "archivos_ok": 10,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12540"
+    },
+    {
+      "folio": "12539",
+      "archivos_ok": 6,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12539"
+    },
+    {
+      "folio": "12538",
+      "archivos_ok": 10,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12538"
+    },
+    {
+      "folio": "12553",
+      "archivos_ok": 20,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12553"
+    },
+    {
+      "folio": "12554",
+      "archivos_ok": 19,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12554"
+    },
+    {
+      "folio": "175539",
+      "archivos_ok": 7,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175539"
+    },
+    {
+      "folio": "175536",
+      "archivos_ok": 11,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175536"
+    },
+    {
+      "folio": "175535",
+      "archivos_ok": 2,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175535"
+    },
+    {
+      "folio": "175530",
+      "archivos_ok": 7,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175530"
+    },
+    {
+      "folio": "175529",
+      "archivos_ok": 11,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175529"
+    },
+    {
+      "folio": "175528",
+      "archivos_ok": 7,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175528"
+    },
+    {
+      "folio": "175527",
+      "archivos_ok": 11,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175527"
+    },
+    {
+      "folio": "175526",
+      "archivos_ok": 7,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175526"
+    },
+    {
+      "folio": "175525",
+      "archivos_ok": 11,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175525"
+    },
+    {
+      "folio": "175514",
+      "archivos_ok": 7,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175514"
+    },
+    {
+      "folio": "175511",
+      "archivos_ok": 8,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175511"
+    },
+    {
+      "folio": "175507",
+      "archivos_ok": 13,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175507"
+    },
+    {
+      "folio": "12522",
+      "archivos_ok": 121,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12522"
+    },
+    {
+      "folio": "1597",
+      "archivos_ok": 1,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\1597"
+    },
+    {
+      "folio": "1594",
+      "archivos_ok": 1,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\1594"
+    },
+    {
+      "folio": "1593",
+      "archivos_ok": 1,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\1593"
+    },
+    {
+      "folio": "175217",
+      "archivos_ok": 10,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175217"
+    },
+    {
+      "folio": "175153",
+      "archivos_ok": 6,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175153"
+    },
+    {
+      "folio": "175152",
+      "archivos_ok": 10,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175152"
+    },
+    {
+      "folio": "175146",
+      "archivos_ok": 10,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\175146"
+    },
+    {
+      "folio": "12343",
+      "archivos_ok": 1,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12343"
+    },
+    {
+      "folio": "12301",
+      "archivos_ok": 20,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12301"
+    },
+    {
+      "folio": "12291",
+      "archivos_ok": 20,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12291"
+    },
+    {
+      "folio": "12290",
+      "archivos_ok": 20,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12290"
+    },
+    {
+      "folio": "12286",
+      "archivos_ok": 39,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12286"
+    },
+    {
+      "folio": "12285",
+      "archivos_ok": 41,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12285"
+    },
+    {
+      "folio": "12283",
+      "archivos_ok": 42,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12283"
+    },
+    {
+      "folio": "12282",
+      "archivos_ok": 20,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12282"
+    },
+    {
+      "folio": "174971",
+      "archivos_ok": 3,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\174971"
+    },
+    {
+      "folio": "174970",
+      "archivos_ok": 7,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\174970"
+    },
+    {
+      "folio": "174963",
+      "archivos_ok": 1,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\174963"
+    },
+    {
+      "folio": "174873",
+      "archivos_ok": 2,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\174873"
+    },
+    {
+      "folio": "174872",
+      "archivos_ok": 6,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\174872"
+    },
+    {
+      "folio": "174861",
+      "archivos_ok": 3,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\174861"
+    },
+    {
+      "folio": "174853",
+      "archivos_ok": 3,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\174853"
+    },
+    {
+      "folio": "12189",
+      "archivos_ok": 1,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\12189"
+    },
+    {
+      "folio": "174740",
+      "archivos_ok": 3,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\174740"
+    },
+    {
+      "folio": "174733",
+      "archivos_ok": 3,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\174733"
+    },
+    {
+      "folio": "174731",
+      "archivos_ok": 3,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\174731"
     }
   ]
 }

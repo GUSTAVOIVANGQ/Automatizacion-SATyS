@@ -133,18 +133,94 @@ def _save_config(data: dict):
 
 
 def _abrir_carpeta(ruta: str):
-    """Abre carpeta (o archivo) en el explorador de Windows."""
+    """Abre carpeta (o archivo) en el explorador de Windows forzando el primer plano."""
+    import subprocess
+    import ctypes
+    from pathlib import Path
+    import os
+    
     p = Path(ruta)
-    # Si tiene extensión, asumimos que es archivo y creamos su directorio padre
     if p.suffix:
         p.parent.mkdir(parents=True, exist_ok=True)
     else:
         p.mkdir(parents=True, exist_ok=True)
         
     try:
-        os.startfile(str(p.resolve()))
+        # 1. HACK LEGENDARIO DE WINDOWS: Presionar y soltar ALT (VK_MENU = 0x12)
+        # Esto engaña al sistema para que retire el bloqueo de foco (ForegroundLockTimeout)
+        ctypes.windll.user32.keybd_event(0x12, 0, 0, 0)
+        ctypes.windll.user32.keybd_event(0x12, 0, 2, 0)
+        
+        # 2. Permiso explícito de la API
+        ctypes.windll.user32.AllowSetForegroundWindow(-1)
+        
+        # 3. Lanzar con 'explorer /n' (para forzar una ventana nueva y no reusar una oculta)
+        path_str = str(p.resolve())
+        if p.is_file():
+            subprocess.Popen(["explorer", "/select,", path_str])
+        else:
+            subprocess.Popen(["explorer", "/n,", path_str])
+            
     except Exception:
-        pass
+        try:
+            os.startfile(str(p.resolve()))
+        except Exception:
+            pass
+
+
+def _abrir_dialogo_archivo(titulo: str, filtro: str) -> str:
+    """Abre un diálogo nativo de selección de archivo usando la API de Windows (ctypes)."""
+    import ctypes
+    from ctypes import wintypes
+    
+    GetOpenFileNameW = ctypes.windll.comdlg32.GetOpenFileNameW
+    
+    class OPENFILENAMEW(ctypes.Structure):
+        _fields_ = [
+            ("lStructSize", wintypes.DWORD),
+            ("hwndOwner", wintypes.HWND),
+            ("hInstance", wintypes.HINSTANCE),
+            ("lpstrFilter", wintypes.LPCWSTR),
+            ("lpstrCustomFilter", wintypes.LPWSTR),
+            ("nMaxCustFilter", wintypes.DWORD),
+            ("nFilterIndex", wintypes.DWORD),
+            ("lpstrFile", wintypes.LPWSTR),
+            ("nMaxFile", wintypes.DWORD),
+            ("lpstrFileTitle", wintypes.LPWSTR),
+            ("nMaxFileTitle", wintypes.DWORD),
+            ("lpstrInitialDir", wintypes.LPCWSTR),
+            ("lpstrTitle", wintypes.LPCWSTR),
+            ("Flags", wintypes.DWORD),
+            ("nFileOffset", wintypes.WORD),
+            ("nFileExtension", wintypes.WORD),
+            ("lpstrDefExt", wintypes.LPCWSTR),
+            ("lCustData", wintypes.LPARAM),
+            ("lpfnHook", ctypes.c_void_p),
+            ("lpTemplateName", wintypes.LPCWSTR),
+            ("pvReserved", ctypes.c_void_p),
+            ("dwReserved", wintypes.DWORD),
+            ("FlagsEx", wintypes.DWORD)
+        ]
+
+    # Convertir filtro estilo "Archivos|*.txt" a formato null-terminated de Windows
+    filter_nulls = filtro.replace('|', '\0') + '\0\0'
+    file_buffer = ctypes.create_unicode_buffer(260)
+    
+    ofn = OPENFILENAMEW()
+    ofn.lStructSize = ctypes.sizeof(OPENFILENAMEW)
+    
+    # Asignamos como dueña a la ventana activa actual (el navegador web) para forzar que salga por encima
+    ofn.hwndOwner = ctypes.windll.user32.GetForegroundWindow()
+    
+    ofn.lpstrFilter = filter_nulls
+    ofn.lpstrFile = ctypes.cast(file_buffer, wintypes.LPWSTR)
+    ofn.nMaxFile = 260
+    ofn.lpstrTitle = titulo
+    ofn.Flags = 0x00080000 | 0x00001000 | 0x00000008 # OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR
+    
+    if GetOpenFileNameW(ctypes.byref(ofn)):
+        return file_buffer.value
+    return ""
 
 
 # ════════════════════════════════════════════════════════
@@ -167,11 +243,8 @@ class SATySApp:
         # Cargar config persistida
         cfg = _load_config()
 
-        # ── FilePickers ────────────────────────────────────
-        self._picker_txt  = ft.FilePicker()
-        self._picker_py   = ft.FilePicker()
-        self._picker_script = ft.FilePicker()
-        # page.overlay.extend([self._picker_txt, self._picker_py, self._picker_script])
+        # ── FilePickers (Removidos para compatibilidad web) ────
+        self._ruta_txt_interna = ""
 
         # ── Campos de texto ────────────────────────────────
         self.txt_folio_ini = ft.TextField(
@@ -197,12 +270,12 @@ class SATySApp:
             content_padding=ft.Padding.symmetric(vertical=6, horizontal=10),
         )
         self.txt_archivo_folios = ft.TextField(
-            hint_text="Haz clic en 'Examinar' para seleccionar el archivo .txt",
+            hint_text="Pega la ruta o clic en 'Examinar'",
             text_size=13, height=40, expand=True,
             border_color=BORDER_COLOR, focused_border_color=TEAL_PRIMARY,
             border_radius=ft.BorderRadius.all(8),
             content_padding=ft.Padding.symmetric(vertical=6, horizontal=10),
-            read_only=True,  # Se llena con el FilePicker
+            read_only=False,  # Ahora es editable por si prefieren copiar/pegar
         )
         self.txt_workers = ft.TextField(
             value=str(cfg.get("workers", 10)), width=90,
@@ -476,34 +549,32 @@ class SATySApp:
     #  FILEPICKER CALLBACKS
     # ════════════════════════════════════════════════════
 
-    async def _on_pick_txt(self, e):
-        files = await self._picker_txt.pick_files(
-            dialog_title="Selecciona el archivo TXT con folios",
-            allowed_extensions=["txt"],
-            allow_multiple=False,
+    def _on_pick_txt(self, e):
+        file_path = _abrir_dialogo_archivo(
+            "Selecciona el archivo TXT con folios",
+            "Archivos de texto (*.txt)|*.txt|Todos los archivos (*.*)|*.*"
         )
-        if files:
-            self.txt_archivo_folios.value = files[0].path
+        if file_path:
+            self._ruta_txt_interna = file_path
+            self.txt_archivo_folios.value = Path(file_path).name
             self.txt_archivo_folios.update()
 
-    async def _on_pick_py(self, e):
-        files = await self._picker_py.pick_files(
-            dialog_title="Seleccionar ejecutable de Python",
-            allowed_extensions=["exe"],
-            allow_multiple=False,
+    def _on_pick_py(self, e):
+        file_path = _abrir_dialogo_archivo(
+            "Seleccionar ejecutable de Python",
+            "Ejecutables (*.exe)|*.exe|Todos los archivos (*.*)|*.*"
         )
-        if files:
-            self.txt_python_path.value = files[0].path
+        if file_path:
+            self.txt_python_path.value = file_path
             self.txt_python_path.update()
 
-    async def _on_pick_script(self, e):
-        files = await self._picker_script.pick_files(
-            dialog_title="Seleccionar script principal",
-            allowed_extensions=["py"],
-            allow_multiple=False,
+    def _on_pick_script(self, e):
+        file_path = _abrir_dialogo_archivo(
+            "Seleccionar script principal",
+            "Scripts de Python (*.py)|*.py|Todos los archivos (*.*)|*.*"
         )
-        if files:
-            self.txt_script_path.value = files[0].path
+        if file_path:
+            self.txt_script_path.value = file_path
             self.txt_script_path.update()
 
     # ════════════════════════════════════════════════════
@@ -614,7 +685,7 @@ class SATySApp:
             args += folios
 
         elif modo == "archivo":
-            ruta_txt = self.txt_archivo_folios.value.strip()
+            ruta_txt = (getattr(self, "_ruta_txt_interna", "") or self.txt_archivo_folios.value or "").strip()
             if not ruta_txt:
                 raise ValueError("Selecciona un archivo TXT con folios.")
             if not Path(ruta_txt).exists():
@@ -798,22 +869,16 @@ class SATySApp:
         if not resultados:
             return
 
-        exitosos = [r for r in resultados if r.get("rpc_ok") and r.get("excel_ok")]
-        empates  = [r for r in resultados if r.get("rpc_resultado", {}).get("empate")]
-        dudosos  = [r for r in resultados if r.get("pdf_encontrado") and not r.get("rpc_ok")
-                    and not r.get("rpc_resultado", {}).get("empate")]
-        errores  = [r for r in resultados if not r.get("pdf_encontrado")]
-
-        total_archivos = 0
-        for r in resultados:
-            folio = r.get("folio", "")
-            if folio:
-                c = DESCARGA_BASE / folio
-                if c.exists():
-                    total_archivos += len([
-                        f for f in c.iterdir()
-                        if f.is_file() and not f.suffix.lower() in {".json", ".txt"}
-                    ])
+        # Mapeo exacto con imprimir_reporte() en main_procesar.py
+        exitosos = [
+            r for r in resultados
+            if r.get("rpc_ok") and r.get("organizado_ok") and r.get("excel_ok")
+        ]
+        sin_operador = [
+            r for r in resultados
+            if not r.get("rpc_ok") and not r.get("rpc_resultado")
+            and not r.get("organizado_ok")
+        ]
 
         resumen_gral = ft.Container(
             padding=ft.Padding.all(16),
@@ -823,26 +888,20 @@ class SATySApp:
                 wrap=True,
                 alignment=ft.MainAxisAlignment.SPACE_AROUND,
                 controls=[
-                    self._stat_col("TOTAL FOLIOS",     len(resultados)),
-                    self._stat_col("EXITOSOS",          len(exitosos)),
-                    self._stat_col("DUPLICADOS",        len(empates)),
-                    self._stat_col("INCOMPLETOS",       len(dudosos)),
-                    self._stat_col("NO ENCONTRADOS",    len(errores)),
-                    self._stat_col("ARCH. DESCARGADOS", total_archivos),
+                    self._stat_col("TOTAL FOLIOS",  len(resultados)),
+                    self._stat_col("ÉXITO TOTAL",   len(exitosos)),
+                    self._stat_col("SIN CATÁLOGO",  len(sin_operador)),
                 ],
             ),
         )
 
         self.resumen_column.controls = [
             resumen_gral,
-            self._resumen_seccion("🟢 Éxito total", exitosos, GREEN_OK,
-                lambda r: r.get("rpc_resultado", {}).get("nombre_completo", "—")),
-            self._resumen_seccion("🟠 Duplicados en RPC (revisión manual)", empates, ORANGE_WARN,
-                lambda r: r.get("rpc_resultado", {}).get("nombre_completo", "—")),
-            self._resumen_seccion("🟡 Coincidencia baja (revisión manual)", dudosos, "#C4A020",
-                lambda r: f"{r.get('nombre_operador','—')} · {r.get('rpc_resultado',{}).get('score',0)*100:.0f}%"),
-            self._resumen_seccion("🔴 Errores", errores, RED_ERR,
-                lambda r: "PDF no descargado"),
+            self._resumen_seccion(
+                "🟢 ÉXITO TOTAL", exitosos, GREEN_OK,
+                lambda r: f"Organizado en: {r.get('rpc_resultado', {}).get('nombre_completo', '—')}",
+            ),
+            self._resumen_seccion_sin_operador(sin_operador),
         ]
 
         datos_ui = self._cargar_datos_folios(resultados)
@@ -1055,6 +1114,87 @@ class SATySApp:
                     (ft.Row(wrap=True, spacing=8, run_spacing=8, controls=chips)
                      if chips
                      else ft.Text("Ninguno.", size=12, color=TEXT_MUTED, italic=True)),
+                ],
+            ),
+        )
+
+    def _resumen_seccion_sin_operador(self, items) -> ft.Container:
+        """Sección especializada para folios sin operador en catálogo."""
+        count  = len(items)
+        COLOR  = ORANGE_WARN   # naranja — requiere acción manual
+        chips  = []
+        for r in items:
+            folio  = r.get("folio", "?")
+            id_sol = r.get("id_solicitante", "N/A")
+            sin_op = r.get("sin_operador_dir",
+                           f"output\\_sin_operador\\{folio}")
+            chips.append(
+                ft.Container(
+                    padding=ft.Padding.symmetric(horizontal=12, vertical=8),
+                    border_radius=ft.BorderRadius.all(6),
+                    border=ft.Border.all(1, BORDER_COLOR),
+                    bgcolor=PAGE_BG,
+                    content=ft.Column(
+                        spacing=3,
+                        controls=[
+                            ft.Text(
+                                f"Folio: {folio}",
+                                size=12, weight=ft.FontWeight.W_700, color=TEXT_DARK,
+                            ),
+                            ft.Text(
+                                f"id_solicitante={id_sol} — no encontrado en catálogo RPC",
+                                size=11, color=TEXT_GRAY,
+                            ),
+                            ft.Row(
+                                spacing=4,
+                                controls=[
+                                    ft.Icon(ft.Icons.ARROW_FORWARD, size=11, color=COLOR),
+                                    ft.Text(
+                                        f"Mueve archivos desde: {sin_op}",
+                                        size=10, color=COLOR, italic=True,
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                )
+            )
+        return ft.Container(
+            padding=ft.Padding.all(14),
+            border_radius=ft.BorderRadius.all(10),
+            border=ft.Border.all(1, BORDER_COLOR),
+            bgcolor=CARD_BG,
+            content=ft.Column(
+                spacing=10,
+                controls=[
+                    ft.Row(
+                        spacing=8,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        controls=[
+                            ft.Container(
+                                width=4, height=20, bgcolor=COLOR,
+                                border_radius=ft.BorderRadius.all(2),
+                            ),
+                            ft.Text(
+                                "📁 SIN OPERADOR EN CATÁLOGO (revisión manual)",
+                                size=13, weight=ft.FontWeight.W_700, color=TEXT_DARK,
+                            ),
+                            ft.Container(
+                                padding=ft.Padding.symmetric(horizontal=8, vertical=2),
+                                bgcolor=COLOR,
+                                border_radius=ft.BorderRadius.all(10),
+                                content=ft.Text(
+                                    str(count), size=11, color="#FFF",
+                                    weight=ft.FontWeight.W_700,
+                                ),
+                            ),
+                        ],
+                    ),
+                    (
+                        ft.Column(spacing=6, controls=chips)
+                        if chips
+                        else ft.Text("Ninguno.", size=12, color=TEXT_MUTED, italic=True)
+                    ),
                 ],
             ),
         )
@@ -1705,4 +1845,4 @@ def main(page: ft.Page):
 
 
 if __name__ == "__main__":
-    ft.run(main, assets_dir="assets", view=ft.AppView.FLET_APP)
+    ft.run(main, assets_dir="assets", view=ft.AppView.WEB_BROWSER)
