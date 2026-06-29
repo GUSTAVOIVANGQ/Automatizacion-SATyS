@@ -156,17 +156,62 @@ def organizar_archivos(carpeta_folio: Path, ruta: str) -> Path | None:
 #  BÚSQUEDA DE FILA EN EXCEL
 # ────────────────────────────────────────────────────────
 
-def _buscar_fila(ws, folio: str) -> int | None:
-    """Busca la fila que contiene el folio en columnas D o E."""
+def _buscar_fila(ws, folio: str, registro: str = None, col_registro: int = None) -> int | None:
+    """
+    Busca la fila que corresponde a un (folio, registro).
+
+    Un mismo folio puede tener MAS DE UN tramite/registro asociado en SATyS
+    (ej. folio 1660 con registros CRT26-020606 y CRT26-002483, cada uno con
+    su propio operador/representante). Por eso, cuando se pasa 'registro':
+
+      1. Si ya existe una fila para este folio CON ESE MISMO registro
+         -> se reutiliza esa fila (idempotente: volver a correr el script
+         no duplica filas).
+      2. Si existe una fila para este folio pero SIN registro asignado aun
+         -> se reutiliza esa fila (primera vez que se completa el dato).
+      3. Si todas las filas existentes de este folio ya tienen un registro
+         DISTINTO -> se devuelve None para que el caller cree una fila nueva
+         (es un tramite distinto del mismo folio, necesita su propia fila).
+
+    Si no se pasa 'registro', se conserva el comportamiento original:
+    primera fila cuyo texto en columna D o E contenga el folio.
+    """
+    candidatos = []  # (fila, valor_registro_en_esa_fila)
     for row in range(2, ws.max_row + 1):
         # Columna D (1711)
         celda_d = ws.cell(row=row, column=4).value
-        if celda_d and str(folio) in str(celda_d).upper():
-            return row
+        coincide = bool(celda_d and str(folio) in str(celda_d).upper())
         # Columna E (Memo/Volante)
         celda_e = ws.cell(row=row, column=5).value
-        if celda_e and str(folio) in str(celda_e):
+        coincide = coincide or bool(celda_e and str(folio) in str(celda_e))
+
+        if coincide:
+            valor_registro = None
+            if col_registro:
+                valor_registro = ws.cell(row=row, column=col_registro).value
+            candidatos.append((row, valor_registro))
+
+    if not candidatos:
+        return None
+
+    if not registro:
+        # Comportamiento original: primera coincidencia por folio.
+        return candidatos[0][0]
+
+    registro_norm = str(registro).strip().upper()
+
+    # 1) Coincidencia exacta de registro -> misma fila (idempotente)
+    for row, valor_registro in candidatos:
+        if valor_registro and str(valor_registro).strip().upper() == registro_norm:
             return row
+
+    # 2) Fila de este folio que aun no tiene registro asignado -> reusar
+    for row, valor_registro in candidatos:
+        if not valor_registro:
+            return row
+
+    # 3) Todas las filas de este folio ya tienen un registro DISTINTO
+    #    -> es un tramite distinto del mismo folio, necesita fila nueva.
     return None
 
 
@@ -215,17 +260,20 @@ def actualizar_excel(
         col_ruta        = encabezados.get("Ruta", 13)
         col_notas       = encabezados.get("NOTAS_VICTOR", 42)
 
-        # Buscar fila
-        fila = _buscar_fila(ws, folio)
+        # Buscar fila (distinguiendo por registro si un folio tiene varios tramites)
+        fila = _buscar_fila(ws, folio, registro=registro, col_registro=col_1711)
         if fila is None:
-            fila = _buscar_fila(ws, str(int(folio)))
+            try:
+                fila = _buscar_fila(ws, str(int(folio)), registro=registro, col_registro=col_1711)
+            except (TypeError, ValueError):
+                pass
 
         if fila is None:
             fila = ws.max_row + 1
-            log.info("➕ Agregando nueva fila %d para folio %s", fila, folio)
+            log.info("➕ Agregando nueva fila %d para folio %s (registro %s)", fila, folio, registro or "N/A")
             ws.cell(row=fila, column=col_memo, value=folio)
         else:
-            log.info("📝 Actualizando fila %d para folio %s", fila, folio)
+            log.info("📝 Actualizando fila %d para folio %s (registro %s)", fila, folio, registro or "N/A")
 
         # Escribir datos
         if registro:

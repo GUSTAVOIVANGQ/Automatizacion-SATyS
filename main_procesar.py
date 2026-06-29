@@ -214,18 +214,71 @@ def ejecutar_descarga(folios: list[str], workers: int = 10, headless: bool = Fal
 #  PARTES 2-4: Procesamiento
 # ────────────────────────────────────────────────────────
 
+def descubrir_carpetas_de_folio(folio: str) -> list[tuple[Path, str]]:
+    """
+    Descubre TODAS las carpetas de descarga que corresponden a un folio.
+
+    Normalmente un folio = una carpeta (descargas/<folio>/). Pero cuando
+    Parte1_descarga.py encuentra varios tramites/registros distintos para
+    el mismo folio (ej. folio 1660 con registros CRT26-020606 y
+    CRT26-002483), crea carpetas adicionales:
+
+        descargas/<folio>/                  (1er registro -- sin cambios)
+        descargas/<folio>_1/<registro>/     (2do registro)
+        descargas/<folio>_2/<registro>/     (3er registro)
+        ...
+
+    Devuelve una lista de (carpeta, folio_id). 'folio_id' es solo un
+    identificador interno para nombrar las rutas de SALIDA (output/,
+    _sin_operador/) y que no se mezclen entre tramites -- es "<folio>"
+    para el primero y "<folio>_<n>" para los adicionales. El folio
+    "real" que se escribe en el Excel siempre es el mismo (folio).
+    """
+    carpetas = []
+
+    carpeta_base = DESCARGA_BASE / folio
+    if carpeta_base.exists():
+        carpetas.append((carpeta_base, folio))
+
+    n = 1
+    while True:
+        carpeta_extra = DESCARGA_BASE / f"{folio}_{n}"
+        if not carpeta_extra.exists():
+            break
+        subcarpetas = [p for p in carpeta_extra.iterdir() if p.is_dir()]
+        if subcarpetas:
+            # Cada carpeta_extra contiene UNA subcarpeta nombrada por el registro
+            for sub in subcarpetas:
+                carpetas.append((sub, f"{folio}_{n}"))
+        else:
+            carpetas.append((carpeta_extra, f"{folio}_{n}"))
+        n += 1
+
+    return carpetas
+
+
 def procesar_folio(
     folio: str,
     catalogo: list,
     modo_extraccion: str = "azure",
     azure_endpoint: str = "",
     azure_key: str = "",
+    carpeta: Path = None,
+    folio_id: str = None,
 ) -> dict:
     """
     Procesa un folio completo: PDF → RPC → Excel.
+
+    'carpeta' es la carpeta de descarga a usar (por defecto descargas/<folio>/,
+    pero puede ser una carpeta separada si este folio tiene varios tramites/
+    registros distintos -- ver descubrir_carpetas_de_folio).
+    'folio_id' es solo para nombrar rutas de salida sin que choquen entre
+    tramites del mismo folio; el folio "real" para el Excel sigue siendo 'folio'.
     """
+    folio_id = folio_id or folio
     resultado = {
         "folio": folio,
+        "folio_id": folio_id,
         "pdf_encontrado": False,
         "nombre_operador": None,
         "representante_legal": None,
@@ -239,7 +292,7 @@ def procesar_folio(
         "modo_extraccion": None,
     }
 
-    carpeta = DESCARGA_BASE / folio
+    carpeta = carpeta if carpeta is not None else (DESCARGA_BASE / folio)
     if not carpeta.exists():
         log.error("❌ Carpeta no existe: %s", carpeta)
         return resultado
@@ -463,14 +516,14 @@ def procesar_folio(
     if ORGANIZAR_DESCARGAS:
         if rpc_resultado and rpc_resultado.get("ok"):
             # RPC exitoso → carpeta estandarizada del concesionario + folio
-            ruta_destino = f"{rpc_resultado['ruta']}\\{folio}"
+            ruta_destino = f"{rpc_resultado['ruta']}\\{folio_id}"
             destino = organizar_archivos(carpeta, ruta_destino)
             if destino:
                 resultado["organizado_ok"] = True
         else:
-            # Sin operador o coincidencia insuficiente → copiar carpeta a output\_sin_operador\{folio}
+            # Sin operador o coincidencia insuficiente → copiar carpeta a output\_sin_operador\{folio_id}
             # Usa rglob para copiar recursivamente (incluye archivos en subcarpetas de ZIPs extraídos)
-            sin_op_dir = OUTPUT_BASE / "_sin_operador" / folio
+            sin_op_dir = OUTPUT_BASE / "_sin_operador" / folio_id
             sin_op_dir.mkdir(parents=True, exist_ok=True)
             archivos_copiados = []
             for archivo in carpeta.rglob("*"):
@@ -785,18 +838,35 @@ Ejemplos:
     # ──── Procesar cada folio (Partes 2-4) ────
     resultados = []
     for i, folio in enumerate(folios, 1):
-        print(f"\n{'─' * 70}")
-        print(f"  [{i}/{len(folios)}] PROCESANDO FOLIO: {folio}")
-        print(f"{'─' * 70}")
+        carpetas_folio = descubrir_carpetas_de_folio(folio)
+        if not carpetas_folio:
+            # Compatibilidad: folio sin carpeta descubierta -> se intenta con
+            # la ruta clasica de todos modos (procesar_folio reportara el error).
+            carpetas_folio = [(DESCARGA_BASE / folio, folio)]
 
-        resultado = procesar_folio(
-            folio=folio,
-            catalogo=catalogo,
-            modo_extraccion=MODO_EXTRACCION,
-            azure_endpoint=AZURE_ENDPOINT,
-            azure_key=AZURE_KEY,
-        )
-        resultados.append(resultado)
+        if len(carpetas_folio) > 1:
+            log.info("🔀 Folio %s tiene %d tramites/registros distintos -- "
+                     "se generara una fila de Excel por cada uno.",
+                     folio, len(carpetas_folio))
+
+        for carpeta_folio, folio_id in carpetas_folio:
+            print(f"\n{'─' * 70}")
+            if len(carpetas_folio) > 1:
+                print(f"  [{i}/{len(folios)}] PROCESANDO FOLIO: {folio}  (tramite: {folio_id})")
+            else:
+                print(f"  [{i}/{len(folios)}] PROCESANDO FOLIO: {folio}")
+            print(f"{'─' * 70}")
+
+            resultado = procesar_folio(
+                folio=folio,
+                catalogo=catalogo,
+                modo_extraccion=MODO_EXTRACCION,
+                azure_endpoint=AZURE_ENDPOINT,
+                azure_key=AZURE_KEY,
+                carpeta=carpeta_folio,
+                folio_id=folio_id,
+            )
+            resultados.append(resultado)
 
     # Reporte
     imprimir_reporte(resultados)
@@ -816,6 +886,14 @@ Ejemplos:
         log.info("📄 Log guardado en: %s", log_path)
     except Exception:
         pass
+
+    # -- Generar / Actualizar Excel de Datos Consolidados --
+    try:
+        import generar_excel_folios
+        generar_excel_folios.agregar_folios_a_excel(folios)
+    except Exception as e:
+        log.error("❌ Error al generar el Excel de folios procesados: %s", e)
+
 
 
 if __name__ == "__main__":

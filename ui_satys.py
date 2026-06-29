@@ -133,9 +133,14 @@ def _save_config(data: dict):
 
 
 def _abrir_carpeta(ruta: str):
-    """Abre carpeta en el explorador de Windows."""
+    """Abre carpeta (o archivo) en el explorador de Windows."""
     p = Path(ruta)
-    p.mkdir(parents=True, exist_ok=True)
+    # Si tiene extensión, asumimos que es archivo y creamos su directorio padre
+    if p.suffix:
+        p.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        p.mkdir(parents=True, exist_ok=True)
+        
     try:
         os.startfile(str(p.resolve()))
     except Exception:
@@ -385,6 +390,22 @@ class SATySApp:
             ),
             on_click=lambda e: _abrir_carpeta("output"),
             tooltip="Abrir carpeta de salida",
+        )
+        self.btn_abrir_excel = ft.OutlinedButton(
+            content=ft.Row(
+                spacing=6, tight=True,
+                controls=[
+                    ft.Icon(ft.Icons.TABLE_VIEW, size=15, color=TEAL_PRIMARY),
+                    ft.Text("Excel", size=12, color=TEAL_PRIMARY),
+                ],
+            ),
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=8),
+                side=ft.BorderSide(1, TEAL_PRIMARY),
+                padding=ft.Padding.symmetric(horizontal=12, vertical=8),
+            ),
+            on_click=lambda e: _abrir_carpeta(str(Path("output") / "Folios_Datos_Completos.xlsx")),
+            tooltip="Abrir Excel de folios procesados",
         )
 
         # ── Status bar ─────────────────────────────────────
@@ -1166,6 +1187,7 @@ class SATySApp:
                                     ft.Text("Abrir:", size=12, color=TEXT_MUTED),
                                     self.btn_abrir_descargas,
                                     self.btn_abrir_output,
+                                    self.btn_abrir_excel,
                                 ],
                             ),
                         ],

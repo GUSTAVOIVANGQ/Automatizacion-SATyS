@@ -133,6 +133,40 @@ def crear_carpeta(folio: str) -> Path:
     return p
 
 
+def _sanitizar_nombre_carpeta(nombre: str) -> str:
+    """Limpia un nombre para que sea valido como carpeta en Windows/Linux."""
+    nombre = (nombre or "SIN_REGISTRO").strip()
+    nombre = re.sub(r'[<>:"/\\|?*]', "_", nombre)
+    return nombre or "SIN_REGISTRO"
+
+
+def carpeta_para_registro(carpeta_base: Path, indice_registro: int, registro: str) -> Path:
+    """
+    Calcula la carpeta de descarga correcta cuando un mismo folio coincide
+    con VARIOS tramites/registros distintos en SATyS (ej. folio 1660 con
+    registros CRT26-020606 y CRT26-002483).
+
+    - 1er registro encontrado (indice_registro=0): usa la carpeta base SIN
+      cambios -- descargas/<folio>/ -- exactamente como siempre. Esto
+      preserva 100% de compatibilidad para el caso normal (un folio = un
+      registro), que es la inmensa mayoria.
+    - 2do registro en adelante: recibe su PROPIA carpeta, para que sus
+      archivos y metadatos no se mezclen ni se sobreescriban con los del
+      primero:
+          descargas/<folio>_1/<registro>/
+          descargas/<folio>_2/<registro>/
+          ...
+    """
+    if indice_registro == 0:
+        return carpeta_base
+
+    nombre_pseudo_folio = f"{carpeta_base.name}_{indice_registro}"
+    nombre_registro = _sanitizar_nombre_carpeta(registro)
+    carpeta_extra = carpeta_base.parent / nombre_pseudo_folio / nombre_registro
+    carpeta_extra.mkdir(parents=True, exist_ok=True)
+    return carpeta_extra
+
+
 def extraer_zip_si_aplica(archivo: Path, carpeta: Path) -> list:
     archivos_extraidos = []
     if archivo.suffix.lower() == '.zip':
@@ -878,8 +912,20 @@ def buscar_y_abrir_folio(page, folio: str) -> bool:
 #  PASO 3.5 -- EXTRAER METADATOS WEB
 # ------------------------------------------------------------
 def _campos_criticos_completos(res: dict) -> bool:
-    """Verifica que todos los campos críticos del metadata estén presentes y no vacios."""
-    campos = ("id_solicitante", "nombre_operador", "representante_legal", "registro")
+    """Verifica que los campos criticos del metadata estén presentes y no vacios.
+
+    NOTA IMPORTANTE: 'id_solicitante' e 'id_representante_legal' NO se exigen aqui.
+    Los tramites "migrados" desde el sistema predecesor muestran el nombre del
+    representante/solicitante como texto plano en los paneles "Representantes
+    Legales de Migracion (Origen)" / "Remitentes Solicitantes de Migracion (Origen)"
+    -- SIN ningun ID asociado. Ese ID no existe en el DOM bajo ninguna circunstancia
+    para esos tramites, asi que exigirlo aqui no detecta una pagina lenta: provoca
+    un bucle infinito real que nunca puede resolverse solo. Los nombres
+    (representante_legal / nombre_operador) y el registro si son siempre
+    recuperables (en la tabla normal o en el panel migrado), por eso son los
+    unicos que bloquean el reintento.
+    """
+    campos = ("nombre_operador", "representante_legal", "registro")
     faltantes = [c for c in campos if not res.get(c)]
     if faltantes:
         log.warning("[META-RETRY] Campos faltantes: %s", faltantes)
@@ -887,13 +933,21 @@ def _campos_criticos_completos(res: dict) -> bool:
     return True
 
 def extraer_metadatos_satys(page, folio: str, carpeta: Path, registro_esperado: str = None) -> dict:
-    """Extrae metadatos del folio con bucle infinito hasta capturar todos los campos criticos.
-    Los campos 'representante_legal', 'id_representante_legal', 'nombre_operador' e
-    'id_solicitante' son OBLIGATORIOS: la pagina siempre los tiene, solo tarda en
-    cargarlos via JS. El bucle espera hasta que aparezcan sin limite de intentos.
+    """Extrae metadatos del folio con bucle de espera hasta capturar los campos criticos
+    (representante_legal, nombre_operador, registro). 'id_representante_legal' e
+    'id_solicitante' se guardan si aparecen, pero NO bloquean el reintento: en tramites
+    migrados desde el sistema predecesor esos IDs no existen en el DOM bajo ninguna
+    circunstancia (ver paneles '...Migracion (Origen)'), solo el nombre en texto plano.
+
+    Tiene un techo de seguridad (MAX_ESPERA_TOTAL_SEG): si tras ese tiempo los campos
+    criticos siguen sin aparecer, se asume que la pagina nunca los va a mostrar (no que
+    esta cargando lento) y se continua con los datos parciales que se hayan logrado
+    capturar, en vez de colgar el worker para siempre.
     """
-    ESPERA_ENTRE_INTENTOS = 3      # segundos entre reintentos
+    ESPERA_ENTRE_INTENTOS = 3        # segundos entre reintentos
+    MAX_ESPERA_TOTAL_SEG = 60       # techo de seguridad: 1 minutos. (Antes era 180, pero yo propuse 60)
     intento = 0
+    inicio = time.time()
 
     while True:
         intento += 1
@@ -905,13 +959,28 @@ def extraer_metadatos_satys(page, folio: str, carpeta: Path, registro_esperado: 
                      intento, folio)
             return metadatos
 
+        transcurrido = time.time() - inicio
+        if transcurrido >= MAX_ESPERA_TOTAL_SEG:
+            log.error(
+                "[META-RETRY] LIMITE alcanzado (%ds) para folio %s tras %d intentos. "
+                "La pagina no muestra los campos criticos (no es lentitud de JS) -- "
+                "se continua con los datos parciales disponibles.",
+                MAX_ESPERA_TOTAL_SEG, folio, intento,
+            )
+            return metadatos
+
         log.warning("[META-RETRY] Intento %d fallido para folio %s. Reintentando en %ds...",
                     intento, folio, ESPERA_ENTRE_INTENTOS)
         try:
             page.evaluate("window.scrollTo(0, 0)")
         except Exception:
             pass
-        page.wait_for_timeout(ESPERA_ENTRE_INTENTOS * 1000)
+        try:
+            page.wait_for_timeout(ESPERA_ENTRE_INTENTOS * 1000)
+        except Exception as e:
+            log.error("[META-RETRY] Navegador/pagina cerrado durante la espera para folio %s "
+                      "(%s) -- se devuelven los datos parciales disponibles.", folio, e)
+            return metadatos
 
 
 
@@ -944,12 +1013,20 @@ def _extraer_metadatos_satys_una_vez(page, folio: str, carpeta: Path, registro_e
                 """
                 () => {
                     const tablas = Array.from(document.querySelectorAll('table'));
-                    return tablas.some(function(t) {
+                    const tablaOk = tablas.some(function(t) {
                         const head = (t.querySelector('thead') ? t.querySelector('thead').innerText : '').toLowerCase();
                         if (!head.includes('solicitante') && !head.includes('representante legal')) return false;
                         const celda = t.querySelector('tbody tr td');
                         return celda && celda.innerText.trim().length > 0 && !celda.classList.contains('dataTables_empty');
                     });
+                    if (tablaOk) return true;
+
+                    // Formato MIGRADO: paneles "...Migracion (Origen)" con <p> plano, sin tabla ni ID.
+                    const repMig = document.querySelector('#rep_legal_migrados_texto');
+                    const solMig = document.querySelector('#solicitantes_migrados_texto');
+                    const repMigOk = repMig && repMig.innerText.trim().length > 0;
+                    const solMigOk = solMig && solMig.innerText.trim().length > 0;
+                    return repMigOk || solMigOk;
                 }
                 """,
                 timeout=15_000  # 15s para paginas lentas
@@ -1073,6 +1150,21 @@ def _extraer_metadatos_satys_una_vez(page, folio: str, carpeta: Path, registro_e
             except Exception as e:
                 log.warning("Error extrayendo representante legal: %s", e)
 
+            # Fallback FORMATO MIGRADO: si la tabla normal vino vacia, el dato puede
+            # estar en el panel "Representantes Legales de Migracion (Origen)",
+            # que es un <p> de texto plano SIN ningun ID asociado.
+            if not rep_nombre:
+                try:
+                    rep_mig_loc = page.locator("#rep_legal_migrados_texto")
+                    if rep_mig_loc.count() > 0:
+                        texto_mig = rep_mig_loc.first.inner_text().strip()
+                        if texto_mig:
+                            rep_nombre = texto_mig
+                            log.info("[WEB] Representante legal obtenido de panel MIGRADO "
+                                     "(sin ID, folio %s): %s", folio, rep_nombre)
+                except Exception as e:
+                    log.warning("Error extrayendo representante legal migrado: %s", e)
+
             if rep_nombre:
                 metadatos["representante_legal"] = rep_nombre
             if rep_id:
@@ -1109,6 +1201,21 @@ def _extraer_metadatos_satys_una_vez(page, folio: str, carpeta: Path, registro_e
                             break
             except Exception as e:
                 log.warning("Error extrayendo solicitante: %s", e)
+
+            # Fallback FORMATO MIGRADO: si la tabla normal vino vacia, el dato puede
+            # estar en el panel "Remitentes Solicitantes de Migracion (Origen)",
+            # que es un <p> de texto plano SIN ningun ID asociado.
+            if not op_nombre:
+                try:
+                    op_mig_loc = page.locator("#solicitantes_migrados_texto")
+                    if op_mig_loc.count() > 0:
+                        texto_mig = op_mig_loc.first.inner_text().strip()
+                        if texto_mig:
+                            op_nombre = texto_mig
+                            log.info("[WEB] Operador/solicitante obtenido de panel MIGRADO "
+                                     "(sin ID, folio %s): %s", folio, op_nombre)
+                except Exception as e:
+                    log.warning("Error extrayendo solicitante migrado: %s", e)
 
             if op_nombre:
                 metadatos["nombre_operador"] = op_nombre
@@ -1828,6 +1935,7 @@ def procesar_folio_completo(context, page, folio: str, carpeta: Path, folio_raw:
     """
     todos_resultados = []
     registros_procesados = set()
+    indice_registro = 0   # 0 = carpeta base; 1, 2, ... = registros adicionales del mismo folio
     max_iteraciones = 50  # Limite de seguridad
 
     for iteracion in range(max_iteraciones):
@@ -1898,6 +2006,19 @@ def procesar_folio_completo(context, page, folio: str, carpeta: Path, folio_raw:
                 if registro:
                     registros_procesados.add(registro)
                 log.info("[VIEW] Abriendo detalle: registro=%s, folio=%s", registro, folio)
+
+                # Carpeta efectiva para ESTE registro: la base si es el primero
+                # encontrado para este folio, o una carpeta separada si ya hay
+                # otro(s) registro(s) previos (evita que se mezclen/sobreescriban).
+                carpeta_actual = carpeta_para_registro(carpeta, indice_registro, registro)
+                if indice_registro > 0:
+                    log.warning(
+                        "[MULTI-REGISTRO] Folio %s tiene mas de un tramite -- "
+                        "registro %s usara una carpeta separada: %s",
+                        folio, registro, carpeta_actual,
+                    )
+                indice_registro += 1
+
                 boton_ver.scroll_into_view_if_needed()
                 boton_ver.click()
 
@@ -1928,7 +2049,7 @@ def procesar_folio_completo(context, page, folio: str, carpeta: Path, folio_raw:
                 # En el peor caso la fila del Excel queda con esos campos vacios.
                 try:
                     from tenacity import RetryError as _RetryError
-                    meta_satys = extraer_metadatos_satys(page, folio, carpeta, registro_esperado=registro)
+                    meta_satys = extraer_metadatos_satys(page, folio, carpeta_actual, registro_esperado=registro)
                 except _RetryError as _re:
                     log.warning(
                         "[WEB] Metadatos incompletos tras reintentos para folio %s (%s) "
@@ -1947,7 +2068,7 @@ def procesar_folio_completo(context, page, folio: str, carpeta: Path, folio_raw:
                 # descargar_archivos retorna (resultados, seccion_encontrada)
                 # Si seccion_encontrada=False -> no existe la seccion -> usar DOCUMENTOS ANEXOS
                 fuente = "ARCHIVOS_ASOCIADOS"
-                res, seccion_aa_ok = descargar_archivos(context, page, folio, carpeta)
+                res, seccion_aa_ok = descargar_archivos(context, page, folio, carpeta_actual)
                 for r in res:
                     r.setdefault("fuente", "ARCHIVOS_ASOCIADOS")
 
@@ -1960,7 +2081,7 @@ def procesar_folio_completo(context, page, folio: str, carpeta: Path, folio_raw:
                         "para folio %s", folio
                     )
                     res, meta_tramite = descargar_via_documentos_anexos_con_fallback(
-                        context, page, folio, folio_raw or folio, carpeta
+                        context, page, folio, folio_raw or folio, carpeta_actual
                     )
                     
                     if meta_tramite and isinstance(meta_tramite, dict):
@@ -1969,7 +2090,7 @@ def procesar_folio_completo(context, page, folio: str, carpeta: Path, folio_raw:
                         meta_satys.update(meta_tramite)
                         if not meta_satys.get("registro") and registro_original:
                             meta_satys["registro"] = registro_original
-                        out_path_satys = carpeta / "metadata_satys.json"
+                        out_path_satys = carpeta_actual / "metadata_satys.json"
                         with open(out_path_satys, "w", encoding="utf-8") as f:
                             json.dump(meta_satys, f, ensure_ascii=False, indent=2)
                         log.info("[META] metadata_satys.json actualizado con datos de tramite nuevo para folio %s", folio)
@@ -1978,17 +2099,24 @@ def procesar_folio_completo(context, page, folio: str, carpeta: Path, folio_raw:
 
                 # Guardar metadata_completo.json con todo consolidado
                 guardar_metadata_completo(
-                    folio, folio_raw or folio, carpeta,
+                    folio, folio_raw or folio, carpeta_actual,
                     meta_satys, meta_tramite, res, fuente
                 )
 
+                # Descomprimir ZIPs de ESTE registro inmediatamente (cada registro
+                # tiene su propia carpeta, asi que cada uno se descomprime aparte).
+                descomprimir_todos_zips_en_carpeta(carpeta_actual)
+
                 if res:
+                    for r in res:
+                        r.setdefault("registro", registro)
+                        r.setdefault("carpeta", str(carpeta_actual))
                     todos_resultados.extend(res)
                 else:
                     todos_resultados.append({
                         "folio": folio, "archivo": f"SIN_ARCHIVOS_{registro}",
                         "tipo": "N/A", "ruta": "", "tamano_kb": 0, "ok": False,
-                        "fuente": fuente,
+                        "fuente": fuente, "registro": registro, "carpeta": str(carpeta_actual),
                     })
 
                 # Regresar al tablero para buscar el siguiente tramite
