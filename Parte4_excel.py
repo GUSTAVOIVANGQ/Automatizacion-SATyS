@@ -260,20 +260,10 @@ def actualizar_excel(
         col_ruta        = encabezados.get("Ruta", 13)
         col_notas       = encabezados.get("NOTAS_VICTOR", 42)
 
-        # Buscar fila (distinguiendo por registro si un folio tiene varios tramites)
-        fila = _buscar_fila(ws, folio, registro=registro, col_registro=col_1711)
-        if fila is None:
-            try:
-                fila = _buscar_fila(ws, str(int(folio)), registro=registro, col_registro=col_1711)
-            except (TypeError, ValueError):
-                pass
-
-        if fila is None:
-            fila = ws.max_row + 1
-            log.info("➕ Agregando nueva fila %d para folio %s (registro %s)", fila, folio, registro or "N/A")
-            ws.cell(row=fila, column=col_memo, value=folio)
-        else:
-            log.info("📝 Actualizando fila %d para folio %s (registro %s)", fila, folio, registro or "N/A")
+        # Insertar siempre en la última fila, sin importar si ya existe
+        fila = ws.max_row + 1
+        log.info("➕ Agregando nueva fila %d para folio %s (registro %s)", fila, folio, registro or "N/A")
+        ws.cell(row=fila, column=col_memo, value=folio)
 
         # Escribir datos
         if registro:

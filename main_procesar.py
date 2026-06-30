@@ -592,24 +592,24 @@ def imprimir_reporte(resultados: list):
     for r in exitosos:
         print(f"       ✓ {r['folio']} -> Organizado en: {r.get('rpc_resultado', {}).get('nombre_completo', 'N/A')}")
 
-    print(f"\n  🟠 DUPLICADOS EN RPC ({len(empates)} folios) - REVISIÓN MANUAL:")
-    if not empates:
-        print("       Ninguno.")
-    for r in empates:
-        nombre = r.get('rpc_resultado', {}).get('nombre_completo', 'N/A')
-        print(f"       ⚠️ {r['folio']} -> El sistema encontró MÁS DE UN '{nombre}' (con distintos IDs) en la BD.")
-        print(f"          👉 ACCIÓN: Revisa manualmente en qué carpeta de concesionario debe ir y muévelo desde 'output\\_sin_operador\\{r['folio']}'.")
+    # print(f"\n  🟠 DUPLICADOS EN RPC ({len(empates)} folios) - REVISIÓN MANUAL:")
+    # if not empates:
+    #     print("       Ninguno.")
+    # for r in empates:
+    #     nombre = r.get('rpc_resultado', {}).get('nombre_completo', 'N/A')
+    #     print(f"       ⚠️ {r['folio']} -> El sistema encontró MÁS DE UN '{nombre}' (con distintos IDs) en la BD.")
+    #     print(f"          👉 ACCIÓN: Revisa manualmente en qué carpeta de concesionario debe ir y muévelo desde 'output\\_sin_operador\\{r['folio']}'.")
 
-    print(f"\n  🟡 COINCIDENCIA BAJA ({len(dudosos)} folios) - REVISIÓN MANUAL:")
-    if not dudosos:
-        print("       Ninguno.")
-    for r in dudosos:
-        score = r.get('rpc_resultado', {}).get('score', 0) * 100 if r.get('rpc_resultado') else 0
-        nombre_detectado = r.get('rpc_resultado', {}).get('nombre_completo', 'N/A')
-        sin_op = r.get('sin_operador_dir', f'output\\_sin_operador\\{r["folio"]}')
-        print(f"       ⚠️ {r['folio']}")
-        print(f"          Coincidencia insuficiente: {score:.0f}% (El sistema detectó '{nombre_detectado}')")
-        print(f"          👉 ACCIÓN: Mueve los archivos desde '{sin_op}' a la carpeta correcta.")
+    # print(f"\n  🟡 COINCIDENCIA BAJA ({len(dudosos)} folios) - REVISIÓN MANUAL:")
+    # if not dudosos:
+    #     print("       Ninguno.")
+    # for r in dudosos:
+    #     score = r.get('rpc_resultado', {}).get('score', 0) * 100 if r.get('rpc_resultado') else 0
+    #     nombre_detectado = r.get('rpc_resultado', {}).get('nombre_completo', 'N/A')
+    #     sin_op = r.get('sin_operador_dir', f'output\\_sin_operador\\{r["folio"]}')
+    #     print(f"       ⚠️ {r['folio']}")
+    #     print(f"          Coincidencia insuficiente: {score:.0f}% (El sistema detectó '{nombre_detectado}')")
+    #     print(f"          👉 ACCIÓN: Mueve los archivos desde '{sin_op}' a la carpeta correcta.")
 
     print(f"\n  📁 SIN OPERADOR EN CATÁLOGO ({len(sin_operador)} folios) - EN _sin_operador:")
     if not sin_operador:
@@ -665,6 +665,9 @@ Ejemplos:
                         help="Número de ventanas de navegador a usar en Playwright (Parte 1)")
     parser.add_argument("--headless", action="store_true",
                         help="Ocultar navegador de Playwright (ejecución en segundo plano).")
+    parser.add_argument("--archivo-registro", type=str, default="",
+                        help="Ruta a un archivo .txt con la lista de números de Registro a procesar "
+                             "(uno por línea, ej. CRT26-002483). Activa el modo de búsqueda por Registro.")
     args = parser.parse_args()
 
     # Configuración local
@@ -678,6 +681,152 @@ Ejemplos:
     modo_label = "Azure AI" if MODO_EXTRACCION == "azure" else "pdfplumber (local)"
     print("║" + f"  Extracción: {modo_label} • RPC: API REST • Fuzzy Matching  ".center(68) + "║")
     print("╚" + "═" * 68 + "╝\n")
+
+    # ────────────────────────────────────────────────────────────────────────
+    # MODO REGISTRO: buscar y descargar por número de Registro
+    # ────────────────────────────────────────────────────────────────────────
+    if args.archivo_registro:
+        registros = []
+        try:
+            with open(args.archivo_registro, "r", encoding="utf-8-sig") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        registros.append(line)
+            print(f"📄 Cargados {len(registros)} registro(s) desde {args.archivo_registro}")
+        except Exception as e:
+            log.error("❌ Error leyendo archivo de registros %s: %s", args.archivo_registro, e)
+            return
+
+        if not registros:
+            log.error("❌ El archivo de registros está vacío")
+            return
+
+        print("\n" + "─" * 70)
+        print("  MODO REGISTRO: DESCARGA POR NÚMERO DE REGISTRO")
+        print("─" * 70)
+        print(f"  Registros a procesar: {', '.join(registros)}")
+        print("─" * 70 + "\n")
+
+        # ── Ejecutar Parte 1 en modo registro ───────────────────────────
+        try:
+            import Parte1_descarga
+        except ImportError as e:
+            log.error("❌ No se encontró Parte1_descarga.py: %s", e)
+            return
+
+        Parte1_descarga.USUARIO   = SATYS_USUARIO
+        Parte1_descarga.PASSWORD  = SATYS_PASSWORD
+        Parte1_descarga.HEADLESS  = args.headless
+        Parte1_descarga.DESCARGA_BASE = DESCARGA_BASE
+
+        headless_flag = ["--headless"] if args.headless else ["--visible"]
+        try:
+            original_argv = sys.argv
+            sys.argv = (
+                ["Parte1_descarga.py"]
+                + headless_flag
+                + ["--workers", str(args.workers)]
+                + ["--modo-registro"]
+                + ["--registros"] + registros
+            )
+            Parte1_descarga.main()
+            sys.argv = original_argv
+        except Exception as e:
+            log.error("❌ Error en descarga por registro: %s", e)
+            sys.argv = original_argv
+            return
+
+        # ── Cargar catálogo RPC para Partes 2-4 ──────────────────────
+        log.info("🗂️  Cargando catálogo RPC...")
+        catalogo_r = []
+        try:
+            sys.path.append(os.path.join(str(_script_dir), "buscar_concesionario"))
+            import buscar_concesionario as bc_r
+            from descargar_concesiones_rpc import descargar_bd as descargar_bd_r
+            from datetime import datetime as _dt_r
+
+            bd_dir_r = Path(_script_dir) / "base_de_datos_rpc"
+            bd_dir_r.mkdir(exist_ok=True)
+
+            def _cat_reciente_r(bd):
+                archivos = sorted(
+                    bd.glob("03_concesiones_permisos_autorizaciones_*.xlsx"),
+                    key=lambda p: p.stat().st_mtime, reverse=True,
+                )
+                return archivos[0] if archivos else None
+
+            xlsx_r = _cat_reciente_r(bd_dir_r)
+            if xlsx_r:
+                cat_excel_r = bc_r.cargar_catalogo_desde_excel(str(xlsx_r), "copeau", solo_vigentes=False)
+                catalogo_r = bc_r.preparar_catalogo_para_matching(cat_excel_r)
+                log.info("✅ Catálogo RPC listo: %d concesionarios", len(catalogo_r))
+        except Exception as e_cat:
+            log.warning("⚠️  Catálogo RPC no disponible: %s", e_cat)
+
+        # ── Verificar Excel ──────────────────────────────────────────
+        if not EXCEL_PATH.exists():
+            log.error("❌ No se encontró el Excel: %s", EXCEL_PATH)
+            return
+
+        # ── Partes 2-4 para cada registro ───────────────────────────
+        resultados_r = []
+        for i_r, registro in enumerate(registros, 1):
+            # La carpeta de descarga se llama igual que el registro
+            carpetas_reg = descubrir_carpetas_de_folio(registro)
+            if not carpetas_reg:
+                carpetas_reg = [(DESCARGA_BASE / registro, registro)]
+
+            for carpeta_reg, folio_id_reg in carpetas_reg:
+                print(f"\n{'─' * 70}")
+                print(f"  [{i_r}/{len(registros)}] PROCESANDO REGISTRO: {registro}")
+                print(f"{'─' * 70}")
+
+                # Leer el folio (Memo/Folio OPC) desde metadata si existe
+                meta_path_r = carpeta_reg / "metadata_satys.json"
+                folio_para_excel = registro  # fallback
+                if meta_path_r.exists():
+                    try:
+                        with open(meta_path_r, "r", encoding="utf-8") as f_meta:
+                            meta_r = json.load(f_meta)
+                            folio_para_excel = (
+                                meta_r.get("folio")
+                                or meta_r.get("memo_folio_opc")
+                                or registro
+                            )
+                    except Exception:
+                        pass
+
+                resultado_r = procesar_folio(
+                    folio=folio_para_excel,
+                    catalogo=catalogo_r,
+                    modo_extraccion=MODO_EXTRACCION,
+                    azure_endpoint=AZURE_ENDPOINT,
+                    azure_key=AZURE_KEY,
+                    carpeta=carpeta_reg,
+                    folio_id=folio_id_reg,
+                )
+                resultados_r.append(resultado_r)
+
+        imprimir_reporte(resultados_r)
+
+        # Guardar log de resultados
+        log_path_r = DESCARGA_BASE / "procesamiento_log_registros.json"
+        try:
+            log_data_r = {
+                "fecha_ejecucion": datetime.now().isoformat(),
+                "modo": "registro",
+                "total_registros": len(resultados_r),
+                "total_exitosos": sum(1 for r in resultados_r if r["excel_ok"]),
+                "resultados": resultados_r,
+            }
+            with open(log_path_r, "w", encoding="utf-8") as f_log_r:
+                json.dump(log_data_r, f_log_r, ensure_ascii=False, indent=2, default=str)
+            log.info("📄 Log de registros guardado en: %s", log_path_r)
+        except Exception:
+            pass
+
+        return  # Terminar sin continuar al flujo de folios
 
     # Obtener folios
     folios = []

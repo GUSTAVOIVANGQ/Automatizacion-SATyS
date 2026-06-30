@@ -1064,55 +1064,203 @@ def _extraer_metadatos_satys_una_vez(page, folio: str, carpeta: Path, registro_e
         except Exception as e:
             log.warning("[WEB] No se pudo extraer campo Registro: %s", e)
 
-        # 1. DATOS DEL DOCUMENTO (ya expandido por JS al inicio de la función)
+        # 1. DATOS DEL DOCUMENTO — captura completa de todos los campos
         try:
-            # 1.5 Extraer Fecha de folio OPC
-            fecha_opc = page.evaluate('''() => {
-                // Buscar por ID o NAME si es obvio
-                let inputs = Array.from(document.querySelectorAll('input'));
-                for (let inp of inputs) {
-                    let attrs = (inp.name || "") + " " + (inp.id || "");
-                    if (attrs.toLowerCase().includes('fecha') && attrs.toLowerCase().includes('opc')) {
-                        if (inp.value.trim()) return inp.value.trim();
-                    }
-                }
+            datos_doc = None
+            try:
+                datos_doc = page.evaluate(r"""
+                () => {
+                    try {
+                        function leerCampo(textoLabel) {
+                            var labels = Array.from(document.querySelectorAll('label'));
+                            var lbl = labels.find(function(el) {
+                                var t = (el.textContent || '').trim().replace(/[*\s]+$/, '').trim();
+                                return t === textoLabel || t.startsWith(textoLabel);
+                            });
+                            if (!lbl) return '';
 
-                // Buscar el texto en la pantalla y tomar el siguiente input
-                let allElems = Array.from(document.querySelectorAll('*'));
-                // Buscamos el elemento más profundo que contiene el texto (para evitar agarrar un gran DIV)
-                let targetLabels = allElems.filter(el => {
-                    let t = (el.innerText || el.textContent || "").trim();
-                    return t.includes('Fecha de folio OPC') && t.length < 30;
-                });
+                            // Estrategia 1: for/htmlFor
+                            if (lbl.htmlFor) {
+                                var el = document.getElementById(lbl.htmlFor);
+                                if (el) {
+                                    if (el.tagName === 'SELECT') {
+                                        var opt = el.options[el.selectedIndex];
+                                        return opt ? opt.text.trim() : '';
+                                    }
+                                    return (el.value || el.innerText || '').trim();
+                                }
+                            }
 
-                if (targetLabels.length > 0) {
-                    let targetLabel = targetLabels[targetLabels.length - 1]; // El más profundo
-                    for (let inp of inputs) {
-                        if (inp.type !== 'hidden' && (targetLabel.compareDocumentPosition(inp) & Node.DOCUMENT_POSITION_FOLLOWING)) {
-                            return inp.value.trim();
+                            // Estrategia 2: col Bootstrap hermana
+                            var parentCol = lbl.closest('[class*="col-"]');
+                            if (parentCol) {
+                                var nextCol = parentCol.nextElementSibling;
+                                if (nextCol) {
+                                    var sel2 = nextCol.querySelector('select');
+                                    if (sel2) {
+                                        var opt2 = sel2.options[sel2.selectedIndex];
+                                        return opt2 ? opt2.text.trim() : '';
+                                    }
+                                    var ctrl = nextCol.querySelector('input:not([type="hidden"]), textarea');
+                                    if (ctrl) return (ctrl.value || ctrl.innerText || '').trim();
+                                    var txt = nextCol.innerText.trim();
+                                    return txt;
+                                }
+                            }
+
+                            // Estrategia 3: sibling directo
+                            var sib = lbl.nextElementSibling;
+                            while (sib) {
+                                if (sib.tagName === 'SELECT') {
+                                    var optS = sib.options[sib.selectedIndex];
+                                    return optS ? optS.text.trim() : '';
+                                }
+                                var ctrlS = sib.querySelector
+                                    ? sib.querySelector('input:not([type="hidden"]), textarea, select')
+                                    : null;
+                                if (ctrlS) {
+                                    if (ctrlS.tagName === 'SELECT') {
+                                        var optCS = ctrlS.options[ctrlS.selectedIndex];
+                                        return optCS ? optCS.text.trim() : '';
+                                    }
+                                    return (ctrlS.value || ctrlS.innerText || '').trim();
+                                }
+                                if (sib.tagName === 'INPUT' || sib.tagName === 'TEXTAREA') {
+                                    return (sib.value || sib.innerText || '').trim();
+                                }
+                                sib = sib.nextElementSibling;
+                            }
+                            return '';
                         }
-                    }
-                }
-                
-                // Fallback a buscar cualquier label
-                for (let el of allElems) {
-                    if (el.tagName === 'LABEL' && el.textContent.includes('Fecha')) {
-                        let next = el.nextElementSibling;
-                        if (next && next.querySelector('input')) return next.querySelector('input').value.trim();
-                    }
-                }
 
-                return "";
-            }''')
+                        return {
+                            folio_opc:          leerCampo('Folio OPC'),
+                            fecha_folio_opc:    leerCampo('Fecha de folio OPC'),
+                            mensajeria:         leerCampo('Mensajería'),
+                            no_guia:            leerCampo('No. de guía'),
+                            no_documento:       leerCampo('No. del documento'),
+                            fecha_documento:    leerCampo('Fecha del documento'),
+                            numero_anexos:      leerCampo('Número de anexos'),
+                            usb:                leerCampo('USB'),
+                            cd_dvd:             leerCampo('CD/DVD'),
+                            imagenes:           leerCampo('Imágenes'),
+                            otros_dispositivos: leerCampo('Otros dispositivos'),
+                            observaciones:      leerCampo('Observaciones'),
+                        };
+                    } catch(e) {
+                        return { _js_error: e.toString() };
+                    }
+                }
+                """)
+            except Exception as e_js:
+                log.warning("[WEB] page.evaluate DATOS DEL DOCUMENTO lanzó excepción: %s", e_js)
+
+            if datos_doc is None:
+                log.warning("[WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- "
+                            "intentando fallback con locators de Playwright")
+                # ── Fallback: leer campo por campo con locators ────────────────
+                try:
+                    def _leer_campo_playwright(label_texto: str) -> str:
+                        """Encuentra el valor del campo buscando el label por texto."""
+                        try:
+                            # Estrategia A: label con htmlFor → input por id
+                            lbl = page.locator(f"label:has-text('{label_texto}')").first
+                            if lbl.count() == 0:
+                                return ""
+                            for_attr = lbl.get_attribute("for") or ""
+                            if for_attr:
+                                ctrl = page.locator(f"#{for_attr}").first
+                                if ctrl.count() > 0:
+                                    tag = ctrl.evaluate("el => el.tagName")
+                                    if tag == "SELECT":
+                                        return ctrl.evaluate(
+                                            "el => el.options[el.selectedIndex] ? "
+                                            "el.options[el.selectedIndex].text : ''"
+                                        ).strip()
+                                    return (ctrl.input_value() or "").strip()
+                            # Estrategia B: columna Bootstrap hermana
+                            parent_row = lbl.locator("xpath=../..").first
+                            if parent_row.count() > 0:
+                                # Buscar input/textarea/select en la misma fila pero distinta col
+                                ctrl2 = parent_row.locator(
+                                    "input:not([type='hidden']), textarea, select"
+                                ).last
+                                if ctrl2.count() > 0:
+                                    tag2 = ctrl2.evaluate("el => el.tagName")
+                                    if tag2 == "SELECT":
+                                        return ctrl2.evaluate(
+                                            "el => el.options[el.selectedIndex] ? "
+                                            "el.options[el.selectedIndex].text : ''"
+                                        ).strip()
+                                    return (ctrl2.input_value() or "").strip()
+                        except Exception:
+                            pass
+                        return ""
+
+                    campos_fallback = {
+                        "folio_opc":          _leer_campo_playwright("Folio OPC"),
+                        "fecha_folio_opc":    _leer_campo_playwright("Fecha de folio OPC"),
+                        "mensajeria":         _leer_campo_playwright("Mensajería"),
+                        "no_guia":            _leer_campo_playwright("No. de guía"),
+                        "no_documento":       _leer_campo_playwright("No. del documento"),
+                        "fecha_documento":    _leer_campo_playwright("Fecha del documento"),
+                        "numero_anexos":      _leer_campo_playwright("Número de anexos"),
+                        "usb":                _leer_campo_playwright("USB"),
+                        "cd_dvd":             _leer_campo_playwright("CD/DVD"),
+                        "imagenes":           _leer_campo_playwright("Imágenes"),
+                        "otros_dispositivos": _leer_campo_playwright("Otros dispositivos"),
+                        "observaciones":      _leer_campo_playwright("Observaciones"),
+                    }
+                    datos_doc = campos_fallback
+                    log.info("[WEB] DATOS DEL DOCUMENTO (fallback locator): "
+                             "folio_opc='%s' | no_doc='%s'",
+                             datos_doc.get("folio_opc"), datos_doc.get("no_documento"))
+                except Exception as e_fb:
+                    log.warning("[WEB] Fallback locator también falló: %s", e_fb)
+                    datos_doc = {}
+
+            if datos_doc and not datos_doc.get("_js_error"):
+                # Poblar metadatos con los valores capturados
+                def _asignar(campo_meta, valor):
+                    v = (valor or "").strip()
+                    # Ignorar placeholders del HTML
+                    if v and v not in ("Seleccione mensajeria", "Registro de No. de guía",
+                                       "Seleccione mensajería"):
+                        metadatos[campo_meta] = v
+
+                _asignar("folio_opc",          datos_doc.get("folio_opc"))
+                _asignar("mensajeria",         datos_doc.get("mensajeria"))
+                _asignar("no_guia",            datos_doc.get("no_guia"))
+                _asignar("no_documento",       datos_doc.get("no_documento"))
+                _asignar("fecha_documento",    datos_doc.get("fecha_documento"))
+                _asignar("numero_anexos",      datos_doc.get("numero_anexos"))
+                _asignar("usb",                datos_doc.get("usb"))
+                _asignar("cd_dvd",             datos_doc.get("cd_dvd"))
+                _asignar("imagenes",           datos_doc.get("imagenes"))
+                _asignar("otros_dispositivos", datos_doc.get("otros_dispositivos"))
+                _asignar("observaciones",      datos_doc.get("observaciones"))
+
+                log.info(
+                    "[WEB] DATOS DEL DOCUMENTO: folio_opc='%s' | no_doc='%s'",
+                    metadatos.get("folio_opc"), metadatos.get("no_documento"),
+                )
+            elif datos_doc and datos_doc.get("_js_error"):
+                log.warning("[WEB] Error JS en DATOS DEL DOCUMENTO: %s", datos_doc["_js_error"])
+
+            # Fecha de folio OPC (independiente de si el bloque anterior falló)
+            fecha_opc = (
+                (datos_doc.get("fecha_folio_opc") if isinstance(datos_doc, dict) else None) or ""
+            ).strip()
             if fecha_opc:
-                metadatos["fecha_ejecucion"] = fecha_opc
-                metadatos["fecha_registro"] = fecha_opc
                 metadatos["fecha_folio_opc"] = fecha_opc
-                log.info("[WEB] Fecha de folio OPC extraída: %s", fecha_opc)
+                metadatos["fecha_ejecucion"] = fecha_opc
+                metadatos["fecha_registro"]  = fecha_opc
+                log.info("[WEB] Fecha de folio OPC: %s", fecha_opc)
             else:
                 metadatos["fecha_ejecucion"] = datetime.now().isoformat()
+
         except Exception as e:
-            log.warning("[WEB] No se pudo extraer Fecha de folio OPC: %s", e)
+            log.warning("[WEB] No se pudo extraer DATOS DEL DOCUMENTO: %s", e)
             metadatos["fecha_ejecucion"] = datetime.now().isoformat()
 
             
@@ -1810,6 +1958,436 @@ def volver_al_tablero(page):
 
 
 # ------------------------------------------------------------
+#  MODO REGISTRO -- CONFIGURAR TABLERO Y BUSCAR POR REGISTRO
+# ------------------------------------------------------------
+
+# Variable global que indica si el tablero ya fue configurado en modo registro
+# (Todos los años + 100 trámites). Se resetea a False cada vez que se navega
+# al tablero desde cero para que el próximo worker también configure.
+_TABLERO_REGISTRO_CONFIGURADO = False
+_TABLERO_REGISTRO_LOCK = threading.Lock()
+
+
+def configurar_tablero_para_busqueda_registro(page) -> bool:
+    """
+    Configura el tablero de 'Documentos en Proceso' para buscar por Registro:
+      1. Cambia el selector 'Año: 2026' a 'Todos los años'
+      2. Cambia el selector 'Mostrar 10 trámites' a '100'
+
+    Debe llamarse UNA VEZ por worker, justo después de navegar_a_tablero().
+    Retorna True si se configuró correctamente, False si falló (el tablero
+    puede seguir funcionando con la configuración por defecto).
+    """
+    log.info("[REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...")
+    try:
+        # ── 1. Selector de Año ──────────────────────────────────────────────
+        # El <select> de Año está a la derecha de "Documentos en Proceso".
+        # Buscar por el texto visible "Año:" cercano o por los valores conocidos.
+        anio_ok = False
+        try:
+            # Intentar encontrar el select que contiene la opción del año actual
+            # Selectores posibles: select con options como "2026", "2025", "Todos los años"
+            selects_anio = page.locator("select").filter(
+                has_text=re.compile(r"20\d\d|Todos", re.I)
+            )
+            count_anio = selects_anio.count()
+            if count_anio > 0:
+                sel_anio = selects_anio.first
+                # Intentar seleccionar "Todos los años" por distintos valores posibles
+                opciones_año = sel_anio.locator("option")
+                mejor_val = None
+                mejor_texto = None
+                for oi in range(opciones_año.count()):
+                    opt = opciones_año.nth(oi)
+                    val  = opt.get_attribute("value") or ""
+                    texto = opt.inner_text().strip().lower()
+                    if "todos" in texto or val in ("", "0", "all"):
+                        mejor_val  = val
+                        mejor_texto = opt.inner_text().strip()
+                        break
+                if mejor_val is not None:
+                    log.info("[REG] Cambiando Año a '%s' (value='%s')...", mejor_texto, mejor_val)
+                    sel_anio.select_option(value=mejor_val)
+                    # Esperar spinner de carga que aparece al cambiar de año
+                    _esperar_sin_spinner(page, timeout_ms=20_000)
+                    # Esperar también que el campo de búsqueda sea visible de nuevo
+                    try:
+                        page.wait_for_selector(
+                            "input[type='search'], .dataTables_filter input",
+                            timeout=10_000, state="visible"
+                        )
+                    except Exception:
+                        page.wait_for_timeout(1_500)
+                    anio_ok = True
+                    log.info("[REG] ✅ Año cambiado a '%s'", mejor_texto)
+                else:
+                    log.warning("[REG] No se encontró opción 'Todos los años' en el selector de Año")
+            else:
+                log.warning("[REG] No se encontró selector de Año en el tablero")
+        except Exception as e:
+            log.warning("[REG] Error cambiando selector de Año: %s", e)
+
+        # ── 2. Selector de cantidad de trámites (Mostrar X) ─────────────────
+        # El <select> de DataTables para el número de filas por página.
+        # En el tablero principal hay un solo select de este tipo.
+        mostrar_ok = False
+        try:
+            selects_pagina = page.locator("select[name*='_length'], .dataTables_length select")
+            count_pag = selects_pagina.count()
+            if count_pag > 0:
+                sel_mostrar = selects_pagina.first
+                opciones_mostrar = sel_mostrar.locator("option")
+                mejor_val_m = None
+                for oi in range(opciones_mostrar.count()):
+                    val = opciones_mostrar.nth(oi).get_attribute("value") or ""
+                    if val == "100":
+                        mejor_val_m = val
+                        break
+                    elif val in ("-1", "50") and mejor_val_m is None:
+                        mejor_val_m = val  # Fallback al máximo disponible
+                if mejor_val_m:
+                    log.info("[REG] Cambiando 'Mostrar' a %s trámites...", mejor_val_m)
+                    sel_mostrar.select_option(value=mejor_val_m)
+                    try:
+                        page.wait_for_function(
+                            "() => { const p = document.querySelector('.dataTables_processing'); "
+                            "return !p || p.style.display === 'none' || p.style.display === ''; }",
+                            timeout=8_000
+                        )
+                    except Exception:
+                        page.wait_for_timeout(800)
+                    mostrar_ok = True
+                    log.info("[REG] ✅ Mostrar cambiado a %s trámites", mejor_val_m)
+                else:
+                    log.warning("[REG] No se encontró opción '100' en el selector de trámites")
+            else:
+                log.warning("[REG] No se encontró selector 'Mostrar X trámites'")
+        except Exception as e:
+            log.warning("[REG] Error cambiando selector de cantidad: %s", e)
+
+        return anio_ok or mostrar_ok  # Éxito parcial cuenta
+
+    except Exception as e:
+        log.error("[REG] Error crítico configurando tablero: %s", e)
+        return False
+
+
+def buscar_registro_en_tabla(page, registro: str) -> bool:
+    """
+    Busca el número de registro en el campo de búsqueda del DataTable y
+    verifica que la tabla tenga al menos una fila donde la columna 'Registro'
+    coincida exactamente con el valor buscado.
+
+    Retorna True si se encontraron resultados válidos, False si no.
+    """
+    try:
+        # Asegurar pestaña "Documentos en Proceso"
+        try:
+            tab = page.locator("a, button").filter(
+                has_text=re.compile(r"Documentos en Proceso", re.I)
+            ).first
+            tab.wait_for(state="visible", timeout=3_000)
+            tab.click()
+            try:
+                page.wait_for_selector(
+                    "input[type='search'], .dataTables_filter input",
+                    timeout=5_000, state="visible"
+                )
+            except Exception:
+                page.wait_for_timeout(600)
+        except Exception:
+            pass
+
+        # Campo de búsqueda de DataTables
+        search = page.locator(
+            "input[type='search'], "
+            ".dataTables_filter input, "
+            "input.form-control[placeholder*='uscar']"
+        ).first
+        search.wait_for(state="visible", timeout=TIMEOUT_CORTO)
+        try:
+            search.click(click_count=3)
+        except Exception:
+            search.click()
+            page.keyboard.press("Control+A")
+        search.fill(registro)
+        # Esperar que DataTables filtre
+        try:
+            page.wait_for_function(
+                "() => { const p = document.querySelector('.dataTables_processing'); "
+                "return !p || p.style.display === 'none' || p.style.display === ''; }",
+                timeout=8_000
+            )
+        except Exception:
+            page.wait_for_timeout(800)
+
+        # Verificar que hay filas y que alguna tiene el registro correcto
+        tbody = page.locator("table tbody").first
+        filas = tbody.locator("tr")
+        if filas.count() == 0:
+            return False
+        primera = filas.first.inner_text().lower()
+        if "no hay" in primera or "no data" in primera or "sin resultados" in primera:
+            return False
+
+        # Verificar que alguna fila tiene exactamente nuestro registro en col 1
+        for i in range(min(filas.count(), 5)):
+            fila = filas.nth(i)
+            celdas = fila.locator("td")
+            if celdas.count() > 1:
+                reg_celda = celdas.nth(1).inner_text().strip()
+                if reg_celda.lower() == registro.lower():
+                    return True
+
+        # Si no verificamos exacto, aceptar si hay resultados (el filtro hizo su trabajo)
+        return filas.count() > 0
+
+    except Exception:
+        return False
+
+
+def procesar_registro_completo(context, page, registro: str, carpeta: Path, folio_raw: str = "") -> list:
+    """
+    Procesa TODOS los trámites que coinciden con un número de Registro.
+    Funciona igual que procesar_folio_completo() pero la coincidencia de fila
+    se hace comparando la columna 'Registro' (índice 1) con el registro buscado,
+    en lugar de la columna 'Memo / Folio OPC'.
+
+    El folio real se extrae de los metadatos de la fila (columna 'Memo / Folio OPC')
+    para guardarlo en metadata_satys.json.
+    """
+    todos_resultados = []
+    registros_procesados = set()
+    indice_registro = 0
+    max_iteraciones = 50
+
+    for iteracion in range(max_iteraciones):
+        # V-03: Verificar sesión
+        if not _verificar_sesion(page):
+            log.error("[V03] Sesión no recuperable -- abortando registro %s", registro)
+            break
+
+        # Buscar el registro en la tabla
+        if not buscar_registro_en_tabla(page, registro):
+            if iteracion == 0:
+                log.warning("[REG-NO_ENCONTRADO] Registro %s no encontrado en Documentos en Proceso", registro)
+                screenshot(page, f"registro_no_encontrado_{registro}")
+                todos_resultados.append({
+                    "folio": registro,
+                    "archivo": "", "nombre_original": "",
+                    "tipo": "", "fecha": "", "descripcion": "",
+                    "ruta": "", "tamano_kb": 0, "ok": False,
+                    "error": "REGISTRO_NO_ENCONTRADO",
+                    "fuente": "NINGUNA",
+                })
+            break
+
+        # Obtener info de paginación
+        mostrado_hasta, total_resultados = _parsear_paginacion(page)
+        if total_resultados > 0:
+            log.info("[REG-PAGE] Resultados búsqueda: mostrando %d de %d trámites",
+                     mostrado_hasta, total_resultados)
+
+        # Obtener índice de la columna "Registro" (normalmente índice 1)
+        col_registro_idx = 1
+        try:
+            headers = page.locator("table thead th")
+            for j in range(headers.count()):
+                header_text = headers.nth(j).inner_text().lower()
+                if "registro" in header_text and "fecha" not in header_text:
+                    col_registro_idx = j
+                    break
+        except Exception:
+            pass
+
+        # Obtener índice de la columna "Memo / Folio OPC" para leer el folio
+        col_folio_idx = _obtener_col_idx_folio(page)
+
+        # Buscar la fila con nuestro registro en todas las páginas
+        fila_encontrada = False
+        max_paginas = 20
+
+        for num_pagina in range(max_paginas):
+            tbody = page.locator("table tbody").first
+            filas = tbody.locator("tr")
+            filas_count = filas.count()
+
+            for i in range(filas_count):
+                fila = filas.nth(i)
+                celdas = fila.locator("td")
+
+                # Leer columna Registro
+                if celdas.count() > col_registro_idx:
+                    reg_celda = celdas.nth(col_registro_idx).inner_text().strip()
+                else:
+                    reg_celda = fila.inner_text()
+
+                # Coincidir exactamente con el registro buscado
+                if reg_celda.lower() != registro.lower():
+                    continue
+
+                # Evitar reprocesar el mismo registro
+                if reg_celda in registros_procesados:
+                    continue
+
+                # Leer el Memo/Folio OPC de esta fila para usarlo como folio real
+                folio_real = ""
+                if celdas.count() > col_folio_idx:
+                    folio_real = celdas.nth(col_folio_idx).inner_text().strip()
+
+                # Encontrar botón Ver detalle
+                boton_ver = _encontrar_boton_ver(fila)
+                if boton_ver is None:
+                    log.warning("[REG-WARN] No se encontró botón Ver para registro %s", reg_celda)
+                    if reg_celda:
+                        registros_procesados.add(reg_celda)
+                    continue
+
+                # Marcar como procesado y abrir detalle
+                registros_procesados.add(reg_celda)
+                log.info("[REG-VIEW] Abriendo detalle: registro=%s, folio=%s", reg_celda, folio_real)
+
+                # Carpeta para este registro
+                carpeta_actual = carpeta_para_registro(carpeta, indice_registro, reg_celda)
+                if indice_registro > 0:
+                    log.warning(
+                        "[REG-MULTI] Registro %s tiene más de un trámite -- "
+                        "usando carpeta separada: %s",
+                        registro, carpeta_actual,
+                    )
+                indice_registro += 1
+
+                boton_ver.scroll_into_view_if_needed()
+                boton_ver.click()
+
+                # Esperar página de detalle
+                try:
+                    page.wait_for_load_state("domcontentloaded", timeout=TIMEOUT_DETALLE)
+                except PWTimeout:
+                    pass
+                _esperar_sin_spinner(page, timeout_ms=15_000)
+
+                if not esperar_detalle(page, registro):
+                    en_tablero = (
+                        page.locator("text=Documentos en Proceso").count() > 0
+                        and page.locator("input[type='search']").count() > 0
+                    )
+                    if en_tablero:
+                        log.error("[REG-ERROR] No se entró a detalle para registro %s", registro)
+                        fila_encontrada = True
+                        break
+                    log.warning("[REG-WARN] Detalle no confirmado, continuando...")
+
+                log.info("[REG-OK] Detalle cargado: registro=%s", registro)
+
+                # Extraer metadatos web
+                try:
+                    from tenacity import RetryError as _RetryError
+                    meta_satys = extraer_metadatos_satys(page, registro, carpeta_actual, registro_esperado=reg_celda)
+                except Exception as _re:
+                    log.warning(
+                        "[REG-META] Metadatos incompletos para registro %s: %s",
+                        registro, _re
+                    )
+                    meta_satys = {
+                        "representante_legal": None,
+                        "nombre_operador": None,
+                        "asunto": None,
+                        "registro": reg_celda,
+                    }
+
+                # Guardar el folio real (Memo/Folio OPC) en los metadatos
+                if folio_real and not meta_satys.get("folio"):
+                    meta_satys["folio"] = folio_real
+
+                meta_tramite = {}
+
+                # Intentar ARCHIVOS ASOCIADOS primero
+                fuente = "ARCHIVOS_ASOCIADOS"
+                res, seccion_aa_ok = descargar_archivos(context, page, registro, carpeta_actual)
+                for r in res:
+                    r.setdefault("fuente", "ARCHIVOS_ASOCIADOS")
+
+                if not seccion_aa_ok:
+                    fuente = "DOCUMENTOS_ANEXOS"
+                    log.info(
+                        "[REG-FUENTE] Sin ARCHIVOS ASOCIADOS -- activando flujo DOCUMENTOS ANEXOS "
+                        "para registro %s (folio=%s)", registro, folio_real
+                    )
+                    res, meta_tramite = descargar_via_documentos_anexos_con_fallback(
+                        context, page, folio_real or registro, folio_real or folio_raw or registro, carpeta_actual
+                    )
+
+                    if meta_tramite and isinstance(meta_tramite, dict):
+                        registro_original = meta_satys.get("registro")
+                        meta_satys.update(meta_tramite)
+                        if not meta_satys.get("registro") and registro_original:
+                            meta_satys["registro"] = registro_original
+                        out_path_satys = carpeta_actual / "metadata_satys.json"
+                        with open(out_path_satys, "w", encoding="utf-8") as f:
+                            json.dump(meta_satys, f, ensure_ascii=False, indent=2)
+                        log.info("[REG-META] metadata_satys.json actualizado para registro %s", registro)
+                else:
+                    log.info("[REG-FUENTE] ARCHIVOS ASOCIADOS encontrado para registro %s", registro)
+
+                # Guardar metadata_completo.json
+                meta_completo = {
+                    "folio": folio_real or registro,
+                    "registro": reg_celda,
+                    "estado": "OK" if any(r.get("ok") for r in res) else "SIN_ARCHIVOS",
+                    "total_archivos": len(res),
+                    "total_archivos_ok": sum(1 for r in res if r.get("ok")),
+                    "fuente": fuente,
+                    "archivos": res,
+                    "meta_satys": meta_satys,
+                    "fecha_proceso": datetime.now().isoformat(),
+                }
+                try:
+                    with open(carpeta_actual / "metadata_completo.json", "w", encoding="utf-8") as f:
+                        json.dump(meta_completo, f, ensure_ascii=False, indent=2)
+                except Exception as e_mc:
+                    log.warning("[REG] No se pudo guardar metadata_completo.json: %s", e_mc)
+
+                todos_resultados.extend(res)
+                fila_encontrada = True
+                break  # Encontrada la fila, salir del loop de filas
+
+            if fila_encontrada:
+                break
+
+            # Intentar avanzar a la siguiente página
+            try:
+                btn_siguiente = page.locator(".paginate_button.next, li.next a, a:has-text('Siguiente')").last
+                if btn_siguiente.count() == 0:
+                    break
+                clases = btn_siguiente.get_attribute("class") or ""
+                padre_clases = btn_siguiente.locator("xpath=..").get_attribute("class") or ""
+                if "disabled" in clases or "disabled" in padre_clases or btn_siguiente.is_disabled():
+                    break
+                btn_siguiente.click()
+                try:
+                    page.wait_for_function(
+                        "() => { const p = document.querySelector('.dataTables_processing'); "
+                        "return !p || p.style.display === 'none' || p.style.display === ''; }",
+                        timeout=5_000
+                    )
+                except Exception:
+                    page.wait_for_timeout(600)
+            except Exception as e:
+                log.debug("[REG] No se pudo avanzar de página: %s", e)
+                break
+
+        if not fila_encontrada:
+            # No se encontró ninguna fila nueva sin procesar → terminar
+            break
+
+        # Regresar al tablero para buscar el siguiente registro (si hay más con el mismo número)
+        volver_al_tablero(page)
+
+    return todos_resultados
+
+
+# ------------------------------------------------------------
 #  PASO 6 -- PROCESAR TODOS LOS TRAMITES DE UN FOLIO
 # ------------------------------------------------------------
 def _buscar_folio_en_tabla(page, folio: str):
@@ -2288,12 +2866,37 @@ def navegar_a_tramites_nuevos(page) -> bool:
         return False
 
 
+def _normalizar_folio_para_busqueda(folio: str) -> str:
+    """
+    Extrae SOLO el numero final de un Folio OPC para usarlo en el cuadro
+    de busqueda de Tramites Nuevos, donde el sistema solo reconoce numeros.
+
+    Ejemplos:
+        'VE-166095'    -> '166095'
+        'CORREO-2444'  -> '2444'
+        '17217'        -> '17217'
+        'ABC-XYZ-099'  -> '099'
+
+    Logica: busca el ultimo grupo de digitos al final del string.
+    Si no hay grupo numerico, devuelve el folio original (fallback).
+    """
+    import re as _re
+    m = _re.search(r'(\d+)\s*$', folio.strip())
+    if m:
+        return m.group(1)
+    return folio.strip()
+
+
 def buscar_folio_en_tramites_nuevos(page, folio: str) -> bool:
     """
     Escribe el folio en el campo 'Buscar:' de Tramites Nuevos
     y verifica que aparece al menos un resultado.
+    Normaliza el folio para usar solo el numero final (ej. VE-166095 -> 166095).
     """
-    log.info("[ALT-SEARCH] Buscando folio %s en Tramites Nuevos...", folio)
+    folio_busqueda = _normalizar_folio_para_busqueda(folio)
+    if folio_busqueda != folio:
+        log.info("[ALT-SEARCH] Folio normalizado para busqueda: '%s' -> '%s'", folio, folio_busqueda)
+    log.info("[ALT-SEARCH] Buscando folio %s en Tramites Nuevos...", folio_busqueda)
     try:
         # Campo de busqueda (puede ser diferente al DataTables del tablero)
         search = None
@@ -2321,7 +2924,7 @@ def buscar_folio_en_tramites_nuevos(page, folio: str) -> bool:
         except Exception:
             search.click()
             page.keyboard.press("Control+A")
-        search.fill(folio)
+        search.fill(folio_busqueda)
         page.wait_for_timeout(2_000)
 
         # Verificar que la tabla tiene resultados
@@ -2348,8 +2951,12 @@ def abrir_revisar_tramite(page, folio: str) -> bool:
     """
     Hace click en el boton verde 'Revisar' para el folio en Tramites Nuevos
     y espera que cargue el DETALLE DE LA SOLICITUD.
+    El folio que se muestra en la tabla es el numero normalizado (ej. 166095),
+    por lo que se usa _normalizar_folio_para_busqueda antes de buscar la fila.
     """
     log.info("[ALT-REVISAR] Abriendo detalle del tramite %s...", folio)
+    # Usar el numero normalizado para coincidir con la celda de la tabla
+    folio_num = _normalizar_folio_para_busqueda(folio)
     try:
         tbody = page.locator("table tbody").first
         filas = tbody.locator("tr")
@@ -2362,8 +2969,8 @@ def abrir_revisar_tramite(page, folio: str) -> bool:
             except Exception:
                 continue
 
-            # Verificar que esta fila contiene el folio
-            if not re.search(rf"0*{re.escape(folio)}\b", texto_fila):
+            # Coincidir por el numero normalizado (que es lo que muestra la tabla)
+            if not re.search(rf"\b0*{re.escape(folio_num)}\b", texto_fila):
                 continue
 
             # Buscar el boton Revisar en esta fila
@@ -2386,8 +2993,9 @@ def abrir_revisar_tramite(page, folio: str) -> bool:
                 break
 
         if boton_revisar is None:
-            log.error("[ALT-REVISAR] No se encontro boton Revisar para folio %s", folio)
-            screenshot(page, f"revisar_no_encontrado_{folio}")
+            log.error("[ALT-REVISAR] No se encontro boton Revisar para folio %s (num=%s)",
+                      folio, folio_num)
+            screenshot(page, f"revisar_no_encontrado_{folio_num}")
             return False
 
         boton_revisar.scroll_into_view_if_needed()
@@ -3580,6 +4188,137 @@ def _worker_folio(folio: str, folio_raw: str) -> tuple:
 
 
 # ============================================================
+#  WORKER REGISTRO -- Procesamiento concurrente por Registro
+# ============================================================
+def _worker_registro(registro: str, registro_raw: str) -> tuple:
+    """
+    Procesa un único número de Registro en un contexto Playwright independiente.
+    Equivalente a _worker_folio pero para búsqueda por columna 'Registro'.
+
+    Antes de buscar, configura el tablero:
+      - Año → Todos los años
+      - Mostrar → 100 trámites
+
+    Retorna: (registro: str, resultados: list)
+    """
+    tname = threading.current_thread().name
+    log.info("[WR:%s] ── Iniciando registro %s ──", tname, registro)
+    resultados = []
+
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(
+                headless=HEADLESS,
+                slow_mo=0 if HEADLESS else 50,
+            )
+            context_args = {
+                "accept_downloads": True,
+                "viewport": {"width": 1400, "height": 900},
+                "locale": "es-MX",
+            }
+            if SESION_FILE.exists():
+                context_args["storage_state"] = str(SESION_FILE)
+
+            context = browser.new_context(**context_args)
+            habilitar_api_discovery(context)
+            page = context.new_page()
+            page.set_default_timeout(TIMEOUT_NAV)
+
+            # ── Validar sesión ───────────────────────────────────────────────
+            sesion_ok = False
+            try:
+                test_url = urljoin(BASE_URL, "Sarccontroller")
+                page.goto(test_url, wait_until="domcontentloaded", timeout=TIMEOUT_NAV)
+                url_actual = page.url.lower()
+                en_login = (
+                    "login" in url_actual
+                    or "verifylogin" in url_actual
+                    or page.locator("input[type='password']").count() > 0
+                )
+                if not en_login:
+                    sesion_ok = True
+                    log.info("[WR:%s] Sesión activa (registro %s)", tname, registro)
+                else:
+                    log.warning("[WR:%s] Sesión expirada — re-login (registro %s)", tname, registro)
+                    if login(page):
+                        with _sesion_lock:
+                            try:
+                                context.storage_state(path=SESION_FILE)
+                            except Exception:
+                                pass
+                        sesion_ok = True
+                    else:
+                        log.error("[WR:%s] Re-login fallido (registro %s)", tname, registro)
+            except Exception as e:
+                log.warning("[WR:%s] Error validando sesión: %s", tname, e)
+
+            if not sesion_ok:
+                browser.close()
+                return registro, [{
+                    "folio": registro, "archivo": "ERROR_SESION",
+                    "tipo": "ERROR", "ruta": "Sesión inválida o re-login fallido",
+                    "tamano_kb": 0, "ok": False,
+                }]
+
+            # ── Navegar al tablero ───────────────────────────────────────────
+            if not navegar_a_tablero(page):
+                log.error("[WR:%s] No se pudo navegar al tablero (registro %s)", tname, registro)
+                browser.close()
+                return registro, [{
+                    "folio": registro, "archivo": "ERROR_TABLERO",
+                    "tipo": "ERROR", "ruta": "No se pudo navegar al tablero",
+                    "tamano_kb": 0, "ok": False,
+                }]
+
+            # ── Configurar tablero para búsqueda por Registro ────────────────
+            # Cambiar Año a 'Todos los años' y Mostrar a 100 trámites
+            cfg_ok = configurar_tablero_para_busqueda_registro(page)
+            if not cfg_ok:
+                log.warning(
+                    "[WR:%s] Configuración de tablero parcial/fallida para registro %s "
+                    "-- se continuará con la configuración por defecto",
+                    tname, registro
+                )
+
+            # ── Procesar el registro ─────────────────────────────────────────
+            carpeta = crear_carpeta(registro)
+            try:
+                res = procesar_registro_completo(
+                    context, page, registro, carpeta, folio_raw=registro_raw
+                )
+                resultados = res if res else [{
+                    "folio": registro, "archivo": "REGISTRO_NO_ENCONTRADO",
+                    "tipo": "N/A", "ruta": "", "tamano_kb": 0, "ok": False,
+                }]
+            except Exception as e:
+                log.error("[WR:%s] Error procesando registro %s: %s", tname, registro, e)
+                screenshot(page, f"fatal_registro_{registro}")
+                resultados = [{
+                    "folio": registro, "archivo": "ERROR_FATAL",
+                    "tipo": "ERROR", "ruta": str(e)[:120], "tamano_kb": 0, "ok": False,
+                }]
+
+            ok_c = sum(1 for r in resultados if r.get("ok"))
+            errores_servidor = sum(1 for r in resultados if r.get("tipo") == "ERROR_SERVIDOR")
+            errores_otros    = sum(1 for r in resultados if not r.get("ok") and r.get("tipo") not in
+                                   ("ERROR_SERVIDOR", "N/A") and r.get("archivo") not in
+                                   ("REGISTRO_NO_ENCONTRADO", "ERROR_FATAL", "ERROR_SESION", "ERROR_TABLERO"))
+            log.info("[WR:%s] ── Registro %s: %d/%d OK | %d error(es) servidor | %d error(es) red ──",
+                     tname, registro, ok_c, len(resultados), errores_servidor, errores_otros)
+
+            browser.close()
+
+    except Exception as e:
+        log.error("[WR:%s] Error crítico en worker para registro %s: %s", tname, registro, e)
+        resultados = resultados or [{
+            "folio": registro, "archivo": "ERROR_WORKER_CRITICO",
+            "tipo": "ERROR", "ruta": str(e)[:120], "tamano_kb": 0, "ok": False,
+        }]
+
+    return registro, resultados
+
+
+# ============================================================
 #  FUNCION PRINCIPAL
 # ============================================================
 def main():
@@ -3595,6 +4334,11 @@ def main():
              "Cada worker abre su propio navegador Chromium. "
              "Usa --workers 3 si quieres limitar a 3 simultáneos.",
     )
+    # ── Modo Registro ──────────────────────────────────────────────────
+    parser.add_argument("--modo-registro", action="store_true",
+                        help="Buscar por número de Registro en vez de Folio OPC")
+    parser.add_argument("--registros", nargs="+",
+                        help="Lista de números de Registro a procesar (ej. CRT26-002483)")
     args = parser.parse_args()
 
     global HEADLESS
@@ -3618,7 +4362,148 @@ def main():
         )
 
     # ──────────────────────────────────────────────────────────────
-    # Construcción de lista de folios
+    # MODO REGISTRO: procesar por número de Registro
+    # ──────────────────────────────────────────────────────────────
+    modo_registro = getattr(args, 'modo_registro', False)
+    registros_arg = getattr(args, 'registros', None) or []
+
+    if modo_registro or registros_arg:
+        # ── Validar / renovar sesión (igual que modo folio) ──────
+        log.info("[MAIN] ── MODO REGISTRO: FASE 1: Validación de sesión ──")
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=HEADLESS, slow_mo=100)
+            context_args_m = {
+                "accept_downloads": True,
+                "viewport": {"width": 1400, "height": 900},
+                "locale": "es-MX",
+            }
+            if SESION_FILE.exists():
+                context_args_m["storage_state"] = SESION_FILE
+            ctx_m   = browser.new_context(**context_args_m)
+            page_m  = ctx_m.new_page()
+            page_m.set_default_timeout(TIMEOUT_NAV)
+            login_req_m = True
+            if SESION_FILE.exists():
+                try:
+                    test_url = urljoin(BASE_URL, "Sarccontroller")
+                    page_m.goto(test_url, wait_until="domcontentloaded", timeout=TIMEOUT_NAV)
+                    url_m = page_m.url.lower()
+                    if not ("login" in url_m or "verifylogin" in url_m
+                            or page_m.locator("input[type='password']").count() > 0):
+                        log.info("[OK] Sesion activa recuperada con exito.")
+                        login_req_m = False
+                    else:
+                        log.info("[SESION] Sesion expirada, requiere nuevo login.")
+                except Exception as e:
+                    log.warning("[SESION] Error al probar sesion: %s", e)
+            if login_req_m:
+                if not login(page_m):
+                    log.critical("[ABORT] No se pudo iniciar sesion.")
+                    browser.close()
+                    return
+                try:
+                    ctx_m.storage_state(path=SESION_FILE)
+                    log.info("[SESION] Sesion guardada correctamente.")
+                except Exception as e:
+                    log.warning("[SESION] No se pudo guardar la sesion: %s", e)
+            if not navegar_a_tablero(page_m):
+                log.critical("[ABORT] No se pudo llegar al tablero.")
+                browser.close()
+                return
+            browser.close()
+            log.info("[MAIN] Sesión validada para modo registro.")
+
+        # ── Construir lista de registros ──────────────────────────
+        registros = list(dict.fromkeys(r.strip() for r in registros_arg if r.strip()))
+        limite_folios_r = args.limite
+        if limite_folios_r > 0:
+            registros = registros[:limite_folios_r]
+        if not registros:
+            log.error("[ABORT] No se proporcionaron registros para modo --modo-registro")
+            return
+        log.info("[LIST] Registros a procesar (%d): %s", len(registros), ", ".join(registros))
+        num_workers_r = num_workers  # Usar el mismo número de workers
+
+        # ── Separar registros ya completados (SKIP) ───────────────
+        todos_resultados_r = []
+        registros_pendientes = []
+        for reg in registros:
+            carpeta_r = crear_carpeta(reg)
+            metadata_file_r = carpeta_r / "metadata_completo.json"
+            if metadata_file_r.exists():
+                try:
+                    with open(metadata_file_r, "r", encoding="utf-8") as f:
+                        meta_e = json.load(f)
+                    if (meta_e.get("estado") == "OK"
+                            and meta_e.get("total_archivos_ok", 0) > 0):
+                        log.info("[SKIP] Registro %s ya descargado. Saltando...", reg)
+                        todos_resultados_r.extend(meta_e.get("archivos", []))
+                        continue
+                except Exception as e:
+                    log.warning("[SKIP] No se pudo leer metadata de %s: %s", reg, e)
+            registros_pendientes.append(reg)
+
+        log.info(
+            "[MAIN] %d registro(s) pendientes | %d ya completados (SKIP)",
+            len(registros_pendientes), len(registros) - len(registros_pendientes),
+        )
+
+        # ── FASE 2: Procesamiento concurrente ─────────────────────
+        if registros_pendientes:
+            workers_activos_r = (len(registros_pendientes) if num_workers_r == 0
+                                 else min(num_workers_r, len(registros_pendientes)))
+            log.info(
+                "[MAIN] ── FASE 2 REGISTRO: Lanzando %d worker(s) para %d registro(s) ──",
+                workers_activos_r, len(registros_pendientes),
+            )
+            resultados_lock_r = threading.Lock()
+
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=workers_activos_r,
+                thread_name_prefix="SATyS-Reg",
+            ) as executor_r:
+                futures_map_r = {
+                    executor_r.submit(_worker_registro, reg, reg): reg
+                    for reg in registros_pendientes
+                }
+
+                completados_r = 0
+                for future_r in concurrent.futures.as_completed(futures_map_r):
+                    reg_key = futures_map_r[future_r]
+                    completados_r += 1
+                    try:
+                        reg_ret, res_r = future_r.result()
+                        ok_c_r = sum(1 for r in res_r if r.get("ok"))
+                        with resultados_lock_r:
+                            todos_resultados_r.extend(res_r)
+                        log.info(
+                            "[CONC-REG] [%d/%d] ✓ Registro %s completado: %d OK / %d total",
+                            completados_r, len(registros_pendientes),
+                            reg_ret, ok_c_r, len(res_r),
+                        )
+                    except Exception as e_r:
+                        log.error(
+                            "[CONC-REG] [%d/%d] ✗ Excepción en worker registro %s: %s",
+                            completados_r, len(registros_pendientes), reg_key, e_r,
+                        )
+                        with resultados_lock_r:
+                            todos_resultados_r.append({
+                                "folio": reg_key, "archivo": "EXCEPCION_WORKER",
+                                "tipo": "ERROR", "ruta": str(e_r)[:120],
+                                "tamano_kb": 0, "ok": False,
+                            })
+
+        # ── Reporte final modo registro ───────────────────────────
+        if todos_resultados_r:
+            generar_reporte(todos_resultados_r)
+            guardar_log_json(todos_resultados_r)
+            guardar_resumen_global(todos_resultados_r, DESCARGA_BASE)
+        else:
+            log.warning("[WARN] No se procesó ningún registro")
+        return  # Terminar aquí, no procesar folios
+
+    # ──────────────────────────────────────────────────────────────
+    # Construcción de lista de folios (modo normal)
     # ──────────────────────────────────────────────────────────────
     folios_raw = []
     if args.folios:
