@@ -175,6 +175,20 @@
       "kind": "Números de registro CRT",
       "txt": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\registros.txt",
       "count": 4
+    },
+    {
+      "when": "2026-07-01 15:42:39",
+      "return_code": 0,
+      "kind": "Números de registro CRT",
+      "txt": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\registros.txt",
+      "count": 1
+    },
+    {
+      "when": "2026-07-01 15:59:18",
+      "return_code": 0,
+      "kind": "Números de registro CRT",
+      "txt": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\registros.txt",
+      "count": 4
     }
   ]
 }

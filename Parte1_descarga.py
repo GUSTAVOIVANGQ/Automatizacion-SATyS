@@ -2185,6 +2185,52 @@ def buscar_registro_en_tabla(page, registro: str) -> bool:
         return False
 
 
+def buscar_registro_en_tabla_con_reintentos(page, registro: str,
+                                             max_espera_seg: int = 60,
+                                             espera_entre_intentos: int = 3) -> bool:
+    """
+    Igual que buscar_registro_en_tabla(), pero con un bucle de reintentos
+    (mismo patron que extraer_metadatos_satys(): hasta max_espera_seg segundos
+    -- 1 minuto por defecto -- probando cada espera_entre_intentos segundos).
+
+    Motivo: buscar_registro_en_tabla() por si sola solo intenta UNA vez. Si el
+    DataTable de 'Documentos en Proceso' todavia no termino de filtrar/renderizar
+    (algo frecuente cuando varios workers de Playwright golpean el tablero al
+    mismo tiempo), esa unica pasada puede leer la tabla vacia y el registro se
+    marca como REGISTRO_NO_ENCONTRADO de forma erronea -- sin haber creado
+    siquiera un JSON, porque el codigo nunca llega a abrir el detalle del
+    tramite. Reintentar aqui, igual que se hace para los metadatos, evita esos
+    falsos negativos.
+    """
+    intento = 0
+    inicio = time.time()
+
+    while True:
+        intento += 1
+        log.info("[REG-BUSCAR] Buscando registro %s en tabla (intento %d)...", registro, intento)
+        if buscar_registro_en_tabla(page, registro):
+            if intento > 1:
+                log.info("[REG-BUSCAR] Registro %s encontrado en intento %d", registro, intento)
+            return True
+
+        transcurrido = time.time() - inicio
+        if transcurrido >= max_espera_seg:
+            log.warning(
+                "[REG-BUSCAR] LIMITE alcanzado (%ds) buscando registro %s tras %d intentos -- "
+                "se marca como no encontrado.", max_espera_seg, registro, intento,
+            )
+            return False
+
+        log.warning("[REG-BUSCAR] Intento %d fallido buscando registro %s. Reintentando en %ds...",
+                    intento, registro, espera_entre_intentos)
+        try:
+            page.wait_for_timeout(espera_entre_intentos * 1000)
+        except Exception as e:
+            log.error("[REG-BUSCAR] Navegador/pagina cerrado durante la espera para registro %s "
+                      "(%s) -- se marca como no encontrado.", registro, e)
+            return False
+
+
 def procesar_registro_completo(context, page, registro: str, carpeta: Path, folio_raw: str = "") -> list:
     """
     Procesa TODOS los trámites que coinciden con un número de Registro.
@@ -2206,11 +2252,42 @@ def procesar_registro_completo(context, page, registro: str, carpeta: Path, foli
             log.error("[V03] Sesión no recuperable -- abortando registro %s", registro)
             break
 
-        # Buscar el registro en la tabla
-        if not buscar_registro_en_tabla(page, registro):
+        # Buscar el registro en la tabla.
+        # En la primera iteracion se usa la version CON reintentos (hasta 1 min)
+        # para no confundir "el DataTable todavia no cargo" con "el registro
+        # no existe". En iteraciones siguientes (buscando mas filas del mismo
+        # registro) una sola pasada es suficiente: ya sabemos que el tablero
+        # esta listo porque acabamos de volver de procesar la fila anterior.
+        if iteracion == 0:
+            encontrado_en_tabla = buscar_registro_en_tabla_con_reintentos(page, registro)
+        else:
+            encontrado_en_tabla = buscar_registro_en_tabla(page, registro)
+
+        if not encontrado_en_tabla:
             if iteracion == 0:
-                log.warning("[REG-NO_ENCONTRADO] Registro %s no encontrado en Documentos en Proceso", registro)
+                log.warning("[REG-NO_ENCONTRADO] Registro %s no encontrado en Documentos en Proceso "
+                            "(tras reintentos durante 60s)", registro)
                 screenshot(page, f"registro_no_encontrado_{registro}")
+                # Guardar un JSON minimo de diagnostico aunque no se haya
+                # encontrado nada -- asi Parte 2/3/4 y quien revise la carpeta
+                # despues pueden ver POR QUE no hay archivos, en vez de
+                # encontrar la carpeta del registro completamente vacia.
+                try:
+                    carpeta.mkdir(parents=True, exist_ok=True)
+                    with open(carpeta / "metadata_satys.json", "w", encoding="utf-8") as f:
+                        json.dump({
+                            "registro": registro,
+                            "folio": None,
+                            "nombre_operador": None,
+                            "representante_legal": None,
+                            "error": "REGISTRO_NO_ENCONTRADO",
+                            "detalle": "No se encontro el registro en el tablero 'Documentos en "
+                                       "Proceso' tras reintentar durante 60s.",
+                            "fecha_proceso": datetime.now().isoformat(),
+                        }, f, ensure_ascii=False, indent=2)
+                except Exception as e_json:
+                    log.warning("[REG] No se pudo guardar JSON de diagnostico para %s: %s",
+                                registro, e_json)
                 todos_resultados.append({
                     "folio": registro,
                     "archivo": "", "nombre_original": "",
@@ -2539,6 +2616,45 @@ def _encontrar_boton_ver(fila):
     return None
 
 
+def _buscar_folio_en_tabla_con_reintentos(page, folio: str,
+                                           max_espera_seg: int = 60,
+                                           espera_entre_intentos: int = 3) -> bool:
+    """
+    Igual que _buscar_folio_en_tabla(), pero con reintentos durante un maximo
+    de max_espera_seg segundos (1 minuto por defecto). Mismo motivo que
+    buscar_registro_en_tabla_con_reintentos(): una sola pasada puede leer el
+    DataTable antes de que termine de filtrar/renderizar y producir un
+    FOLIO_NO_ENCONTRADO erroneo.
+    """
+    intento = 0
+    inicio = time.time()
+
+    while True:
+        intento += 1
+        log.info("[FOLIO-BUSCAR] Buscando folio %s en tabla (intento %d)...", folio, intento)
+        if _buscar_folio_en_tabla(page, folio):
+            if intento > 1:
+                log.info("[FOLIO-BUSCAR] Folio %s encontrado en intento %d", folio, intento)
+            return True
+
+        transcurrido = time.time() - inicio
+        if transcurrido >= max_espera_seg:
+            log.warning(
+                "[FOLIO-BUSCAR] LIMITE alcanzado (%ds) buscando folio %s tras %d intentos -- "
+                "se marca como no encontrado.", max_espera_seg, folio, intento,
+            )
+            return False
+
+        log.warning("[FOLIO-BUSCAR] Intento %d fallido buscando folio %s. Reintentando en %ds...",
+                    intento, folio, espera_entre_intentos)
+        try:
+            page.wait_for_timeout(espera_entre_intentos * 1000)
+        except Exception as e:
+            log.error("[FOLIO-BUSCAR] Navegador/pagina cerrado durante la espera para folio %s "
+                      "(%s) -- se marca como no encontrado.", folio, e)
+            return False
+
+
 def procesar_folio_completo(context, page, folio: str, carpeta: Path, folio_raw: str = "") -> list:
     """
     Procesa TODOS los tramites que coinciden con un folio:
@@ -2561,12 +2677,34 @@ def procesar_folio_completo(context, page, folio: str, carpeta: Path, folio_raw:
             log.error("[V03] Sesion no recuperable -- abortando folio %s", folio)
             break
 
-        # Buscar folio en la tabla
-        if not _buscar_folio_en_tabla(page, folio):
+        # Buscar folio en la tabla (con reintentos hasta 1 min en la primera
+        # iteracion, igual que para registro -- ver _buscar_folio_en_tabla_con_reintentos)
+        if iteracion == 0:
+            encontrado_en_tabla = _buscar_folio_en_tabla_con_reintentos(page, folio)
+        else:
+            encontrado_en_tabla = _buscar_folio_en_tabla(page, folio)
+
+        if not encontrado_en_tabla:
             if iteracion == 0:
                 # V-04: Registrar explicitamente como FOLIO_NO_ENCONTRADO
-                log.warning("[V04-NO_ENCONTRADO] Folio %s no encontrado en Documentos en Proceso", folio)
+                log.warning("[V04-NO_ENCONTRADO] Folio %s no encontrado en Documentos en Proceso "
+                            "(tras reintentos durante 60s)", folio)
                 screenshot(page, f"folio_no_encontrado_{folio}")
+                try:
+                    carpeta.mkdir(parents=True, exist_ok=True)
+                    with open(carpeta / "metadata_satys.json", "w", encoding="utf-8") as f:
+                        json.dump({
+                            "folio": folio,
+                            "nombre_operador": None,
+                            "representante_legal": None,
+                            "error": "FOLIO_NO_ENCONTRADO",
+                            "detalle": "No se encontro el folio en el tablero 'Documentos en "
+                                       "Proceso' tras reintentar durante 60s.",
+                            "fecha_proceso": datetime.now().isoformat(),
+                        }, f, ensure_ascii=False, indent=2)
+                except Exception as e_json:
+                    log.warning("[FOLIO] No se pudo guardar JSON de diagnostico para %s: %s",
+                                folio, e_json)
                 todos_resultados.append({
                     "folio": folio,
                     "archivo": "", "nombre_original": "",

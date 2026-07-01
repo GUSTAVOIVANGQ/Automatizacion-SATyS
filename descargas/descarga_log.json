@@ -1,17 +1,9 @@
 {
-  "fecha": "2026-07-01T15:11:54.319390",
-  "total": 17,
-  "ok": 16,
-  "errores": 1,
+  "fecha": "2026-07-01T15:59:12.960918",
+  "total": 23,
+  "ok": 23,
+  "errores": 0,
   "resultados": [
-    {
-      "folio": "CRT26-027740",
-      "archivo": "REGISTRO_NO_ENCONTRADO",
-      "tipo": "N/A",
-      "ruta": "",
-      "tamano_kb": 0,
-      "ok": false
-    },
     {
       "folio": "VE-166095",
       "archivo": "17738520436353r001-06ok.csv",
@@ -23,9 +15,7 @@
       "tamano_kb": 19.6,
       "ok": true,
       "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17738520436353r001-06ok.csv",
-      "fuente": "DOCUMENTOS_ANEXOS",
-      "registro": "CRT26-013461",
-      "carpeta": "descargas\\CRT26-013461"
+      "fuente": "DOCUMENTOS_ANEXOS"
     },
     {
       "folio": "VE-166095",
@@ -38,9 +28,7 @@
       "tamano_kb": 20.5,
       "ok": true,
       "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17738520333231r001-05okanual.csv",
-      "fuente": "DOCUMENTOS_ANEXOS",
-      "registro": "CRT26-013461",
-      "carpeta": "descargas\\CRT26-013461"
+      "fuente": "DOCUMENTOS_ANEXOS"
     },
     {
       "folio": "VE-166095",
@@ -53,9 +41,7 @@
       "tamano_kb": 18.7,
       "ok": true,
       "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17738520167908r001-04_t4_2025.csv",
-      "fuente": "DOCUMENTOS_ANEXOS",
-      "registro": "CRT26-013461",
-      "carpeta": "descargas\\CRT26-013461"
+      "fuente": "DOCUMENTOS_ANEXOS"
     },
     {
       "folio": "VE-166095",
@@ -68,9 +54,7 @@
       "tamano_kb": 1.3,
       "ok": true,
       "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17738520042688r001-03_t4_2025.csv",
-      "fuente": "DOCUMENTOS_ANEXOS",
-      "registro": "CRT26-013461",
-      "carpeta": "descargas\\CRT26-013461"
+      "fuente": "DOCUMENTOS_ANEXOS"
     },
     {
       "folio": "VE-166095",
@@ -83,9 +67,7 @@
       "tamano_kb": 11.6,
       "ok": true,
       "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17738519941107r001-02ok.csv",
-      "fuente": "DOCUMENTOS_ANEXOS",
-      "registro": "CRT26-013461",
-      "carpeta": "descargas\\CRT26-013461"
+      "fuente": "DOCUMENTOS_ANEXOS"
     },
     {
       "folio": "VE-166095",
@@ -98,9 +80,7 @@
       "tamano_kb": 11.4,
       "ok": true,
       "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17738519823767r001-01ok.csv",
-      "fuente": "DOCUMENTOS_ANEXOS",
-      "registro": "CRT26-013461",
-      "carpeta": "descargas\\CRT26-013461"
+      "fuente": "DOCUMENTOS_ANEXOS"
     },
     {
       "folio": "VE-166095",
@@ -113,9 +93,98 @@
       "tamano_kb": 204.8,
       "ok": true,
       "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/166095/solicitud166095.pdf",
-      "fuente": "DOCUMENTOS_ANEXOS",
-      "registro": "CRT26-013461",
-      "carpeta": "descargas\\CRT26-013461"
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "VE-184911",
+      "archivo": "1782928216566r027-05.csv",
+      "nombre_original": "documento_VE-184911_1",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\CRT26-027740\\1782928216566r027-05.csv",
+      "tamano_kb": 0.1,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/1782928216566r027-05.csv",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "VE-184911",
+      "archivo": "17829282084430r027-04.csv",
+      "nombre_original": "documento_VE-184911_2",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\CRT26-027740\\17829282084430r027-04.csv",
+      "tamano_kb": 0.1,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17829282084430r027-04.csv",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "VE-184911",
+      "archivo": "17829281974715r027-03.csv",
+      "nombre_original": "documento_VE-184911_3",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\CRT26-027740\\17829281974715r027-03.csv",
+      "tamano_kb": 0.2,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17829281974715r027-03.csv",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "VE-184911",
+      "archivo": "17829281894046r027-02.csv",
+      "nombre_original": "documento_VE-184911_4",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\CRT26-027740\\17829281894046r027-02.csv",
+      "tamano_kb": 0.1,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17829281894046r027-02.csv",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "VE-184911",
+      "archivo": "17829281772481r027-01.csv",
+      "nombre_original": "documento_VE-184911_5",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\CRT26-027740\\17829281772481r027-01.csv",
+      "tamano_kb": 0.2,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17829281772481r027-01.csv",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "VE-184911",
+      "archivo": "17829281577990formator027.pdf",
+      "nombre_original": "documento_VE-184911_6",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\CRT26-027740\\17829281577990formator027.pdf",
+      "tamano_kb": 3985.6,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17829281577990formator027.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
+    },
+    {
+      "folio": "VE-184911",
+      "archivo": "solicitud184911.pdf",
+      "nombre_original": "documento_VE-184911_7",
+      "tipo": "",
+      "fecha": "",
+      "descripcion": "",
+      "ruta": "descargas\\CRT26-027740\\solicitud184911.pdf",
+      "tamano_kb": 441.1,
+      "ok": true,
+      "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/184911/solicitud184911.pdf",
+      "fuente": "DOCUMENTOS_ANEXOS"
     },
     {
       "folio": "VE-184737",
@@ -128,9 +197,7 @@
       "tamano_kb": 0.3,
       "ok": true,
       "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17828522765426r003-06.csv",
-      "fuente": "DOCUMENTOS_ANEXOS",
-      "registro": "CRT26-027529",
-      "carpeta": "descargas\\CRT26-027529"
+      "fuente": "DOCUMENTOS_ANEXOS"
     },
     {
       "folio": "VE-184737",
@@ -143,9 +210,7 @@
       "tamano_kb": 0.3,
       "ok": true,
       "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17828522684786r003-05.csv",
-      "fuente": "DOCUMENTOS_ANEXOS",
-      "registro": "CRT26-027529",
-      "carpeta": "descargas\\CRT26-027529"
+      "fuente": "DOCUMENTOS_ANEXOS"
     },
     {
       "folio": "VE-184737",
@@ -158,9 +223,7 @@
       "tamano_kb": 0.1,
       "ok": true,
       "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/1782852260452r003-04.csv",
-      "fuente": "DOCUMENTOS_ANEXOS",
-      "registro": "CRT26-027529",
-      "carpeta": "descargas\\CRT26-027529"
+      "fuente": "DOCUMENTOS_ANEXOS"
     },
     {
       "folio": "VE-184737",
@@ -173,9 +236,7 @@
       "tamano_kb": 0.2,
       "ok": true,
       "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17828522521984r003-03.csv",
-      "fuente": "DOCUMENTOS_ANEXOS",
-      "registro": "CRT26-027529",
-      "carpeta": "descargas\\CRT26-027529"
+      "fuente": "DOCUMENTOS_ANEXOS"
     },
     {
       "folio": "VE-184737",
@@ -188,9 +249,7 @@
       "tamano_kb": 0.5,
       "ok": true,
       "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17828522455704r003-02.csv",
-      "fuente": "DOCUMENTOS_ANEXOS",
-      "registro": "CRT26-027529",
-      "carpeta": "descargas\\CRT26-027529"
+      "fuente": "DOCUMENTOS_ANEXOS"
     },
     {
       "folio": "VE-184737",
@@ -203,9 +262,7 @@
       "tamano_kb": 0.5,
       "ok": true,
       "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/17828522383471r003-01.csv",
-      "fuente": "DOCUMENTOS_ANEXOS",
-      "registro": "CRT26-027529",
-      "carpeta": "descargas\\CRT26-027529"
+      "fuente": "DOCUMENTOS_ANEXOS"
     },
     {
       "folio": "VE-184737",
@@ -218,9 +275,7 @@
       "tamano_kb": 1636.6,
       "ok": true,
       "url": "https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/184737/solicitud184737.pdf",
-      "fuente": "DOCUMENTOS_ANEXOS",
-      "registro": "CRT26-027529",
-      "carpeta": "descargas\\CRT26-027529"
+      "fuente": "DOCUMENTOS_ANEXOS"
     },
     {
       "folio": "CRT26-011878",
@@ -230,9 +285,7 @@
       "tamano_kb": 3131.2,
       "ok": true,
       "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/154723_20260327_190527_1774659927296.pdf",
-      "fuente": "ARCHIVOS_ASOCIADOS",
-      "registro": "CRT26-011878",
-      "carpeta": "descargas\\CRT26-011878"
+      "fuente": "ARCHIVOS_ASOCIADOS"
     },
     {
       "folio": "CRT26-011878",
@@ -242,9 +295,7 @@
       "tamano_kb": 11.4,
       "ok": true,
       "url": "https://satys.ift.org.mx/upload/sigedo/archivosSIGEDO/154723_20260327_171021_1774653021456.csv",
-      "fuente": "ARCHIVOS_ASOCIADOS",
-      "registro": "CRT26-011878",
-      "carpeta": "descargas\\CRT26-011878"
+      "fuente": "ARCHIVOS_ASOCIADOS"
     }
   ]
 }
