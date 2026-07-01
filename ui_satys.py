@@ -1066,7 +1066,12 @@ class SATySApp:
 
     def _summary_candidate_paths(self) -> list[Path]:
         base = self._descargas_dir_actual()
+        kind = self._run_input_kind if self._running and self._run_input_kind else (self.dd_tipo_txt.value or "registros")
+        # En modo registros el script genera procesamiento_log_registros.json;
+        # en modo folios genera procesamiento_log.json. Ambos se buscan siempre
+        # para cubrir el caso en que el usuario cambia de modo sin reiniciar.
         return [
+            base / "procesamiento_log_registros.json",
             base / "procesamiento_log.json",
             base / "descarga_log.json",
             base / "resumen_global.json",
@@ -1115,7 +1120,8 @@ class SATySApp:
         keys: set[str] = set()
         kind = self._run_input_kind if self._running and self._run_input_kind else (self.dd_tipo_txt.value or "registros")
         fields = [
-            r.get("registro"), r.get("numero_registro"), r.get("folio_raw"),
+            # folio_id contiene el número CRT (ej. CRT26-013461) en procesamiento_log_registros.json
+            r.get("folio_id"), r.get("registro"), r.get("numero_registro"), r.get("folio_raw"),
             r.get("folio"), r.get("folio_satys"), r.get("id"),
         ]
         for val in fields:
@@ -1326,10 +1332,49 @@ class SATySApp:
         return {}, ""
 
     def _load_summary_source(self) -> tuple[dict, str]:
-        """Carga Resultados de la ejecución actual, evitando JSON antiguos."""
-        candidates = []
+        """Carga Resultados de la ejecución actual.
+        - En modo 'registros' usa procesamiento_log_registros.json directamente.
+        - En modo 'folios' usa procesamiento_log.json directamente.
+        - Si el archivo primario no existe o no tiene matches, cae al sistema de candidatos.
+        """
+        base = self._descargas_dir_actual()
         run_started = self._run_started_at
         input_keys = self._current_input_keys()
+        kind = self._run_input_kind if self._running and self._run_input_kind else (self.dd_tipo_txt.value or "registros")
+
+        # --- Intento 1: archivo primario según el modo actual ---
+        primary_name = "procesamiento_log_registros.json" if kind == "registros" else "procesamiento_log.json"
+        primary_path = base / primary_name
+        if primary_path.exists():
+            try:
+                primary_mtime = primary_path.stat().st_mtime
+                # Si estamos en mitad de una corrida, sólo aceptar archivos de esta corrida.
+                if run_started and primary_mtime < run_started - 2.0:
+                    pass  # archivo viejo de corrida anterior, ignorar
+                else:
+                    primary_data = self._read_json_safe(primary_path)
+                    if primary_data:
+                        primary_rows = self._summary_results(primary_data)
+                        # Si no hay keys activos o el archivo tiene matches, usarlo directamente.
+                        if not input_keys or self._input_match_count(primary_rows) > 0:
+                            if not self._running:
+                                return primary_data, str(primary_path)
+                            # Durante la corrida, mezclar con datos en vivo si los hay.
+                            live_data, live_source = self._build_live_summary_from_current_run()
+                            if live_data:
+                                live_rows = self._summary_results(live_data)
+                                merged: dict[str, dict] = {}
+                                for row in primary_rows + live_rows:
+                                    ident = str(row.get("folio_id") or row.get("carpeta") or
+                                                self._identifier_for_csv(row) or self._result_folio(row)).strip()
+                                    merged[ident] = row
+                                return {"resultados": list(merged.values()), "fecha": datetime.now().isoformat(), "en_vivo": True}, f"{primary_path} + {live_source}"
+                            return primary_data, str(primary_path)
+            except Exception:
+                pass
+
+        # --- Intento 2: sistema de candidatos (fallback) ---
+        candidates = []
         for path in self._summary_candidate_paths():
             data = self._read_json_safe(path)
             if not data:
@@ -1348,11 +1393,9 @@ class SATySApp:
                 "match_count": match_count,
             })
 
-        # Durante una corrida, nunca usar un resumen viejo de una corrida anterior.
         if run_started:
             candidates = [c for c in candidates if c["mtime"] >= run_started - 2.0]
 
-        # Si ya hay un JSON de la ejecución actual, elegir el que mejor coincide con el TXT activo.
         chosen = None
         if candidates:
             if input_keys:
@@ -1362,7 +1405,6 @@ class SATySApp:
             else:
                 chosen = max(candidates, key=lambda c: c["mtime"])
 
-        # Si NO estamos ejecutando y tenemos un resumen JSON, no necesitamos mezclar los datos en vivo.
         if chosen and not self._running:
             live_data, live_source = None, ""
         else:
@@ -1372,11 +1414,11 @@ class SATySApp:
             live_rows = self._summary_results(live_data)
             if chosen:
                 chosen_rows = self._filter_results_to_current_input(chosen["resultados"])
-                merged: dict[str, dict] = {}
+                merged2: dict[str, dict] = {}
                 for row in chosen_rows + live_rows:
                     ident = str(row.get("folio_id") or row.get("carpeta") or self._identifier_for_csv(row) or self._result_folio(row)).strip()
-                    merged[ident] = row
-                return {"resultados": list(merged.values()), "fecha": datetime.now().isoformat(), "en_vivo": True}, f"{chosen['path']} + {live_source}"
+                    merged2[ident] = row
+                return {"resultados": list(merged2.values()), "fecha": datetime.now().isoformat(), "en_vivo": True}, f"{chosen['path']} + {live_source}"
             return live_data, live_source
 
         if chosen:
@@ -1392,8 +1434,9 @@ class SATySApp:
         # En modo Registro, mostrar y copiar primero el número CRT; en modo Folio, mostrar el folio SATyS.
         kind = self._run_input_kind if self._running and self._run_input_kind else (self.dd_tipo_txt.value or "registros")
         if kind == "registros":
-            return str(r.get("registro") or r.get("numero_registro") or r.get("folio") or r.get("id") or "?")
-        return str(r.get("folio") or r.get("folio_satys") or r.get("registro") or r.get("numero_registro") or r.get("id") or "?")
+            # folio_id = n\u00famero CRT (CRT26-XXXXXX) en procesamiento_log_registros.json
+            return str(r.get("folio_id") or r.get("registro") or r.get("numero_registro") or r.get("folio") or r.get("id") or "?")
+        return str(r.get("folio") or r.get("folio_satys") or r.get("folio_id") or r.get("registro") or r.get("numero_registro") or r.get("id") or "?")
 
     def _result_folder(self, r: dict) -> Path:
         carpeta = r.get("carpeta") or r.get("carpeta_descarga") or r.get("output_dir") or r.get("sin_operador_dir")
@@ -1800,14 +1843,30 @@ class SATySApp:
         duplicados = [r for r in resultados if self._is_duplicate_result(r)]
         baja = [r for r in resultados if self._is_low_match_result(r)]
         no_encontrados = [r for r in resultados if self._is_not_found_result(r)]
-        sin_operador = [
+
+        # sin_operador = no hay rpc_ok ni rpc_resultado (no encontrado en catálogo)
+        # pero SIN error adicional (solo faltan datos del catálogo, los archivos pueden estar bien).
+        # Si además tienen errores reales (rpc_ok=false Y excel_ok=false Y organizado_ok=false),
+        # también se muestran en Errores (igual que en el RESUMEN EJECUTIVO de la terminal).
+        sin_operador_puro = [
             r for r in resultados
-            if (not r.get("rpc_ok")) and not (r.get("rpc_resultado") or {}) and not self._is_success_result(r) and r not in no_encontrados
+            if (not r.get("rpc_ok")) and not (r.get("rpc_resultado") or {})
+            and not self._is_success_result(r) and r not in no_encontrados
+            and r.get("excel_ok") is not False  # archivos descargados y organizados
         ]
-        incompletos = [r for r in resultados if self._is_incomplete_result(r) and r not in no_encontrados and r not in sin_operador]
+        sin_operador_con_error = [
+            r for r in resultados
+            if (not r.get("rpc_ok")) and not (r.get("rpc_resultado") or {})
+            and not self._is_success_result(r) and r not in no_encontrados
+            and r.get("excel_ok") is False  # no se pudo organizar/procesar
+        ]
+        sin_operador = sin_operador_puro + sin_operador_con_error
+        incompletos = [r for r in resultados if self._is_incomplete_result(r)
+                       and r not in no_encontrados and r not in sin_operador]
         errores = [
             r for r in resultados
-            if r not in exitosos and r not in duplicados and r not in baja and r not in no_encontrados and r not in incompletos and r not in sin_operador
+            if r not in exitosos and r not in duplicados and r not in baja
+            and r not in no_encontrados and r not in incompletos and r not in sin_operador_puro
         ]
 
         # Antes aquí se mostraba una tarjeta azul de totales generales.
@@ -1841,7 +1900,11 @@ class SATySApp:
                             "🔴 Errores",
                             errores + incompletos + no_encontrados,
                             RED_ERR,
-                            lambda r: r.get("error") or r.get("mensaje") or r.get("estado") or "Revisión necesaria",
+                            lambda r: (
+                                r.get("error") or r.get("mensaje") or r.get("estado")
+                                or ("Sin operador / no procesado" if not r.get("nombre_operador") else None)
+                                or "Revisión necesaria"
+                            ),
                         ),
                         self._resumen_seccion_sin_operador(sin_operador),
                     ],

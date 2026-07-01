@@ -1,45 +1,38 @@
 {
-  "fecha": "2026-07-01T13:39:03.676467",
-  "total_folios": 5,
-  "folios_exitosos": 4,
-  "folios_incompletos": 1,
-  "folios_no_encontrados": 0,
-  "total_archivos_descargados": 63,
+  "fecha": "2026-07-01T15:11:54.336340",
+  "total_folios": 4,
+  "folios_exitosos": 3,
+  "folios_incompletos": 0,
+  "folios_no_encontrados": 1,
+  "total_archivos_descargados": 16,
   "detalle_folios": [
     {
-      "folio": "2014",
-      "archivos_ok": 15,
-      "archivos_error": 0,
-      "estado": "OK",
-      "carpeta": "descargas\\2014"
+      "folio": "CRT26-027740",
+      "archivos_ok": 0,
+      "archivos_error": 1,
+      "estado": "NO_ENCONTRADO",
+      "carpeta": "descargas\\CRT26-027740"
     },
     {
-      "folio": "178113",
-      "archivos_ok": 13,
+      "folio": "VE-166095",
+      "archivos_ok": 7,
       "archivos_error": 0,
       "estado": "OK",
-      "carpeta": "descargas\\178113"
+      "carpeta": "descargas\\VE-166095"
     },
     {
-      "folio": "178112",
-      "archivos_ok": 15,
+      "folio": "VE-184737",
+      "archivos_ok": 7,
       "archivos_error": 0,
       "estado": "OK",
-      "carpeta": "descargas\\178112"
+      "carpeta": "descargas\\VE-184737"
     },
     {
-      "folio": "178065",
-      "archivos_ok": 14,
+      "folio": "CRT26-011878",
+      "archivos_ok": 2,
       "archivos_error": 0,
       "estado": "OK",
-      "carpeta": "descargas\\178065"
-    },
-    {
-      "folio": "1660",
-      "archivos_ok": 6,
-      "archivos_error": 4,
-      "estado": "INCOMPLETO",
-      "carpeta": "descargas\\1660"
+      "carpeta": "descargas\\CRT26-011878"
     }
   ]
 }
