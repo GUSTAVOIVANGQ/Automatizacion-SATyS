@@ -1,17 +1,45 @@
 {
-  "fecha": "2026-06-30T13:46:53.911215",
-  "total_folios": 1,
-  "folios_exitosos": 1,
-  "folios_incompletos": 0,
+  "fecha": "2026-07-01T13:39:03.676467",
+  "total_folios": 5,
+  "folios_exitosos": 4,
+  "folios_incompletos": 1,
   "folios_no_encontrados": 0,
-  "total_archivos_descargados": 7,
+  "total_archivos_descargados": 63,
   "detalle_folios": [
     {
-      "folio": "VE-166095",
-      "archivos_ok": 7,
+      "folio": "2014",
+      "archivos_ok": 15,
       "archivos_error": 0,
       "estado": "OK",
-      "carpeta": "descargas\\VE-166095"
+      "carpeta": "descargas\\2014"
+    },
+    {
+      "folio": "178113",
+      "archivos_ok": 13,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\178113"
+    },
+    {
+      "folio": "178112",
+      "archivos_ok": 15,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\178112"
+    },
+    {
+      "folio": "178065",
+      "archivos_ok": 14,
+      "archivos_error": 0,
+      "estado": "OK",
+      "carpeta": "descargas\\178065"
+    },
+    {
+      "folio": "1660",
+      "archivos_ok": 6,
+      "archivos_error": 4,
+      "estado": "INCOMPLETO",
+      "carpeta": "descargas\\1660"
     }
   ]
 }

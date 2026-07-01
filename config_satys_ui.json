@@ -1,0 +1,117 @@
+{
+  "tipo_txt": "registros",
+  "archivo_txt": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\registros.txt",
+  "workers": "6",
+  "headless": true,
+  "python_path": "python-3.11.9-embed-amd64\\python.exe",
+  "script_path": "main_procesar.py",
+  "input_kind": "folios",
+  "txt_path": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\folios.txt",
+  "historial": [
+    {
+      "when": "2026-07-01 10:36:14",
+      "return_code": 0,
+      "kind": "Números de registro CRT",
+      "txt": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\registros.txt",
+      "count": 1
+    },
+    {
+      "when": "2026-07-01 11:40:17",
+      "return_code": 0,
+      "kind": "Números de registro CRT",
+      "txt": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\registros.txt",
+      "count": 1
+    },
+    {
+      "when": "2026-07-01 11:51:15",
+      "return_code": 0,
+      "kind": "Folios SATyS",
+      "txt": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\folios.txt",
+      "count": 5
+    },
+    {
+      "when": "2026-07-01 12:05:42",
+      "return_code": 0,
+      "kind": "Números de registro CRT",
+      "txt": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\registros.txt",
+      "count": 1
+    },
+    {
+      "when": "2026-07-01 12:12:35",
+      "return_code": 0,
+      "kind": "Números de registro CRT",
+      "txt": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\registros.txt",
+      "count": 2
+    },
+    {
+      "when": "2026-07-01 12:14:20",
+      "return_code": 0,
+      "kind": "Números de registro CRT",
+      "txt": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\registros.txt",
+      "count": 2
+    },
+    {
+      "when": "2026-07-01 12:39:15",
+      "return_code": 1,
+      "kind": "Números de registro CRT",
+      "txt": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\registros.txt",
+      "count": 2
+    },
+    {
+      "when": "2026-07-01 12:41:47",
+      "return_code": 0,
+      "kind": "Números de registro CRT",
+      "txt": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\registros.txt",
+      "count": 2
+    },
+    {
+      "when": "2026-07-01 12:42:18",
+      "return_code": 0,
+      "kind": "Números de registro CRT",
+      "txt": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\registros.txt",
+      "count": 2
+    },
+    {
+      "when": "2026-07-01 12:48:04",
+      "return_code": 0,
+      "kind": "Folios SATyS",
+      "txt": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\folios.txt",
+      "count": 5
+    },
+    {
+      "when": "2026-07-01 12:56:37",
+      "return_code": 0,
+      "kind": "Números de registro CRT",
+      "txt": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\registros.txt",
+      "count": 2
+    },
+    {
+      "when": "2026-07-01 12:59:32",
+      "return_code": 0,
+      "kind": "Números de registro CRT",
+      "txt": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\registros.txt",
+      "count": 3
+    },
+    {
+      "when": "2026-07-01 13:08:29",
+      "return_code": 0,
+      "kind": "Números de registro CRT",
+      "txt": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\registros.txt",
+      "count": 3
+    },
+    {
+      "when": "2026-07-01 13:14:25",
+      "return_code": 0,
+      "kind": "Folios SATyS",
+      "txt": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\folios.txt",
+      "count": 5
+    },
+    {
+      "when": "2026-07-01 13:39:09",
+      "return_code": 0,
+      "kind": "Folios SATyS",
+      "txt": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\folios.txt",
+      "count": 5
+    }
+  ]
+}

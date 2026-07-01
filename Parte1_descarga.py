@@ -55,8 +55,39 @@ if hasattr(sys.stderr, "buffer") and getattr(sys.stderr, 'encoding', '') != 'utf
 # ============================================================
 #  CONFIGURACION  -- edita solo esta seccion
 # ============================================================
-USUARIO       = os.getenv("SATYS_USER", "david.palestina@ift.org.mx")
-PASSWORD      = os.getenv("SATYS_PASS", "Crt20261234*")
+# Credenciales SATyS
+# Prioridad de lectura:
+#   1) Variables de entorno SATYS_USER / SATYS_PASS
+#   2) Archivo local: C:\Users\<usuario>\.satys\credenciales.txt
+#
+# Formato del archivo credenciales.txt, igual a la plantilla del maestro:
+#   línea 1: usuario/correo SATyS
+#   línea 2: contraseña SATyS
+CREDENCIALES_FILE = Path(os.getenv("SATYS_CREDENTIALS_FILE", str(Path.home() / ".satys" / "credenciales.txt")))
+
+def cargar_credenciales_satys() -> tuple[str, str]:
+    """Carga usuario y contraseña sin dejarlos escritos dentro del código."""
+    usuario = os.getenv("SATYS_USER", "").strip()
+    password = os.getenv("SATYS_PASS", "").strip()
+
+    if usuario and password:
+        return usuario, password
+
+    try:
+        if CREDENCIALES_FILE.exists():
+            with CREDENCIALES_FILE.open("r", encoding="utf-8") as f:
+                usuario_archivo = f.readline().strip()
+                password_archivo = f.readline().strip()
+            usuario = usuario or usuario_archivo
+            password = password or password_archivo
+    except Exception:
+        # No imprimimos datos sensibles; el login mostrará el error genérico.
+        pass
+
+    return usuario, password
+
+
+USUARIO, PASSWORD = cargar_credenciales_satys()
 BASE_URL      = os.getenv("SATYS_BASE_URL", "https://satys.ift.org.mx/")
 DESCARGA_BASE = Path(os.getenv("SATYS_DIR", "descargas"))
 SESION_FILE   = Path("sesion_guardada.json")
@@ -626,6 +657,14 @@ def _verificar_sesion(page) -> bool:
 def login(page) -> bool:
     log.info("[LOGIN] Iniciando sesion...")
     try:
+        if not USUARIO or not PASSWORD:
+            log.error(
+                "[LOGIN] Credenciales SATyS incompletas. Configura SATYS_USER/SATYS_PASS "
+                "o crea el archivo %s con usuario en la primera línea y contraseña en la segunda.",
+                CREDENCIALES_FILE,
+            )
+            return False
+
         log.info("[NET] Cargando pagina login...")
         page.goto(BASE_URL, wait_until="domcontentloaded", timeout=TIMEOUT_NAV)
 

@@ -1,47 +1,56 @@
 #!/usr/bin/env python3
-"""
+r"""
 =============================================================
-  UI — GESTOR DE AUTOMATIZACIÓN SATyS / CRT  (v2)
+  UI — SATyS CRT / PROPUESTA 2
 =============================================================
-Mejoras respecto a la versión anterior:
-  ✅ Botón "Examinar" para seleccionar archivo TXT (FilePicker nativo)
-  ✅ Botón "Examinar" para ruta de Python y script
-  ✅ Botón de acceso rápido a carpeta de descargas / output
-  ✅ Ejecución más rápida: unbuffered + drain más agresivo
-  ✅ Contador de folios en tiempo real en el encabezado
-  ✅ Atajos de teclado: F5 = Iniciar, Esc = Detener
-  ✅ Botón "Copiar log" para depuración rápida
-  ✅ Panel lateral colapsable para ganar espacio en pantallas pequeñas
-  ✅ Tamaño de ventana inicial más grande y redimensionable
-  ✅ Persistencia de config en config_satys.json
+Interfaz web local para ejecutar el flujo principal:
+
+  Entrada:
+    - Un archivo TXT con registros CRT o folios SATyS.
+
+  Salidas esperadas:
+    - TrámitesCRT.xlsx
+    - output/Folios_Datos_Completos.xlsx
+    - Carpetas organizadas dentro de output/
+
+  Además muestra Resultados debajo del Log del proceso y conserva el acceso lateral Resumen.
+
+Nota importante:
+  Esta UI está pensada para ejecutarse en navegador web local con Flet.
+  Cuando abre Explorador de Windows o el diálogo Examinar, usa una rutina
+  de foco con Win32 para que la ventana se abra delante del navegador.
 
 Uso:
-  python ui_satys_mejorado.py
+  .\python-3.11.9-embed-amd64\python.exe ui_satys_propuesta_2.py
 =============================================================
 """
 
+from __future__ import annotations
+
+import csv
 import io
-import os
-import sys
 import json
-import time
+import os
 import queue
-import logging
-import threading
+import shlex
 import subprocess
-from pathlib import Path
+import sys
+import threading
+import time
 from datetime import datetime
+from pathlib import Path
 
 import flet as ft
 
 # ════════════════════════════════════════════════════════
-#  PALETA DE COLORES (basada en el logo CRT — sin cambios)
+#  PALETA VISUAL CRT / SATyS
 # ════════════════════════════════════════════════════════
 
 PAGE_BG            = "#F1F3F5"
 SIDEBAR_BG         = "#D9E7E7"
 SIDEBAR_SEL_BG     = "#C3D6D7"
 CARD_BG            = "#FFFFFF"
+SOFT_CARD_BG       = "#F8FAFA"
 TABLE_HEADER_BG    = "#F4F5F6"
 BORDER_COLOR       = "#E3E7E9"
 DIVIDER_COLOR      = "#ECEEEF"
@@ -71,971 +80,1664 @@ LOG_MUTED          = "#5A7080"
 #  CONFIGURACIÓN
 # ════════════════════════════════════════════════════════
 
-DEFAULT_SCRIPT     = "main_procesar.py"
-DEFAULT_PYTHON     = r"python_portable\python.exe"
-DEFAULT_FOLIO_INI  = "6407"
-DEFAULT_FOLIO_FIN  = "6433"
-DESCARGA_BASE      = Path("descargas")
-CONFIG_FILE        = Path("config_satys.json")
+DEFAULT_SCRIPT       = "main_procesar.py"
+DEFAULT_PYTHON       = r"python-3.11.9-embed-amd64\python.exe"
+DEFAULT_WORKERS      = 6
+DEFAULT_HEADLESS     = True
+CONFIG_FILE          = Path("config_satys_ui.json")
+DESCARGAS_DIR        = Path("descargas")
+OUTPUT_DIR           = Path("output")
+EXCEL_CONTROL        = Path("TrámitesCRT.xlsx")
+EXCEL_CONSOLIDADO    = OUTPUT_DIR / "Folios_Datos_Completos.xlsx"
+PROCESAMIENTO_LOG    = DESCARGAS_DIR / "procesamiento_log.json"
+RESUMEN_GLOBAL_LOG   = DESCARGAS_DIR / "resumen_global.json"
+DESCARGA_LOG          = DESCARGAS_DIR / "descarga_log.json"
+CREDENCIALES_FILE    = Path(os.getenv("SATYS_CREDENTIALS_FILE", str(Path.home() / ".satys" / "credenciales.txt")))
 
 NAV_ITEMS = [
-    ("Procesar Folios",  ft.Icons.PLAY_CIRCLE_OUTLINE, ft.Icons.PLAY_CIRCLE),
-    ("Historial",        ft.Icons.HISTORY,              ft.Icons.HISTORY),
-    ("Configuración",    ft.Icons.SETTINGS_OUTLINED,    ft.Icons.SETTINGS),
+    ("Procesar",      ft.Icons.PLAY_CIRCLE_OUTLINE, ft.Icons.PLAY_CIRCLE),
+    ("Resumen",       ft.Icons.SUMMARIZE_OUTLINED,    ft.Icons.SUMMARIZE_OUTLINED),
+    ("Salidas",       ft.Icons.FOLDER_COPY_OUTLINED, ft.Icons.FOLDER_COPY),
+    ("Historial",     ft.Icons.HISTORY,              ft.Icons.HISTORY),
+    ("Configuración", ft.Icons.SETTINGS_OUTLINED,    ft.Icons.SETTINGS),
 ]
 
 # ════════════════════════════════════════════════════════
-#  HELPERS
+#  HELPERS GENERALES
 # ════════════════════════════════════════════════════════
-
-def _color_for_line(line: str) -> str:
-    l = line.lower()
-    if any(t in l for t in ["✅", "éxito", "exitoso", "ok", "completad", "guardad", "listo", "copiad"]):
-        return LOG_SUCCESS
-    if any(t in l for t in ["❌", "error", "crítico", "falló", "fail", "critical"]):
-        return LOG_ERROR
-    if any(t in l for t in ["⚠️", "warn", "advertencia", "revisión", "empate", "baja"]):
-        return LOG_WARNING
-    if any(t in l for t in ["📥", "📄", "📊", "📁", "🔍", "🆔", "🌐", "💾", "📅", "➕", "📋", "🗂️"]):
-        return LOG_INFO
-    if any(t in l for t in ["───", "═══", "parte", "folio", "procesando", "iniciando"]):
-        return "#A0BBCC"
-    return LOG_TEXT
 
 
 def _ts() -> str:
     return datetime.now().strftime("%H:%M:%S")
 
 
-def _python_exe() -> str:
-    portable = Path(DEFAULT_PYTHON)
-    if portable.exists():
-        return str(portable)
-    return sys.executable
+def _dt() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _load_config() -> dict:
-    """Carga configuración persistida."""
     if CONFIG_FILE.exists():
         try:
             return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
         except Exception:
-            pass
+            return {}
     return {}
 
 
-def _save_config(data: dict):
-    """Guarda configuración en disco."""
+def _save_config(data: dict) -> None:
     try:
         CONFIG_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     except Exception:
         pass
 
 
-def _abrir_carpeta(ruta: str):
-    """Abre carpeta (o archivo) en el explorador de Windows forzando el primer plano."""
-    import subprocess
-    import ctypes
-    from pathlib import Path
-    import os
-    
-    p = Path(ruta)
-    if p.suffix:
-        p.parent.mkdir(parents=True, exist_ok=True)
-    else:
-        p.mkdir(parents=True, exist_ok=True)
-        
+def _python_exe_default() -> str:
+    portable = Path(DEFAULT_PYTHON)
+    if portable.exists():
+        return str(portable)
+    return sys.executable
+
+
+def _line_count_txt(path: str) -> int:
+    p = Path(path)
+    if not p.exists() or not p.is_file():
+        return 0
+    total = 0
     try:
-        # 1. HACK LEGENDARIO DE WINDOWS: Presionar y soltar ALT (VK_MENU = 0x12)
-        # Esto engaña al sistema para que retire el bloqueo de foco (ForegroundLockTimeout)
-        ctypes.windll.user32.keybd_event(0x12, 0, 0, 0)
-        ctypes.windll.user32.keybd_event(0x12, 0, 2, 0)
-        
-        # 2. Permiso explícito de la API
-        ctypes.windll.user32.AllowSetForegroundWindow(-1)
-        
-        # 3. Lanzar con 'explorer /n' (para forzar una ventana nueva y no reusar una oculta)
-        path_str = str(p.resolve())
-        if p.is_file():
-            subprocess.Popen(["explorer", "/select,", path_str])
-        else:
-            subprocess.Popen(["explorer", "/n,", path_str])
-            
+        with open(p, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                if line.strip():
+                    total += 1
     except Exception:
+        return 0
+    return total
+
+
+def _read_satys_credentials() -> tuple[str, str, str]:
+    """Lee credenciales desde ~/.satys/credenciales.txt o variables de entorno."""
+    usuario = ""
+    password = ""
+    source = f"Archivo esperado: {CREDENCIALES_FILE}"
+
+    try:
+        if CREDENCIALES_FILE.exists():
+            with CREDENCIALES_FILE.open("r", encoding="utf-8") as f:
+                usuario = f.readline().strip()
+                password = f.readline().strip()
+            source = f"Credenciales leídas automáticamente desde: {CREDENCIALES_FILE}"
+    except Exception as ex:
+        source = f"No pude leer {CREDENCIALES_FILE}: {ex}"
+
+    if not usuario:
+        usuario = os.getenv("SATYS_USER", "").strip()
+    if not password:
+        password = os.getenv("SATYS_PASS", "").strip()
+    if (usuario or password) and not CREDENCIALES_FILE.exists():
+        source = "Credenciales tomadas de variables de entorno SATYS_USER/SATYS_PASS."
+
+    return usuario, password, source
+
+
+def _write_satys_credentials(usuario: str, password: str) -> tuple[bool, str]:
+    """Guarda credenciales con el formato de 2 líneas de la plantilla."""
+    try:
+        CREDENCIALES_FILE.parent.mkdir(parents=True, exist_ok=True)
+        CREDENCIALES_FILE.write_text(
+            f"{usuario.strip()}\n{password.strip()}\n",
+            encoding="utf-8",
+        )
+        return True, f"Credenciales guardadas en: {CREDENCIALES_FILE}"
+    except Exception as ex:
+        return False, f"No pude guardar credenciales en {CREDENCIALES_FILE}: {ex}"
+
+
+def _command_to_string(args: list[str]) -> str:
+    if os.name == "nt":
+        return subprocess.list2cmdline(args)
+    return shlex.join(args)
+
+
+def _color_for_line(line: str) -> str:
+    l = line.lower()
+    if any(t in l for t in ["✅", "éxito", "exitoso", "ok", "completad", "guardad", "listo", "copiad"]):
+        return LOG_SUCCESS
+    if any(t in l for t in ["❌", "error", "crítico", "critico", "falló", "fallo", "fail", "critical"]):
+        return LOG_ERROR
+    if any(t in l for t in ["⚠", "warn", "advertencia", "revisión", "revision", "empate", "baja"]):
+        return LOG_WARNING
+    if any(t in l for t in ["📥", "📄", "📊", "📁", "🔍", "🆔", "🌐", "💾", "📅", "➕", "📋", "🗂"]):
+        return LOG_INFO
+    if any(t in l for t in ["───", "═══", "parte", "folio", "registro", "procesando", "iniciando"]):
+        return "#A0BBCC"
+    return LOG_TEXT
+
+
+# ════════════════════════════════════════════════════════
+#  WINDOWS: ABRIR DIÁLOGOS Y EXPLORADOR EN PRIMER PLANO
+# ════════════════════════════════════════════════════════
+
+
+def _permitir_ventana_al_frente() -> None:
+    """Best effort: desbloquea el foco de Windows antes de abrir Explorer/dialogs."""
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        # Truco clásico: presionar y soltar ALT para liberar ForegroundLockTimeout.
+        user32.keybd_event(0x12, 0, 0, 0)  # VK_MENU / ALT down
+        user32.keybd_event(0x12, 0, 2, 0)  # ALT up
+        user32.AllowSetForegroundWindow(-1)
+        time.sleep(0.05)
+    except Exception:
+        pass
+
+
+def _abrir_ruta_al_frente(ruta: str | Path, seleccionar_archivo: bool = False) -> None:
+    """Abre carpeta/archivo en Explorer intentando que quede delante del navegador."""
+    p = Path(ruta)
+    try:
+        if p.suffix and not p.exists():
+            p.parent.mkdir(parents=True, exist_ok=True)
+        elif not p.suffix:
+            p.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+
+    _permitir_ventana_al_frente()
+
+    if os.name == "nt":
         try:
-            os.startfile(str(p.resolve()))
+            path_str = str(p.resolve())
+            if seleccionar_archivo or p.is_file():
+                subprocess.Popen(["explorer", "/select,", path_str])
+            else:
+                subprocess.Popen(["explorer", "/n,", path_str])
+            _permitir_ventana_al_frente()
+            return
         except Exception:
             pass
 
+    try:
+        if os.name == "nt":
+            os.startfile(str(p.resolve()))  # type: ignore[attr-defined]
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", str(p.resolve())])
+        else:
+            subprocess.Popen(["xdg-open", str(p.resolve())])
+    except Exception:
+        pass
 
-def _abrir_dialogo_archivo(titulo: str, filtro: str) -> str:
-    """Abre un diálogo nativo de selección de archivo usando la API de Windows (ctypes)."""
-    import ctypes
-    from ctypes import wintypes
-    
-    GetOpenFileNameW = ctypes.windll.comdlg32.GetOpenFileNameW
-    
-    class OPENFILENAMEW(ctypes.Structure):
-        _fields_ = [
-            ("lStructSize", wintypes.DWORD),
-            ("hwndOwner", wintypes.HWND),
-            ("hInstance", wintypes.HINSTANCE),
-            ("lpstrFilter", wintypes.LPCWSTR),
-            ("lpstrCustomFilter", wintypes.LPWSTR),
-            ("nMaxCustFilter", wintypes.DWORD),
-            ("nFilterIndex", wintypes.DWORD),
-            ("lpstrFile", wintypes.LPWSTR),
-            ("nMaxFile", wintypes.DWORD),
-            ("lpstrFileTitle", wintypes.LPWSTR),
-            ("nMaxFileTitle", wintypes.DWORD),
-            ("lpstrInitialDir", wintypes.LPCWSTR),
-            ("lpstrTitle", wintypes.LPCWSTR),
-            ("Flags", wintypes.DWORD),
-            ("nFileOffset", wintypes.WORD),
-            ("nFileExtension", wintypes.WORD),
-            ("lpstrDefExt", wintypes.LPCWSTR),
-            ("lCustData", wintypes.LPARAM),
-            ("lpfnHook", ctypes.c_void_p),
-            ("lpTemplateName", wintypes.LPCWSTR),
-            ("pvReserved", ctypes.c_void_p),
-            ("dwReserved", wintypes.DWORD),
-            ("FlagsEx", wintypes.DWORD)
-        ]
 
-    # Convertir filtro estilo "Archivos|*.txt" a formato null-terminated de Windows
-    filter_nulls = filtro.replace('|', '\0') + '\0\0'
-    file_buffer = ctypes.create_unicode_buffer(260)
-    
-    ofn = OPENFILENAMEW()
-    ofn.lStructSize = ctypes.sizeof(OPENFILENAMEW)
-    
-    # Asignamos como dueña a la ventana activa actual (el navegador web) para forzar que salga por encima
-    ofn.hwndOwner = ctypes.windll.user32.GetForegroundWindow()
-    
-    ofn.lpstrFilter = filter_nulls
-    ofn.lpstrFile = ctypes.cast(file_buffer, wintypes.LPWSTR)
-    ofn.nMaxFile = 260
-    ofn.lpstrTitle = titulo
-    ofn.Flags = 0x00080000 | 0x00001000 | 0x00000008 # OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR
-    
-    if GetOpenFileNameW(ctypes.byref(ofn)):
-        return file_buffer.value
+def _abrir_dialogo_archivo_al_frente(
+    titulo: str,
+    filtro: str,
+    initial_dir: str | None = None,
+) -> str:
+    """
+    Diálogo nativo de selección de archivo.
+    En Windows usa Win32 para que el diálogo salga por encima del navegador local.
+    """
+    _permitir_ventana_al_frente()
+
+    if os.name != "nt":
+        return ""
+
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        GetOpenFileNameW = ctypes.windll.comdlg32.GetOpenFileNameW
+
+        class OPENFILENAMEW(ctypes.Structure):
+            _fields_ = [
+                ("lStructSize", wintypes.DWORD),
+                ("hwndOwner", wintypes.HWND),
+                ("hInstance", wintypes.HINSTANCE),
+                ("lpstrFilter", wintypes.LPCWSTR),
+                ("lpstrCustomFilter", wintypes.LPWSTR),
+                ("nMaxCustFilter", wintypes.DWORD),
+                ("nFilterIndex", wintypes.DWORD),
+                ("lpstrFile", wintypes.LPWSTR),
+                ("nMaxFile", wintypes.DWORD),
+                ("lpstrFileTitle", wintypes.LPWSTR),
+                ("nMaxFileTitle", wintypes.DWORD),
+                ("lpstrInitialDir", wintypes.LPCWSTR),
+                ("lpstrTitle", wintypes.LPCWSTR),
+                ("Flags", wintypes.DWORD),
+                ("nFileOffset", wintypes.WORD),
+                ("nFileExtension", wintypes.WORD),
+                ("lpstrDefExt", wintypes.LPCWSTR),
+                ("lCustData", wintypes.LPARAM),
+                ("lpfnHook", ctypes.c_void_p),
+                ("lpTemplateName", wintypes.LPCWSTR),
+                ("pvReserved", ctypes.c_void_p),
+                ("dwReserved", wintypes.DWORD),
+                ("FlagsEx", wintypes.DWORD),
+            ]
+
+        file_buffer = ctypes.create_unicode_buffer(32768)
+        filter_nulls = filtro.replace("|", "\0") + "\0\0"
+
+        ofn = OPENFILENAMEW()
+        ofn.lStructSize = ctypes.sizeof(OPENFILENAMEW)
+        ofn.hwndOwner = ctypes.windll.user32.GetForegroundWindow()
+        ofn.lpstrFilter = filter_nulls
+        ofn.lpstrFile = ctypes.cast(file_buffer, wintypes.LPWSTR)
+        ofn.nMaxFile = len(file_buffer)
+        ofn.lpstrInitialDir = initial_dir or str(Path.cwd())
+        ofn.lpstrTitle = titulo
+        # OFN_EXPLORER | OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR
+        ofn.Flags = 0x00080000 | 0x00000800 | 0x00001000 | 0x00000008
+
+        ok = GetOpenFileNameW(ctypes.byref(ofn))
+        _permitir_ventana_al_frente()
+        if ok:
+            return file_buffer.value
+    except Exception:
+        pass
+
     return ""
 
 
 # ════════════════════════════════════════════════════════
-#  CLASE PRINCIPAL
+#  APLICACIÓN PRINCIPAL
 # ════════════════════════════════════════════════════════
 
+
 class SATySApp:
+    def _safe_bind(self, control, event_name: str, handler):
+        """Asigna eventos fuera del constructor para compatibilidad con Flet viejo."""
+        try:
+            setattr(control, event_name, handler)
+        except Exception:
+            pass
+
     def __init__(self, page: ft.Page):
         self.page = page
-        self.active_nav = "Procesar Folios"
-
-        # Estado del proceso
-        self._process: subprocess.Popen | None = None
-        self._running = False
-        self._log_queue: queue.Queue = queue.Queue()
-        self._resultados: list = []
-        self._folios_procesados = 0
+        self.active_nav = "Procesar"
         self._sidebar_visible = True
+        self._running = False
+        self._process: subprocess.Popen | None = None
+        self._log_queue: queue.Queue = queue.Queue()
+        self._log_lines: list[str] = []
+        self._items_detectados = 0
+        self._historial: list[dict] = []
+        self._last_summary_refresh_ts = 0.0
+        self._summary_refresh_interval = 1.0
+        self._run_started_at: float | None = None
+        self._run_input_kind = ""
+        self._run_input_items: list[str] = []
+        self._summary_refresh_thread_active = False
 
-        # Cargar config persistida
+        # Controles persistentes para no reconstruir la pantalla Procesar durante
+        # la actualización automática de Resultados. Esto evita que el scroll
+        # regrese arriba mientras el usuario está revisando el log/resultados.
+        self._procesar_screen: ft.Control | None = None
+        self._procesar_summary_slot = ft.Container()
+
         cfg = _load_config()
+        self._cfg = cfg
 
-        # ── FilePickers (Removidos para compatibilidad web) ────
-        self._ruta_txt_interna = ""
+        default_txt = cfg.get("txt_path", "")
+        if not default_txt:
+            if Path("registros.txt").exists():
+                default_txt = "registros.txt"
+            elif Path("folios.txt").exists():
+                default_txt = "folios.txt"
 
-        # ── Campos de texto ────────────────────────────────
-        self.txt_folio_ini = ft.TextField(
-            value=cfg.get("folio_ini", DEFAULT_FOLIO_INI), width=120,
-            text_size=14, height=40,
-            border_color=BORDER_COLOR, focused_border_color=TEAL_PRIMARY,
-            border_radius=ft.BorderRadius.all(8),
-            content_padding=ft.Padding.symmetric(vertical=6, horizontal=10),
-        )
-        self.txt_folio_fin = ft.TextField(
-            value=cfg.get("folio_fin", DEFAULT_FOLIO_FIN), width=120,
-            text_size=14, height=40,
-            border_color=BORDER_COLOR, focused_border_color=TEAL_PRIMARY,
-            border_radius=ft.BorderRadius.all(8),
-            content_padding=ft.Padding.symmetric(vertical=6, horizontal=10),
-        )
-        self.txt_folios_manual = ft.TextField(
-            hint_text="Ej: 6407, 6801, 6802",
-            hint_style=ft.TextStyle(color=TEXT_MUTED, size=13),
-            text_size=13, height=40, expand=True,
-            border_color=BORDER_COLOR, focused_border_color=TEAL_PRIMARY,
-            border_radius=ft.BorderRadius.all(8),
-            content_padding=ft.Padding.symmetric(vertical=6, horizontal=10),
-        )
-        self.txt_archivo_folios = ft.TextField(
-            hint_text="Pega la ruta o clic en 'Examinar'",
-            text_size=13, height=40, expand=True,
-            border_color=BORDER_COLOR, focused_border_color=TEAL_PRIMARY,
-            border_radius=ft.BorderRadius.all(8),
-            content_padding=ft.Padding.symmetric(vertical=6, horizontal=10),
-            read_only=False,  # Ahora es editable por si prefieren copiar/pegar
-        )
-        self.txt_workers = ft.TextField(
-            value=str(cfg.get("workers", 10)), width=90,
-            text_size=13, height=40,
-            label="Workers",
-            border_color=BORDER_COLOR, focused_border_color=TEAL_PRIMARY,
-            border_radius=ft.BorderRadius.all(8),
-            content_padding=ft.Padding.symmetric(vertical=6, horizontal=10),
-        )
-        self.txt_python_path = ft.TextField(
-            value=cfg.get("python_path", _python_exe()),
-            text_size=12, height=40, expand=True,
-            border_color=BORDER_COLOR, focused_border_color=TEAL_PRIMARY,
-            border_radius=ft.BorderRadius.all(8),
-            content_padding=ft.Padding.symmetric(vertical=6, horizontal=10),
-        )
-        self.txt_script_path = ft.TextField(
-            value=cfg.get("script_path", DEFAULT_SCRIPT),
-            text_size=12, height=40, expand=True,
-            border_color=BORDER_COLOR, focused_border_color=TEAL_PRIMARY,
-            border_radius=ft.BorderRadius.all(8),
-            content_padding=ft.Padding.symmetric(vertical=6, horizontal=10),
-        )
-
-        # ── Dropdown de modo ───────────────────────────────
-        self.dd_modo = ft.Dropdown(
-            value=cfg.get("modo", "rango"),
+        # Entrada principal
+        self.dd_tipo_txt = ft.Dropdown(
+            label="El TXT contiene",
+            value=cfg.get("input_kind", "registros"),
             options=[
-                ft.dropdown.Option("rango",  "Rango de folios"),
-                ft.dropdown.Option("manual", "Folios específicos"),
-                ft.dropdown.Option("archivo","Archivo TXT de folios"),
-                ft.dropdown.Option("todos",  "Todos en carpeta descargas/"),
+                ft.dropdown.Option("registros", "Números de registro CRT"),
+                ft.dropdown.Option("folios", "Folios SATyS"),
             ],
-            width=210, text_size=13, height=42,
-            border_color=BORDER_COLOR, focused_border_color=TEAL_PRIMARY,
-            border_radius=ft.BorderRadius.all(8),
+            width=260,
+            height=48,
+            text_size=13,
+            border_color=BORDER_COLOR,
+            focused_border_color=TEAL_PRIMARY,
+            border_radius=ft.BorderRadius.all(10),
             content_padding=ft.Padding.symmetric(vertical=4, horizontal=10),
-            on_select=self._on_modo_change,
+        )
+        self.txt_archivo = ft.TextField(
+            value=default_txt,
+            hint_text="Pega la ruta del archivo .txt o usa Examinar",
+            text_size=13,
+            height=48,
+            expand=True,
+            border_color=BORDER_COLOR,
+            focused_border_color=TEAL_PRIMARY,
+            border_radius=ft.BorderRadius.all(10),
+            content_padding=ft.Padding.symmetric(vertical=8, horizontal=12),
         )
 
-        # ── Switch navegador ───────────────────────────────
-        self.sw_navegador = ft.Switch(
-            label="Ver navegador",
-            value=cfg.get("ver_navegador", True),
+        cred_usuario, cred_password, cred_source = _read_satys_credentials()
+        self.txt_satys_user = ft.TextField(
+            label="Usuario SATyS",
+            value=cred_usuario,
+            hint_text="correo institucional",
+            text_size=13,
+            height=48,
+            expand=True,
+            border_color=BORDER_COLOR,
+            focused_border_color=TEAL_PRIMARY,
+            border_radius=ft.BorderRadius.all(10),
+            content_padding=ft.Padding.symmetric(vertical=6, horizontal=12),
+        )
+        self.txt_satys_pass = ft.TextField(
+            label="Contraseña SATyS",
+            value=cred_password,
+            hint_text="contraseña",
+            password=True,
+            can_reveal_password=True,
+            text_size=13,
+            height=48,
+            expand=True,
+            border_color=BORDER_COLOR,
+            focused_border_color=TEAL_PRIMARY,
+            border_radius=ft.BorderRadius.all(10),
+            content_padding=ft.Padding.symmetric(vertical=6, horizontal=12),
+        )
+        self.cred_status = ft.Text(cred_source, size=11, color=TEXT_MUTED)
+
+        self.txt_workers = ft.TextField(
+            value=str(cfg.get("workers", DEFAULT_WORKERS)),
+            label="Ventanas",
+            width=110,
+            height=48,
+            text_size=13,
+            border_color=BORDER_COLOR,
+            focused_border_color=TEAL_PRIMARY,
+            border_radius=ft.BorderRadius.all(10),
+            content_padding=ft.Padding.symmetric(vertical=4, horizontal=10),
+        )
+        self.sw_headless = ft.Switch(
+            label="Modo rápido sin navegador visible",
+            value=cfg.get("headless", DEFAULT_HEADLESS),
             active_color=TEAL_PRIMARY,
         )
 
-        # ── Filas de folios ────────────────────────────────
-        self.folio_rango_row = ft.Row(
-            spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            controls=[
-                ft.Text("Desde:", size=13, color=TEXT_GRAY),
-                self.txt_folio_ini,
-                ft.Text("Hasta:", size=13, color=TEXT_GRAY),
-                self.txt_folio_fin,
-            ],
+        # Configuración avanzada
+        self.txt_python = ft.TextField(
+            label="Python portable",
+            value=cfg.get("python_path", _python_exe_default()),
+            text_size=13,
+            height=44,
+            expand=True,
+            border_color=BORDER_COLOR,
+            focused_border_color=TEAL_PRIMARY,
+            border_radius=ft.BorderRadius.all(8),
+            content_padding=ft.Padding.symmetric(vertical=6, horizontal=10),
         )
-        self.folio_manual_row = ft.Row(
-            spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            visible=False,
-            controls=[
-                ft.Text("Folios:", size=13, color=TEXT_GRAY),
-                self.txt_folios_manual,
-            ],
-        )
-
-        # ── Fila de archivo con botón Examinar ────────────
-        self.btn_examinar_txt = ft.Button(
-            content=ft.Row(
-                spacing=6, tight=True,
-                controls=[
-                    ft.Icon(ft.Icons.FOLDER_OPEN, size=15, color="#FFF"),
-                    ft.Text("Examinar", size=12, color="#FFF"),
-                ],
-            ),
-            bgcolor=TEAL_PRIMARY,
-            style=ft.ButtonStyle(
-                shape=ft.RoundedRectangleBorder(radius=8),
-                padding=ft.Padding.symmetric(horizontal=14, vertical=10),
-                elevation=0,
-            ),
-            on_click=self._on_pick_txt,
-        )
-        self.folio_archivo_row = ft.Row(
-            spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            visible=False,
-            controls=[
-                ft.Text("Archivo:", size=13, color=TEXT_GRAY),
-                self.txt_archivo_folios,
-                self.btn_examinar_txt,
-            ],
-        )
-        self.folio_todos_text = ft.Text(
-            "Se procesarán todas las carpetas dentro de descargas/",
-            size=13, color=TEXT_MUTED, italic=True, visible=False,
+        self.txt_script = ft.TextField(
+            label="Script principal",
+            value=cfg.get("script_path", DEFAULT_SCRIPT),
+            text_size=13,
+            height=44,
+            expand=True,
+            border_color=BORDER_COLOR,
+            focused_border_color=TEAL_PRIMARY,
+            border_radius=ft.BorderRadius.all(8),
+            content_padding=ft.Padding.symmetric(vertical=6, horizontal=10),
         )
 
-        # ── Botones de acción ──────────────────────────────
-        self.btn_iniciar = ft.Button(
-            content=ft.Row(
-                spacing=8, tight=True,
-                controls=[
-                    ft.Icon(ft.Icons.PLAY_ARROW, size=18, color="#FFF"),
-                    ft.Text("Iniciar  (F5)", size=14, color="#FFF", weight=ft.FontWeight.W_600),
-                ],
-            ),
-            bgcolor=TEAL_PRIMARY,
-            style=ft.ButtonStyle(
-                shape=ft.RoundedRectangleBorder(radius=10),
-                padding=ft.Padding.symmetric(horizontal=22, vertical=14),
-                elevation=0,
-            ),
-            on_click=self._on_iniciar,
-            tooltip="Iniciar procesamiento (F5)",
-        )
-        self.btn_detener = ft.Button(
-            content=ft.Row(
-                spacing=8, tight=True,
-                controls=[
-                    ft.Icon(ft.Icons.STOP, size=18, color="#FFF"),
-                    ft.Text("Detener (Esc)", size=14, color="#FFF", weight=ft.FontWeight.W_600),
-                ],
-            ),
-            bgcolor=RED_ERR,
-            style=ft.ButtonStyle(
-                shape=ft.RoundedRectangleBorder(radius=10),
-                padding=ft.Padding.symmetric(horizontal=22, vertical=14),
-                elevation=0,
-            ),
-            visible=False,
-            on_click=self._on_detener,
-            tooltip="Detener proceso (Esc)",
-        )
-        self.btn_limpiar = ft.TextButton(
-            content=ft.Row(
-                spacing=6, tight=True,
-                controls=[
-                    ft.Icon(ft.Icons.DELETE_OUTLINE, size=16, color=TEXT_GRAY),
-                    ft.Text("Limpiar log", size=13, color=TEXT_GRAY),
-                ],
-            ),
-            on_click=self._on_limpiar_log,
-        )
-        self.btn_copiar_log = ft.TextButton(
-            content=ft.Row(
-                spacing=6, tight=True,
-                controls=[
-                    ft.Icon(ft.Icons.COPY, size=16, color=TEXT_GRAY),
-                    ft.Text("Copiar log", size=13, color=TEXT_GRAY),
-                ],
-            ),
-            on_click=self._on_copiar_log,
-            tooltip="Copia todo el log al portapapeles",
+        # Compatibilidad Flet: algunas versiones no aceptan on_change en el constructor,
+        # pero sí permiten asignarlo después de crear el control.
+        for _control in (
+            self.dd_tipo_txt,
+            self.txt_archivo,
+            self.txt_satys_user,
+            self.txt_satys_pass,
+            self.txt_workers,
+            self.sw_headless,
+            self.txt_python,
+            self.txt_script,
+        ):
+            self._safe_bind(_control, "on_change", self._on_form_change)
+
+        self.command_preview = ft.TextField(
+            label="Comando que se ejecutará",
+            value="",
+            read_only=True,
+            multiline=True,
+            min_lines=2,
+            max_lines=4,
+            expand=True,
+            text_size=12,
+            border_color=BORDER_COLOR,
+            focused_border_color=BORDER_COLOR,
+            border_radius=ft.BorderRadius.all(10),
+            color=TEXT_GRAY,
+            content_padding=ft.Padding.all(12),
         )
 
-        # ── Botones de acceso rápido a carpetas ───────────
-        self.btn_abrir_descargas = ft.OutlinedButton(
-            content=ft.Row(
-                spacing=6, tight=True,
-                controls=[
-                    ft.Icon(ft.Icons.FOLDER, size=15, color=TEAL_PRIMARY),
-                    ft.Text("descargas/", size=12, color=TEAL_PRIMARY),
-                ],
-            ),
-            style=ft.ButtonStyle(
-                shape=ft.RoundedRectangleBorder(radius=8),
-                side=ft.BorderSide(1, TEAL_PRIMARY),
-                padding=ft.Padding.symmetric(horizontal=12, vertical=8),
-            ),
-            on_click=lambda e: _abrir_carpeta("descargas"),
-            tooltip="Abrir carpeta de descargas",
-        )
-        self.btn_abrir_output = ft.OutlinedButton(
-            content=ft.Row(
-                spacing=6, tight=True,
-                controls=[
-                    ft.Icon(ft.Icons.DRIVE_FILE_MOVE, size=15, color=TEAL_PRIMARY),
-                    ft.Text("output/", size=12, color=TEAL_PRIMARY),
-                ],
-            ),
-            style=ft.ButtonStyle(
-                shape=ft.RoundedRectangleBorder(radius=8),
-                side=ft.BorderSide(1, TEAL_PRIMARY),
-                padding=ft.Padding.symmetric(horizontal=12, vertical=8),
-            ),
-            on_click=lambda e: _abrir_carpeta("output"),
-            tooltip="Abrir carpeta de salida",
-        )
-        self.btn_abrir_excel = ft.OutlinedButton(
-            content=ft.Row(
-                spacing=6, tight=True,
-                controls=[
-                    ft.Icon(ft.Icons.TABLE_VIEW, size=15, color=TEAL_PRIMARY),
-                    ft.Text("Excel", size=12, color=TEAL_PRIMARY),
-                ],
-            ),
-            style=ft.ButtonStyle(
-                shape=ft.RoundedRectangleBorder(radius=8),
-                side=ft.BorderSide(1, TEAL_PRIMARY),
-                padding=ft.Padding.symmetric(horizontal=12, vertical=8),
-            ),
-            on_click=lambda e: _abrir_carpeta(str(Path("output") / "Folios_Datos_Completos.xlsx")),
-            tooltip="Abrir Excel de folios procesados",
-        )
-
-        # ── Status bar ─────────────────────────────────────
-        self.status_icon  = ft.Icon(ft.Icons.CIRCLE, size=12, color=TEXT_MUTED)
+        # Estado / acciones
+        self.status_icon = ft.Icon(ft.Icons.CIRCLE, size=12, color=TEXT_MUTED)
         self.status_label = ft.Text("Listo", size=13, color=TEXT_MUTED)
-        self.folio_counter = ft.Text("", size=12, color=TEXT_MUTED)
-        self.progress_bar  = ft.ProgressBar(
-            value=0, bar_height=4,
-            color=TEAL_PROGRESS, bgcolor=DIVIDER_COLOR,
-            border_radius=ft.BorderRadius.all(4),
+        self.counter_label = ft.Text("0 elementos detectados", size=12, color=TEXT_MUTED)
+        self.progress = ft.ProgressBar(value=0, visible=False, color=TEAL_PROGRESS, bgcolor=DIVIDER_COLOR)
+
+        self.btn_iniciar = ft.ElevatedButton(
+            "Iniciar procesamiento",
+            icon=ft.Icons.PLAY_ARROW,
+            height=44,
+            style=ft.ButtonStyle(
+                bgcolor=TEAL_PRIMARY,
+                color="white",
+                shape=ft.RoundedRectangleBorder(radius=10),
+                padding=ft.Padding.symmetric(horizontal=18, vertical=8),
+            ),
+            on_click=self._start_process,
+        )
+        self.btn_detener = ft.OutlinedButton(
+            "Detener",
+            icon=ft.Icons.STOP,
+            height=44,
             visible=False,
+            style=ft.ButtonStyle(
+                color=RED_ERR,
+                side=ft.BorderSide(1, RED_ERR),
+                shape=ft.RoundedRectangleBorder(radius=10),
+                padding=ft.Padding.symmetric(horizontal=16, vertical=8),
+            ),
+            on_click=self._stop_process,
         )
 
-        # ── Área de log ────────────────────────────────────
-        self._log_lines: list[str] = []   # cache para copiar
-        self.log_column = ft.Column(
-            spacing=1, scroll=ft.ScrollMode.AUTO,
-            auto_scroll=True, expand=True,
+        # Log
+        self.log_view = ft.ListView(
+            expand=True,
+            auto_scroll=True,
+            spacing=2,
+            padding=ft.Padding.only(left=14, right=12, top=12, bottom=12),
         )
 
-        # ── Resumen ────────────────────────────────────────
-        self.resumen_column = ft.Column(spacing=8, visible=False)
+        # Salidas: etiquetas actualizables
+        self.out_excel_control_status = ft.Text("Pendiente de verificar", size=12, color=TEXT_MUTED)
+        self.out_excel_consolidado_status = ft.Text("Pendiente de verificar", size=12, color=TEXT_MUTED)
+        self.out_output_status = ft.Text("Pendiente de verificar", size=12, color=TEXT_MUTED)
+        self.out_descargas_status = ft.Text("Pendiente de verificar", size=12, color=TEXT_MUTED)
 
-        # ── Toast ──────────────────────────────────────────
         self.toast = ft.Container(
             visible=False,
-            padding=ft.Padding.symmetric(vertical=8, horizontal=16),
-            bgcolor=CARD_BG,
-            border=ft.Border.all(1, BORDER_COLOR),
-            border_radius=ft.BorderRadius.all(8),
-            shadow=ft.BoxShadow(blur_radius=10, color="#22000000", offset=ft.Offset(0, 2)),
-            content=ft.Row(
-                spacing=8,
-                controls=[
-                    ft.Icon(ft.Icons.CHECK_CIRCLE, color=GREEN_OK, size=18),
-                    ft.Text("", size=13, color=TEXT_DARK),
-                ],
-            ),
+            bgcolor=TEXT_DARK,
+            border_radius=ft.BorderRadius.all(10),
+            padding=ft.Padding.symmetric(horizontal=16, vertical=10),
+            content=ft.Text("", color="white", size=12),
         )
 
-        # ── Historial ──────────────────────────────────────
-        self._historial: list = []
-        self.hist_column = ft.Column(spacing=8, expand=True, scroll=ft.ScrollMode.AUTO)
+        self.header_title = ft.Text("Procesamiento SATyS", size=26, weight=ft.FontWeight.BOLD, color=TEXT_DARK)
+        self.screen_container = ft.Container(expand=True)
+        self.header_row = self._build_header()
 
-        # ── Sidebar toggle btn ─────────────────────────────
-        self.btn_toggle_sidebar = ft.IconButton(
-            icon=ft.Icons.MENU,
-            icon_color=TEXT_GRAY,
-            icon_size=20,
-            tooltip="Colapsar/expandir menú lateral",
-            on_click=self._on_toggle_sidebar,
-        )
+        self._update_command_preview()
+        self._refresh_outputs()
 
-        # Referencias a contenedores que se reconstruyen
-        self.sidebar_container = None
-        self.main_area_ref     = None
-        self.sidebar_nav_col   = None
-        self.header_row        = None
-        self.screen_container  = None
-
-        # Registrar atajos de teclado
-        page.on_keyboard_event = self._on_keyboard
-
-        # Sincronizar visibilidad inicial según modo guardado
-        self._sync_modo_visible()
+        self.page.on_keyboard_event = self._handle_keyboard
 
     # ════════════════════════════════════════════════════
-    #  FILEPICKER CALLBACKS
+    #  CONTROLES VISUALES BASE
     # ════════════════════════════════════════════════════
 
-    def _on_pick_txt(self, e):
-        file_path = _abrir_dialogo_archivo(
-            "Selecciona el archivo TXT con folios",
-            "Archivos de texto (*.txt)|*.txt|Todos los archivos (*.*)|*.*"
-        )
-        if file_path:
-            self._ruta_txt_interna = file_path
-            self.txt_archivo_folios.value = Path(file_path).name
-            self.txt_archivo_folios.update()
-
-    def _on_pick_py(self, e):
-        file_path = _abrir_dialogo_archivo(
-            "Seleccionar ejecutable de Python",
-            "Ejecutables (*.exe)|*.exe|Todos los archivos (*.*)|*.*"
-        )
-        if file_path:
-            self.txt_python_path.value = file_path
-            self.txt_python_path.update()
-
-    def _on_pick_script(self, e):
-        file_path = _abrir_dialogo_archivo(
-            "Seleccionar script principal",
-            "Scripts de Python (*.py)|*.py|Todos los archivos (*.*)|*.*"
-        )
-        if file_path:
-            self.txt_script_path.value = file_path
-            self.txt_script_path.update()
-
-    # ════════════════════════════════════════════════════
-    #  ATAJOS DE TECLADO
-    # ════════════════════════════════════════════════════
-
-    def _on_keyboard(self, e: ft.KeyboardEvent):
-        if e.key == "F5" and not self._running:
-            self._on_iniciar(None)
-        elif e.key == "Escape" and self._running:
-            self._on_detener(None)
-
-    # ════════════════════════════════════════════════════
-    #  TOGGLE SIDEBAR
-    # ════════════════════════════════════════════════════
-
-    def _on_toggle_sidebar(self, e):
-        self._sidebar_visible = not self._sidebar_visible
-        if self.sidebar_container:
-            self.sidebar_container.visible = self._sidebar_visible
+    def _show_toast(self, message: str, seconds: float = 2.0) -> None:
+        try:
+            self.toast.content.value = message
+            self.toast.visible = True
             self.page.update()
 
-    # ════════════════════════════════════════════════════
-    #  EVENTOS DE CONTROLES
-    # ════════════════════════════════════════════════════
-
-    def _sync_modo_visible(self):
-        modo = self.dd_modo.value
-        self.folio_rango_row.visible   = (modo == "rango")
-        self.folio_manual_row.visible  = (modo == "manual")
-        self.folio_archivo_row.visible = (modo == "archivo")
-        self.folio_todos_text.visible  = (modo == "todos")
-
-    def _on_modo_change(self, e):
-        self._sync_modo_visible()
-        self.page.update()
-
-    def _on_limpiar_log(self, e):
-        self._log_lines.clear()
-        self.log_column.controls.clear()
-        self.resumen_column.visible = False
-        self.folio_counter.value = ""
-        self.page.update()
-
-    def _on_copiar_log(self, e):
-        text = "\n".join(self._log_lines)
-        try:
-            proc = subprocess.Popen(
-                ["clip"],
-                stdin=subprocess.PIPE,
-                close_fds=True,
-            )
-            proc.communicate(input=text.encode("utf-8"))
-            self.show_toast("Log copiado al portapapeles.")
-        except Exception as ex:
-            self.show_toast(f"No se pudo copiar: {ex}", error=True)
-
-    def _on_iniciar(self, e):
-        if self._running:
-            return
-        self._lanzar_proceso()
-
-    def _on_detener(self, e):
-        if self._process:
-            try:
-                self._process.terminate()
-                self._append_log_line("⛔ Proceso detenido por el usuario.", LOG_WARNING)
-            except Exception as ex:
-                self._append_log_line(f"⚠️ No se pudo detener: {ex}", LOG_ERROR)
-        self._set_running(False)
-
-    # ════════════════════════════════════════════════════
-    #  LÓGICA DE PROCESO
-    # ════════════════════════════════════════════════════
-
-    def _build_args(self) -> list[str]:
-        python = self.txt_python_path.value.strip() or _python_exe()
-        script = self.txt_script_path.value.strip() or DEFAULT_SCRIPT
-        modo   = self.dd_modo.value
-
-        args = [python, "-u", script]   # -u = unbuffered → salida más rápida
-
-        workers_str = self.txt_workers.value.strip()
-        if workers_str.isdigit():
-            args += ["--workers", workers_str]
-
-        if not self.sw_navegador.value:
-            args.append("--headless")
-
-        if modo == "rango":
-            ini = self.txt_folio_ini.value.strip()
-            fin = self.txt_folio_fin.value.strip()
-            if not ini or not fin:
-                raise ValueError("Ingresa el folio inicial y final.")
-            ini_int, fin_int = int(ini), int(fin)
-            if fin_int < ini_int:
-                raise ValueError("El folio final no puede ser menor al inicial.")
-            cantidad = fin_int - ini_int + 1
-            args += ["--buscar", str(cantidad), "--desde", str(ini_int)]
-
-        elif modo == "manual":
-            raw = self.txt_folios_manual.value.strip()
-            if not raw:
-                raise ValueError("Ingresa al menos un folio.")
-            folios = [f.strip() for f in raw.replace(",", " ").split() if f.strip()]
-            if not folios:
-                raise ValueError("No se reconocieron folios válidos.")
-            args += folios
-
-        elif modo == "archivo":
-            ruta_txt = (getattr(self, "_ruta_txt_interna", "") or self.txt_archivo_folios.value or "").strip()
-            if not ruta_txt:
-                raise ValueError("Selecciona un archivo TXT con folios.")
-            if not Path(ruta_txt).exists():
-                raise ValueError(f"El archivo no existe:\n{ruta_txt}")
-            args += ["--archivo-folios", ruta_txt]
-
-        # modo "todos": sin folios extra
-        return args
-
-    def _lanzar_proceso(self):
-        try:
-            args = self._build_args()
-        except ValueError as ve:
-            self.show_toast(str(ve), error=True)
-            return
-
-        # Persistir configuración antes de lanzar
-        _save_config({
-            "folio_ini":    self.txt_folio_ini.value,
-            "folio_fin":    self.txt_folio_fin.value,
-            "workers":      self.txt_workers.value,
-            "modo":         self.dd_modo.value,
-            "ver_navegador": self.sw_navegador.value,
-            "python_path":  self.txt_python_path.value,
-            "script_path":  self.txt_script_path.value,
-        })
-
-        self._set_running(True)
-        self._resultados = []
-        self._folios_procesados = 0
-        self.resumen_column.visible = False
-
-        linea_cmd = " ".join(args)
-        self._append_log_line(f"{'─' * 60}", LOG_MUTED)
-        self._append_log_line(f"[{_ts()}] Iniciando proceso…", LOG_INFO)
-        self._append_log_line(f"CMD: {linea_cmd}", LOG_MUTED)
-        self._append_log_line(f"{'─' * 60}", LOG_MUTED)
-        self.page.update()
-
-        def run():
-            try:
-                env = os.environ.copy()
-                env["PYTHONIOENCODING"] = "utf-8"
-                env["PYTHONUNBUFFERED"] = "1"   # sin buffer en el script hijo
-                self._process = subprocess.Popen(
-                    args,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    env=env,
-                    bufsize=1,            # línea por línea — más rápido
-                    cwd=str(Path(self.txt_script_path.value).resolve().parent)
-                       if Path(self.txt_script_path.value).is_file() else None,
-                )
-                for line in self._process.stdout:
-                    self._log_queue.put(line.rstrip("\n"))
-                self._process.wait()
-                rc = self._process.returncode
-                self._log_queue.put(None)
-                self._log_queue.put(("__done__", rc))
-            except Exception as ex:
-                self._log_queue.put(f"❌ Error al lanzar proceso: {ex}")
-                self._log_queue.put(None)
-                self._log_queue.put(("__done__", -1))
-
-        def drain():
-            """Drena la cola con un timeout corto para mayor responsividad."""
-            done = False
-            rc = 0
-            BATCH = 20          # procesa hasta 20 líneas antes de hacer update
-            while True:
-                batch = []
+            def hide():
+                time.sleep(seconds)
+                self.toast.visible = False
                 try:
-                    while len(batch) < BATCH:
-                        item = self._log_queue.get(timeout=0.03)
-                        if item is None:
-                            done = True
-                            break
-                        if isinstance(item, tuple) and item[0] == "__done__":
-                            rc = item[1]
-                            done = True
-                            break
-                        batch.append(item)
-                except queue.Empty:
+                    self.page.update()
+                except Exception:
                     pass
 
-                if batch:
-                    for line in batch:
-                        color = _color_for_line(line)
-                        self._append_log_line(line, color)
-                        # Contador de folios en tiempo real
-                        if "folio" in line.lower() and ("procesando" in line.lower() or "iniciando" in line.lower()):
-                            self._folios_procesados += 1
-                            self.folio_counter.value = f"Folios vistos: {self._folios_procesados}"
-                    try:
-                        self.page.update()
-                    except Exception:
-                        pass
-
-                if done:
-                    break
-
-            try:
-                self.page.update()
-            except Exception:
-                pass
-            self._on_proceso_terminado(rc)
-
-        threading.Thread(target=run,   daemon=True).start()
-        threading.Thread(target=drain, daemon=True).start()
-
-    def _on_proceso_terminado(self, rc: int):
-        ts = _ts()
-        if rc == 0:
-            self._append_log_line(f"[{ts}] ✅ Proceso completado correctamente.", LOG_SUCCESS)
-        else:
-            self._append_log_line(f"[{ts}] ❌ Proceso terminó con código {rc}.", LOG_ERROR)
-
-        self._set_running(False)
-        try:
-            self._cargar_resumen_desde_log()
-        except Exception:
-            import traceback; traceback.print_exc()
-        self._agregar_a_historial(rc)
-        try:
-            self.page.update()
+            threading.Thread(target=hide, daemon=True).start()
         except Exception:
             pass
 
-    def _set_running(self, running: bool):
-        self._running = running
-        self.btn_iniciar.visible = not running
-        self.btn_detener.visible = running
-        self.progress_bar.visible = running
-        if running:
-            self.progress_bar.value = None  # indeterminado
-            self.status_icon.color  = TEAL_PROGRESS
-            self.status_label.value = "Procesando…"
-            self.status_label.color = TEAL_PRIMARY
-        else:
-            self.progress_bar.value = 0
-            self.status_icon.color  = TEXT_MUTED
-            self.status_label.value = "Listo"
-            self.status_label.color = TEXT_MUTED
-        try:
-            self.page.update()
-        except Exception:
-            pass
-
-    # ════════════════════════════════════════════════════
-    #  LOG
-    # ════════════════════════════════════════════════════
-
-    def _append_log_line(self, text: str, color: str = LOG_TEXT):
-        self._log_lines.append(text)
-        print(text, flush=True)  # Espeja el log en la terminal de VS Code
-        self.log_column.controls.append(
-            ft.Text(
-                text, size=12, color=color,
-                font_family="Consolas",
-                selectable=True, no_wrap=True,
-            )
-        )
-
-    # ════════════════════════════════════════════════════
-    #  RESUMEN EJECUTIVO
-    # ════════════════════════════════════════════════════
-
-    def _cargar_resumen_desde_log(self):
-        log_path = DESCARGA_BASE / "procesamiento_log.json"
-        if not log_path.exists():
-            return
-        try:
-            data = json.loads(log_path.read_text(encoding="utf-8"))
-        except Exception:
-            return
-
-        resultados = data.get("resultados", [])
-        if not resultados:
-            return
-
-        # Mapeo exacto con imprimir_reporte() en main_procesar.py
-        exitosos = [
-            r for r in resultados
-            if r.get("rpc_ok") and r.get("organizado_ok") and r.get("excel_ok")
-        ]
-        sin_operador = [
-            r for r in resultados
-            if not r.get("rpc_ok") and not r.get("rpc_resultado")
-            and not r.get("organizado_ok")
-        ]
-
-        resumen_gral = ft.Container(
-            padding=ft.Padding.all(16),
-            border_radius=ft.BorderRadius.all(10),
-            bgcolor=BLUE_INFO,
-            content=ft.Row(
-                wrap=True,
-                alignment=ft.MainAxisAlignment.SPACE_AROUND,
+    def _card(self, title: str, subtitle: str | None, content: ft.Control, icon=None) -> ft.Container:
+        header_controls = []
+        if icon is not None:
+            header_controls.append(ft.Icon(icon, size=18, color=TEAL_PRIMARY))
+        header_controls.extend([
+            ft.Column(
+                spacing=2,
+                expand=True,
                 controls=[
-                    self._stat_col("TOTAL FOLIOS",  len(resultados)),
-                    self._stat_col("ÉXITO TOTAL",   len(exitosos)),
-                    self._stat_col("SIN CATÁLOGO",  len(sin_operador)),
+                    ft.Text(title, size=15, color=TEXT_DARK, weight=ft.FontWeight.W_700),
+                    ft.Text(subtitle or "", size=12, color=TEXT_MUTED, visible=bool(subtitle)),
+                ],
+            )
+        ])
+        return ft.Container(
+            bgcolor=CARD_BG,
+            border_radius=ft.BorderRadius.all(16),
+            border=ft.Border.all(1, BORDER_COLOR),
+            padding=ft.Padding.all(18),
+            content=ft.Column(
+                spacing=14,
+                controls=[
+                    ft.Row(alignment=ft.MainAxisAlignment.START, controls=header_controls),
+                    content,
                 ],
             ),
         )
 
-        self.resumen_column.controls = [
-            resumen_gral,
-            self._resumen_seccion(
-                "🟢 ÉXITO TOTAL", exitosos, GREEN_OK,
-                lambda r: f"Organizado en: {r.get('rpc_resultado', {}).get('nombre_completo', '—')}",
+    def _small_button(self, label: str, icon, on_click) -> ft.Control:
+        return ft.OutlinedButton(
+            label,
+            icon=icon,
+            height=36,
+            style=ft.ButtonStyle(
+                color=TEAL_PRIMARY,
+                side=ft.BorderSide(1, TEAL_PRIMARY),
+                shape=ft.RoundedRectangleBorder(radius=9),
+                padding=ft.Padding.symmetric(horizontal=12, vertical=6),
             ),
-            self._resumen_seccion_sin_operador(sin_operador),
-        ]
+            on_click=on_click,
+        )
 
-        datos_ui = self._cargar_datos_folios(resultados)
-        if datos_ui:
-            self.resumen_column.controls.append(datos_ui)
+    def _pill(self, text: str, icon, color: str = TEAL_PRIMARY) -> ft.Control:
+        return ft.Container(
+            bgcolor="#EDF6F7",
+            border_radius=ft.BorderRadius.all(999),
+            padding=ft.Padding.symmetric(horizontal=12, vertical=7),
+            content=ft.Row(
+                spacing=6,
+                tight=True,
+                controls=[ft.Icon(icon, size=14, color=color), ft.Text(text, size=12, color=color, weight=ft.FontWeight.W_600)],
+            ),
+        )
 
-        self.resumen_column.visible = True
+    # ════════════════════════════════════════════════════
+    #  LAYOUT GENERAL
+    # ════════════════════════════════════════════════════
 
-    def _cargar_datos_folios(self, resultados) -> ft.Control | None:
-        cards = []
-        for r in resultados:
-            folio   = r.get("folio", "?")
-            carpeta = DESCARGA_BASE / folio
-            meta    = {}
-
-            for meta_name in ("metadata_satys.json", "metadata_tramite_nuevo.json"):
-                mp = carpeta / meta_name
-                if mp.exists():
-                    try:
-                        meta.update(json.loads(mp.read_text(encoding="utf-8")))
-                    except Exception:
-                        pass
-
-            if not meta:
-                continue
-
-            nombre    = meta.get("nombre_operador", meta.get("razon_social", "—"))
-            asunto    = meta.get("asunto", "—")
-            id_sol    = meta.get("id_solicitante", "—")
-            rep_leg   = meta.get("representante_legal", "—")
-            fecha_reg = meta.get("fecha_registro", meta.get("fecha", "—"))
-
-            score_rpc = r.get("rpc_resultado", {}).get("score", 0) * 100
-            score_str = (
-                f"{score_rpc:.0f}%"        if r.get("rpc_ok")
-                else ("—"                  if not r.get("pdf_encontrado")
-                else f"⚠️ {score_rpc:.0f}%")
-            )
-
-            archivos_descargados = []
-            if carpeta.exists():
-                for f in carpeta.iterdir():
-                    if f.is_file() and f.suffix.lower() not in {".json", ".txt"}:
-                        archivos_descargados.append(f.name)
-
-            lista_archivos_ui = ft.Column(spacing=2)
-            if archivos_descargados:
-                lista_archivos_ui.controls.append(
-                    ft.Text("Archivos descargados:", size=11, color=TEXT_GRAY, weight=ft.FontWeight.W_600)
-                )
-                for arch in archivos_descargados:
-                    ext = arch.lower()
-                    icono = (ft.Icons.PICTURE_AS_PDF if ext.endswith(".pdf")
-                             else ft.Icons.TABLE_CHART if ext.endswith(".xlsx")
-                             else ft.Icons.INSERT_DRIVE_FILE)
-                    color = (RED_ERR if ext.endswith(".pdf")
-                             else GREEN_OK if ext.endswith(".xlsx")
-                             else TEXT_GRAY)
-                    lista_archivos_ui.controls.append(
-                        ft.Row(spacing=4, controls=[
-                            ft.Icon(icono, size=12, color=color),
-                            ft.Text(arch, size=11, color=TEXT_DARK),
-                        ])
-                    )
-            else:
-                lista_archivos_ui.controls.append(
-                    ft.Text("Sin archivos descargados", size=11, color=TEXT_MUTED, italic=True)
-                )
-
-            btn_abrir = ft.TextButton(
-                "Abrir carpeta",
-                icon=ft.Icons.FOLDER_OPEN,
-                style=ft.ButtonStyle(
-                    color=TEAL_PRIMARY,
-                    padding=ft.Padding.symmetric(horizontal=8, vertical=0),
+    def _build_sidebar(self) -> ft.Control:
+        if not self._sidebar_visible:
+            return ft.Container(
+                width=56,
+                bgcolor=SIDEBAR_BG,
+                padding=ft.Padding.only(top=26),
+                content=ft.Column(
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    controls=[
+                        ft.IconButton(
+                            icon=ft.Icons.MENU,
+                            icon_color=TEAL_DARK,
+                            tooltip="Mostrar menú",
+                            on_click=self._toggle_sidebar,
+                        )
+                    ],
                 ),
-                on_click=lambda e, ruta=str(carpeta): _abrir_carpeta(ruta),
             )
 
-            cards.append(
+        nav_controls = []
+        for label, icon_outline, icon_filled in NAV_ITEMS:
+            selected = label == self.active_nav
+            nav_controls.append(
                 ft.Container(
-                    bgcolor=PAGE_BG, padding=ft.Padding.all(12),
-                    border_radius=ft.BorderRadius.all(8),
-                    border=ft.Border.all(1, BORDER_COLOR),
-                    content=ft.Column(
-                        spacing=8,
+                    height=48,
+                    border_radius=ft.BorderRadius.all(10),
+                    bgcolor=SIDEBAR_SEL_BG if selected else None,
+                    padding=ft.Padding.symmetric(horizontal=14, vertical=6),
+                    on_click=lambda e, l=label: self._select_nav(l),
+                    content=ft.Row(
+                        spacing=12,
                         controls=[
-                            ft.Row(
-                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                                controls=[
-                                    ft.Text(f"Folio: {folio}", size=14,
-                                            weight=ft.FontWeight.W_700, color=TEXT_DARK),
-                                    ft.Row(spacing=10, controls=[
-                                        btn_abrir,
-                                        ft.Container(
-                                            padding=ft.Padding.symmetric(horizontal=6, vertical=2),
-                                            bgcolor=(TEAL_PRIMARY if r.get("rpc_ok")
-                                                     else RED_ERR if not r.get("pdf_encontrado")
-                                                     else ORANGE_WARN),
-                                            border_radius=ft.BorderRadius.all(6),
-                                            content=ft.Text(
-                                                f"RPC: {score_str}", size=11,
-                                                color="#FFF", weight=ft.FontWeight.W_600,
-                                            ),
-                                        ),
-                                    ]),
-                                ],
-                            ),
-                            ft.Column(
-                                spacing=2,
-                                controls=[
-                                    ft.Text(f"Nombre: {nombre}", size=12,
-                                            color=TEXT_DARK, weight=ft.FontWeight.W_600),
-                                    ft.Text(f"Asunto: {asunto}", size=11, color=TEXT_GRAY),
-                                    ft.Row(
-                                        spacing=15,
-                                        controls=[
-                                            ft.Text(f"ID: {id_sol}", size=11, color=TEXT_GRAY),
-                                            ft.Text(f"Rep. Legal: {rep_leg}", size=11, color=TEXT_GRAY),
-                                            ft.Text(f"Fecha: {fecha_reg}", size=11, color=TEXT_GRAY),
-                                        ],
-                                    ),
-                                ],
-                            ),
-                            ft.Divider(height=1, color=DIVIDER_COLOR),
-                            lista_archivos_ui,
+                            ft.Icon(icon_filled if selected else icon_outline, size=22, color=TEAL_DARK if selected else TEXT_GRAY),
+                            ft.Text(label, size=14, color=TEAL_DARK if selected else TEXT_GRAY, weight=ft.FontWeight.W_600 if selected else ft.FontWeight.NORMAL),
                         ],
                     ),
                 )
             )
 
-        if not cards:
+        return ft.Container(
+            width=260,
+            bgcolor=SIDEBAR_BG,
+            padding=ft.Padding.only(left=16, right=12, top=24, bottom=16),
+            content=ft.Column(
+                spacing=22,
+                expand=True,
+                controls=[
+                    ft.Row(
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        controls=[
+                            ft.Column(spacing=2, controls=[
+                                ft.Text("AUTOMATIZACIÓN", size=11, color=TEXT_MUTED, weight=ft.FontWeight.W_700),
+                                ft.Text("SATyS CRT", size=18, color=TEAL_DARK, weight=ft.FontWeight.BOLD),
+                            ]),
+                            ft.IconButton(icon=ft.Icons.CHEVRON_LEFT, icon_color=TEXT_GRAY, tooltip="Contraer menú", on_click=self._toggle_sidebar),
+                        ],
+                    ),
+                    ft.Column(spacing=8, controls=nav_controls),
+                    ft.Container(expand=True),
+                    ft.Text("© CRT 2025", size=11, color=TEXT_MUTED),
+                ],
+            ),
+        )
+
+    def _build_header(self) -> ft.Control:
+        return ft.Row(
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            vertical_alignment=ft.CrossAxisAlignment.START,
+            controls=[
+                ft.Column(
+                    spacing=3,
+                    controls=[
+                        ft.Row(spacing=10, controls=[
+                            ft.Column(spacing=0, controls=[
+                                ft.Text("SATyS — Descarga, Excel y Organización", size=13, color=TEXT_GRAY),
+                                self.header_title,
+                            ]),
+                        ]),
+                    ],
+                ),
+                ft.Row(
+                    spacing=10,
+                    controls=[
+                        self._small_button("descargas/", ft.Icons.FOLDER, lambda e: _abrir_ruta_al_frente(DESCARGAS_DIR)),
+                        self._small_button("output/", ft.Icons.FOLDER_COPY, lambda e: _abrir_ruta_al_frente(OUTPUT_DIR)),
+                        self._small_button("Excel", ft.Icons.TABLE_CHART, lambda e: _abrir_ruta_al_frente(EXCEL_CONTROL, seleccionar_archivo=True)),
+                    ],
+                ),
+            ],
+        )
+
+    def _build_active_screen(self) -> ft.Control:
+        """Construye la pantalla activa sin regresar siempre a Procesar.
+
+        Corrección importante: antes, build() siempre hacía:
+            self.screen_container.content = self._build_screen_procesar()
+        Por eso al presionar Salidas, Historial o Configuración solo cambiaba
+        el título, pero el contenido volvía a Procesar durante _rebuild().
+        """
+        if self.active_nav == "Resumen":
+            return self._build_screen_resumen()
+        if self.active_nav == "Salidas":
+            return self._build_screen_salidas()
+        if self.active_nav == "Historial":
+            return self._build_screen_historial()
+        if self.active_nav == "Configuración":
+            return self._build_screen_config()
+        return self._get_screen_procesar()
+
+    def build(self) -> ft.Control:
+        # Mantener el contenido sincronizado con la opción seleccionada del menú.
+        self.screen_container.content = self._build_active_screen()
+        main_area = ft.Container(
+            expand=True,
+            bgcolor=PAGE_BG,
+            padding=ft.Padding.only(left=28, right=28, top=22, bottom=14),
+            content=ft.Column(
+                spacing=16,
+                expand=True,
+                controls=[
+                    self.header_row,
+                    self.screen_container,
+                    ft.Text(
+                        "Optimizado para Windows · Las ventanas nuevas se abren al frente · Comisión Reguladora de Telecomunicaciones",
+                        size=11,
+                        color=TEXT_MUTED,
+                    ),
+                ],
+            ),
+        )
+        return ft.Stack(
+            expand=True,
+            controls=[
+                ft.Row(expand=True, spacing=0, controls=[self._build_sidebar(), main_area]),
+                ft.Container(top=16, right=16, content=self.toast),
+            ],
+        )
+
+    def _rebuild(self) -> None:
+        self.page.controls.clear()
+        self.page.add(self.build())
+        try:
+            self.page.update()
+        except Exception:
+            pass
+
+    def _refresh_summary_if_visible(self, force: bool = False) -> None:
+        """Actualiza Resultados automáticamente sin mover la posición de scroll."""
+        if self.active_nav not in ("Procesar", "Resumen"):
+            return
+
+        now = time.time()
+        if not force and (now - self._last_summary_refresh_ts) < self._summary_refresh_interval:
+            return
+
+        self._last_summary_refresh_ts = now
+        try:
+            if self.active_nav == "Procesar":
+                # Antes se reconstruía toda la pantalla Procesar cada segundo con:
+                # self.screen_container.content = self._build_active_screen()
+                # Eso hacía que el scroll regresara arriba. Ahora solo se cambia
+                # el contenido del slot de Resultados debajo del log.
+                self._set_procesar_summary_content()
+            else:
+                # En la pestaña Resumen sí se puede reconstruir esa vista completa.
+                self.screen_container.content = self._build_screen_resumen()
+            self.page.update()
+        except Exception:
+            pass
+
+    def _prepare_current_run_summary(self) -> None:
+        """Marca la corrida actual para que Resultados no use JSON viejos."""
+        self._run_started_at = time.time()
+        self._run_input_kind = self.dd_tipo_txt.value or "registros"
+        self._run_input_items = self._read_input_items()
+        self._last_summary_refresh_ts = 0.0
+
+    def _start_summary_auto_refresh(self) -> None:
+        if self._summary_refresh_thread_active:
+            return
+        self._summary_refresh_thread_active = True
+
+        def loop() -> None:
+            try:
+                while self._running:
+                    time.sleep(self._summary_refresh_interval)
+                    self._refresh_summary_if_visible(force=True)
+            finally:
+                self._summary_refresh_thread_active = False
+
+        threading.Thread(target=loop, daemon=True).start()
+
+    # ════════════════════════════════════════════════════
+    #  PANTALLA: PROCESAR
+    # ════════════════════════════════════════════════════
+
+    def _set_procesar_summary_content(self) -> None:
+        """Actualiza solo el bloque Resultados incrustado, sin reconstruir toda la pantalla."""
+        try:
+            self._procesar_summary_slot.content = self._build_resumen_bajo_log()
+        except Exception:
+            pass
+
+    def _get_screen_procesar(self) -> ft.Control:
+        """Devuelve una pantalla Procesar persistente para conservar el scroll."""
+        if self._procesar_screen is None:
+            self._procesar_screen = self._build_screen_procesar()
+        return self._procesar_screen
+
+    def _build_screen_procesar(self) -> ft.Control:
+        entrada_card = self._card(
+            "1. Archivo de entrada",
+            "Selecciona el TXT y dile al sistema qué contiene.",
+            ft.Column(
+                spacing=12,
+                controls=[
+                    ft.Row(
+                        spacing=12,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        controls=[
+                            self.dd_tipo_txt,
+                            self.txt_archivo,
+                            ft.ElevatedButton(
+                                "Examinar",
+                                icon=ft.Icons.UPLOAD_FILE,
+                                height=48,
+                                style=ft.ButtonStyle(
+                                    bgcolor=TEAL_PRIMARY,
+                                    color="white",
+                                    shape=ft.RoundedRectangleBorder(radius=10),
+                                    padding=ft.Padding.symmetric(horizontal=16, vertical=8),
+                                ),
+                                on_click=self._choose_txt,
+                            ),
+                        ],
+                    ),
+                    ft.Container(
+                        bgcolor=SOFT_CARD_BG,
+                        border_radius=ft.BorderRadius.all(12),
+                        border=ft.Border.all(1, BORDER_COLOR),
+                        padding=ft.Padding.all(12),
+                        content=ft.Column(
+                            spacing=8,
+                            controls=[
+                                ft.Row(
+                                    spacing=8,
+                                    controls=[
+                                        ft.Icon(ft.Icons.LOCK_OUTLINE, size=16, color=TEAL_PRIMARY),
+                                        ft.Text("Credenciales de ingreso a SATyS", size=13, color=TEXT_DARK, weight=ft.FontWeight.W_700),
+                                        ft.Text("se leen automáticamente y también se pueden escribir manualmente", size=11, color=TEXT_MUTED),
+                                    ],
+                                ),
+                                ft.Row(
+                                    spacing=10,
+                                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                                    controls=[
+                                        self.txt_satys_user,
+                                        self.txt_satys_pass,
+                                        self._small_button("Recargar", ft.Icons.REFRESH, self._reload_credentials),
+                                        self._small_button("Guardar", ft.Icons.SAVE, self._save_credentials_to_file),
+                                    ],
+                                ),
+                                self.cred_status,
+                            ],
+                        ),
+                    ),
+                    ft.Row(
+                        spacing=8,
+                        controls=[
+                            self._pill("TXT como única entrada", ft.Icons.DESCRIPTION),
+                            self._pill("Registros CRT o folios SATyS", ft.Icons.RULE),
+                            self._pill("Rutas con espacios permitidas", ft.Icons.CHECK_CIRCLE),
+                        ],
+                    ),
+                ],
+            ),
+            icon=ft.Icons.INPUT,
+        )
+
+        ejecucion_card = self._card(
+            "2. Ejecución",
+            "Parámetros normales para producción: 6 ventanas y modo rápido activado.",
+            ft.Column(
+                spacing=12,
+                controls=[
+                    ft.Row(
+                        spacing=18,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        controls=[
+                            self.txt_workers,
+                            self.sw_headless,
+                            ft.Container(expand=True),
+                            self.btn_iniciar,
+                            self.btn_detener,
+                        ],
+                    ),
+                    ft.Row(controls=[self.command_preview]),
+                    ft.Row(
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        controls=[
+                            ft.Row(spacing=8, controls=[self.status_icon, self.status_label, self.counter_label]),
+                            ft.Text("F5 inicia · Esc detiene", size=12, color=TEXT_MUTED),
+                        ],
+                    ),
+                    self.progress,
+                ],
+            ),
+            icon=ft.Icons.ROCKET_LAUNCH_OUTLINED,
+        )
+
+        log_card = ft.Container(
+            bgcolor=CARD_BG,
+            border_radius=ft.BorderRadius.all(16),
+            border=ft.Border.all(1, BORDER_COLOR),
+            padding=ft.Padding.all(0),
+            height=230,
+            content=ft.Column(
+                spacing=0,
+                expand=True,
+                controls=[
+                    ft.Container(
+                        height=56,
+                        padding=ft.Padding.symmetric(horizontal=18, vertical=10),
+                        border=ft.Border.only(bottom=ft.BorderSide(1, BORDER_COLOR)),
+                        content=ft.Row(
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                            controls=[
+                                ft.Row(spacing=10, controls=[
+                                    ft.Icon(ft.Icons.TERMINAL, size=18, color=TEXT_GRAY),
+                                    ft.Text("Log del proceso", size=14, color=TEXT_DARK, weight=ft.FontWeight.W_700),
+                                ]),
+                                ft.Row(spacing=8, controls=[
+                                    ft.TextButton("Copiar log", icon=ft.Icons.CONTENT_COPY, on_click=self._copy_log),
+                                    ft.TextButton("Limpiar log", icon=ft.Icons.DELETE_OUTLINE, on_click=self._clear_log),
+                                ]),
+                            ],
+                        ),
+                    ),
+                    ft.Container(
+                        expand=True,
+                        bgcolor=LOG_BG,
+                        border_radius=ft.BorderRadius.all(16),
+                        content=self.log_view,
+                    ),
+                ],
+            ),
+        )
+
+        self._set_procesar_summary_content()
+        resumen_bajo_log = self._procesar_summary_slot
+
+        return ft.Column(
+            expand=True,
+            spacing=16,
+            scroll=ft.ScrollMode.AUTO,
+            controls=[
+                entrada_card,
+                ejecucion_card,
+                log_card,
+                resumen_bajo_log,
+            ],
+        )
+
+    def _build_resumen_bajo_log(self) -> ft.Control:
+        """Resumen embebido debajo del Log del proceso.
+
+        Reutiliza la misma pantalla de Resumen, pero sin scroll/expand propios
+        para que pueda vivir dentro de la pantalla Procesar.
+        """
+        resumen = self._build_screen_resumen()
+        try:
+            resumen.expand = False
+        except Exception:
+            pass
+        try:
+            resumen.scroll = None
+        except Exception:
+            pass
+        return resumen
+
+
+    # ════════════════════════════════════════════════════
+    #  PANTALLA: RESULTADOS
+    # ════════════════════════════════════════════════════
+
+    def _read_json_safe(self, path: Path) -> dict:
+        try:
+            if path.exists():
+                return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+        return {}
+
+    def _project_root(self) -> Path:
+        """Raíz real donde corre main_procesar.py / Parte1_descarga.py."""
+        try:
+            script_path = Path((self.txt_script.value or DEFAULT_SCRIPT).strip().strip('"'))
+            if script_path.exists() and script_path.is_file():
+                return script_path.resolve().parent
+        except Exception:
+            pass
+        return Path.cwd()
+
+    def _descargas_dir_actual(self) -> Path:
+        return self._project_root() / "descargas"
+
+    def _summary_candidate_paths(self) -> list[Path]:
+        base = self._descargas_dir_actual()
+        return [
+            base / "procesamiento_log.json",
+            base / "descarga_log.json",
+            base / "resumen_global.json",
+        ]
+
+    def _read_input_items(self) -> list[str]:
+        path_txt = Path((self.txt_archivo.value or "").strip().strip('"'))
+        if not path_txt.exists() or not path_txt.is_file():
+            return []
+        items: list[str] = []
+        try:
+            with open(path_txt, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    items.append(line)
+        except Exception:
+            return []
+        return list(dict.fromkeys(items))
+
+    def _digits_tail(self, value: str) -> str:
+        import re as _re
+        m = _re.search(r"(\d+)\s*$", str(value or ""))
+        if not m:
+            return str(value or "").strip().upper()
+        try:
+            return str(int(m.group(1)))
+        except Exception:
+            return m.group(1).lstrip("0") or "0"
+
+    def _current_input_keys(self) -> set[str]:
+        items = self._run_input_items if self._running and self._run_input_items else self._read_input_items()
+        kind = self._run_input_kind if self._running and self._run_input_kind else (self.dd_tipo_txt.value or "registros")
+        keys: set[str] = set()
+        for item in items:
+            raw = str(item).strip()
+            if not raw:
+                continue
+            keys.add(raw.upper())
+            if kind == "folios":
+                keys.add(self._digits_tail(raw))
+        return keys
+
+    def _keys_for_result(self, r: dict) -> set[str]:
+        keys: set[str] = set()
+        kind = self._run_input_kind if self._running and self._run_input_kind else (self.dd_tipo_txt.value or "registros")
+        fields = [
+            r.get("registro"), r.get("numero_registro"), r.get("folio_raw"),
+            r.get("folio"), r.get("folio_satys"), r.get("id"),
+        ]
+        for val in fields:
+            if val is None:
+                continue
+            raw = str(val).strip()
+            if not raw:
+                continue
+            keys.add(raw.upper())
+            if kind == "folios":
+                keys.add(self._digits_tail(raw))
+        return keys
+
+    def _input_match_count(self, resultados: list[dict]) -> int:
+        input_keys = self._current_input_keys()
+        if not input_keys:
+            return 0
+        matched = set()
+        for r in resultados:
+            inter = input_keys & self._keys_for_result(r)
+            if inter:
+                matched.update(inter)
+        return len(matched)
+
+    def _filter_results_to_current_input(self, resultados: list[dict]) -> list[dict]:
+        input_keys = self._current_input_keys()
+        if not input_keys:
+            return resultados
+        filtrados = [r for r in resultados if input_keys & self._keys_for_result(r)]
+        return filtrados
+
+    def _group_file_results(self, rows: list[dict]) -> list[dict]:
+        """Convierte descarga_log.json, que viene por archivo, a una fila por folio/registro."""
+        grouped: dict[str, dict] = {}
+        kind = self._run_input_kind if self._running and self._run_input_kind else (self.dd_tipo_txt.value or "registros")
+        for r in rows:
+            registro = str(r.get("registro") or r.get("numero_registro") or "").strip()
+            folio = str(r.get("folio") or r.get("folio_satys") or r.get("id") or "").strip()
+            key = registro if kind == "registros" and registro else folio or registro or "?"
+            g = grouped.setdefault(key, {
+                "folio": folio or key,
+                "registro": registro,
+                "archivos_ok": 0,
+                "archivos_error": 0,
+                "archivos_descargados": [],
+                "carpeta": r.get("carpeta") or str(self._descargas_dir_actual() / key),
+                "estado": "PENDIENTE",
+            })
+            if registro and not g.get("registro"):
+                g["registro"] = registro
+            if folio and (not g.get("folio") or g.get("folio") == key):
+                g["folio"] = folio
+            if r.get("carpeta"):
+                g["carpeta"] = r.get("carpeta")
+            g["archivos_descargados"].append(r)
+            texto = " ".join(str(r.get(k, "")) for k in ("archivo", "error", "tipo", "ruta", "mensaje"))
+            if "FOLIO_NO_ENCONTRADO" in texto.upper() or "REGISTRO_NO_ENCONTRADO" in texto.upper():
+                g["no_encontrado"] = True
+                g["estado"] = "NO_ENCONTRADO"
+            if r.get("ok"):
+                g["archivos_ok"] += 1
+            else:
+                g["archivos_error"] += 1
+                if not g.get("no_encontrado"):
+                    g["estado"] = "INCOMPLETO"
+                    g["error"] = r.get("error") or r.get("tipo") or r.get("archivo") or "Revisión necesaria"
+
+        out = []
+        for g in grouped.values():
+            if g.get("no_encontrado"):
+                g["estado"] = "NO_ENCONTRADO"
+            elif g.get("archivos_ok", 0) > 0 and g.get("archivos_error", 0) == 0:
+                g["estado"] = "OK"
+                g.setdefault("organizado_ok", True)
+                g.setdefault("excel_ok", True)
+                g.setdefault("rpc_ok", True)
+            elif g.get("archivos_ok", 0) > 0:
+                g["estado"] = "INCOMPLETO"
+            else:
+                g["estado"] = g.get("estado") or "INCOMPLETO"
+            out.append(g)
+        return out
+
+    def _summary_results(self, data: dict) -> list[dict]:
+        """Normaliza resultados de procesamiento_log.json, descarga_log.json o resumen_global.json."""
+        if isinstance(data.get("resultados"), list):
+            rows = data.get("resultados") or []
+            # descarga_log.json guarda una fila por archivo; se agrupa por folio/registro.
+            if any(isinstance(r, dict) and ("ok" in r and "archivo" in r) for r in rows):
+                return self._group_file_results([r for r in rows if isinstance(r, dict)])
+            return [r for r in rows if isinstance(r, dict)]
+        if isinstance(data.get("detalle_folios"), list):
+            # resumen_global.json de Parte1 usa detalle_folios. Lo adaptamos a la UI.
+            out = []
+            for r in data.get("detalle_folios") or []:
+                if not isinstance(r, dict):
+                    continue
+                rr = dict(r)
+                estado = str(rr.get("estado", "")).upper()
+                rr.setdefault("organizado_ok", estado == "OK")
+                rr.setdefault("excel_ok", estado == "OK")
+                rr.setdefault("rpc_ok", estado == "OK")
+                rr.setdefault("pdf_encontrado", estado != "NO_ENCONTRADO")
+                out.append(rr)
+            return out
+        return []
+
+    def _build_live_summary_from_current_run(self) -> tuple[dict, str]:
+        """Lee avances de la corrida actual aunque todavía no exista el JSON final."""
+        if not self._running and not self._run_started_at:
+            return {}, ""
+
+        started = (self._run_started_at or 0) - 2.0
+        base = self._descargas_dir_actual()
+        items = self._run_input_items or self._read_input_items()
+        kind = self._run_input_kind or (self.dd_tipo_txt.value or "registros")
+        rows: list[dict] = []
+        seen_paths: set[str] = set()
+
+        for item in items:
+            safe = str(item).strip()
+            if not safe:
+                continue
+            # Normalmente queda en descargas/<folio> o descargas/<registro>.
+            patterns = [base / safe / "metadata_completo.json"]
+            try:
+                patterns.extend(base.glob(f"{safe}_*/**/metadata_completo.json"))
+            except Exception:
+                pass
+            for mp in patterns:
+                try:
+                    mp = Path(mp)
+                    if not mp.exists() or str(mp) in seen_paths:
+                        continue
+                    if mp.stat().st_mtime < started:
+                        continue
+                    seen_paths.add(str(mp))
+                    meta = json.loads(mp.read_text(encoding="utf-8"))
+                    if not isinstance(meta, dict):
+                        continue
+                    meta_satys = meta.get("metadatos_satys") or {}
+                    row = {
+                        "folio": meta.get("folio") or item,
+                        "registro": meta_satys.get("registro") or (item if kind == "registros" else ""),
+                        "folio_raw": meta.get("folio_raw") or item,
+                        "estado": meta.get("estado") or "INCOMPLETO",
+                        "archivos_ok": meta.get("total_archivos_ok", 0),
+                        "archivos_error": meta.get("total_archivos_error", 0),
+                        "carpeta": str(mp.parent),
+                        "archivos_descargados": meta.get("archivos", []),
+                    }
+                    estado = str(row.get("estado", "")).upper()
+                    if estado == "PARCIAL" or estado == "SIN_ARCHIVOS":
+                        row["estado"] = "INCOMPLETO"
+                    if estado == "OK":
+                        row.setdefault("rpc_ok", True)
+                        row.setdefault("organizado_ok", True)
+                        row.setdefault("excel_ok", True)
+                    rows.append(row)
+                except Exception:
+                    pass
+
+        # Completar avance desde líneas del log si todavía no hay metadata.
+        import re as _re
+        existing_keys = set()
+        for r in rows:
+            existing_keys.update(self._keys_for_result(r))
+        for line in self._log_lines[-500:]:
+            m = _re.search(r"Registro\s+([^\s:]+)\s+completado:\s+(\d+)\s+OK\s*/\s*(\d+)\s+total", line, _re.I)
+            if not m:
+                m = _re.search(r"Folio\s+([^\s:]+)\s+completado:\s+(\d+)\s+OK\s*/\s*(\d+)\s+total", line, _re.I)
+            if m:
+                num, ok_s, total_s = m.group(1), m.group(2), m.group(3)
+                probe = {"registro" if kind == "registros" else "folio": num}
+                if existing_keys & self._keys_for_result(probe):
+                    continue
+                ok_i, total_i = int(ok_s), int(total_s)
+                rows.append({
+                    "registro" if kind == "registros" else "folio": num,
+                    "estado": "OK" if total_i > 0 and ok_i == total_i else "INCOMPLETO",
+                    "archivos_ok": ok_i,
+                    "archivos_error": max(total_i - ok_i, 0),
+                    "carpeta": str(base / num),
+                    "rpc_ok": ok_i == total_i and total_i > 0,
+                    "organizado_ok": ok_i == total_i and total_i > 0,
+                    "excel_ok": ok_i == total_i and total_i > 0,
+                })
+                existing_keys.update(self._keys_for_result(rows[-1]))
+
+            m2 = _re.search(r"(REGISTRO|FOLIO).*?NO[_\s-]?ENCONTRADO.*?([A-Z]{3}\d{2}-\d+|\d+)", line, _re.I)
+            if m2:
+                num = m2.group(2)
+                probe = {"registro" if kind == "registros" else "folio": num}
+                if existing_keys & self._keys_for_result(probe):
+                    continue
+                rows.append({
+                    "registro" if kind == "registros" else "folio": num,
+                    "estado": "NO_ENCONTRADO",
+                    "no_encontrado": True,
+                    "error": f"{m2.group(1).upper()}_NO_ENCONTRADO",
+                    "carpeta": str(base / num),
+                })
+                existing_keys.update(self._keys_for_result(rows[-1]))
+
+        rows = self._filter_results_to_current_input(rows)
+        if rows:
+            return {"resultados": rows, "fecha": datetime.now().isoformat(), "en_vivo": True}, "avance en vivo de la ejecución actual"
+        return {}, ""
+
+    def _load_summary_source(self) -> tuple[dict, str]:
+        """Carga Resultados de la ejecución actual, evitando JSON antiguos."""
+        candidates = []
+        run_started = self._run_started_at
+        input_keys = self._current_input_keys()
+        for path in self._summary_candidate_paths():
+            data = self._read_json_safe(path)
+            if not data:
+                continue
+            try:
+                mtime = path.stat().st_mtime
+            except Exception:
+                mtime = 0.0
+            resultados = self._summary_results(data)
+            match_count = self._input_match_count(resultados)
+            candidates.append({
+                "path": path,
+                "data": data,
+                "mtime": mtime,
+                "resultados": resultados,
+                "match_count": match_count,
+            })
+
+        # Durante una corrida, nunca usar un resumen viejo de una corrida anterior.
+        if run_started:
+            candidates = [c for c in candidates if c["mtime"] >= run_started - 2.0]
+
+        # Si ya hay un JSON de la ejecución actual, elegir el que mejor coincide con el TXT activo.
+        chosen = None
+        if candidates:
+            if input_keys:
+                with_matches = [c for c in candidates if c["match_count"] > 0]
+                if with_matches:
+                    chosen = max(with_matches, key=lambda c: (c["match_count"], c["mtime"]))
+            else:
+                chosen = max(candidates, key=lambda c: c["mtime"])
+
+        # Si NO estamos ejecutando y tenemos un resumen JSON, no necesitamos mezclar los datos en vivo.
+        if chosen and not self._running:
+            live_data, live_source = None, ""
+        else:
+            live_data, live_source = self._build_live_summary_from_current_run()
+
+        if live_data:
+            live_rows = self._summary_results(live_data)
+            if chosen:
+                chosen_rows = self._filter_results_to_current_input(chosen["resultados"])
+                merged: dict[str, dict] = {}
+                for row in chosen_rows + live_rows:
+                    ident = str(row.get("folio_id") or row.get("carpeta") or self._identifier_for_csv(row) or self._result_folio(row)).strip()
+                    merged[ident] = row
+                return {"resultados": list(merged.values()), "fecha": datetime.now().isoformat(), "en_vivo": True}, f"{chosen['path']} + {live_source}"
+            return live_data, live_source
+
+        if chosen:
+            rows = self._filter_results_to_current_input(chosen["resultados"])
+            data = dict(chosen["data"])
+            data["resultados"] = rows
+            data.pop("detalle_folios", None)
+            return data, str(chosen["path"])
+
+        return {}, ""
+
+    def _result_folio(self, r: dict) -> str:
+        # En modo Registro, mostrar y copiar primero el número CRT; en modo Folio, mostrar el folio SATyS.
+        kind = self._run_input_kind if self._running and self._run_input_kind else (self.dd_tipo_txt.value or "registros")
+        if kind == "registros":
+            return str(r.get("registro") or r.get("numero_registro") or r.get("folio") or r.get("id") or "?")
+        return str(r.get("folio") or r.get("folio_satys") or r.get("registro") or r.get("numero_registro") or r.get("id") or "?")
+
+    def _result_folder(self, r: dict) -> Path:
+        carpeta = r.get("carpeta") or r.get("carpeta_descarga") or r.get("output_dir") or r.get("sin_operador_dir")
+        if carpeta:
+            return Path(str(carpeta))
+        return self._descargas_dir_actual() / self._result_folio(r)
+
+    def _is_success_result(self, r: dict) -> bool:
+        estado = str(r.get("estado", "")).upper()
+        if estado == "OK":
+            return True
+        return bool(r.get("rpc_ok") and r.get("organizado_ok") and r.get("excel_ok"))
+
+    def _is_duplicate_result(self, r: dict) -> bool:
+        texto = " ".join(str(r.get(k, "")) for k in ("estado", "error", "mensaje", "nota", "tipo"))
+        return bool(r.get("duplicado_rpc") or r.get("rpc_duplicado") or r.get("duplicado") or "DUPLIC" in texto.upper())
+
+    def _is_low_match_result(self, r: dict) -> bool:
+        if self._is_success_result(r) or self._is_duplicate_result(r):
+            return False
+        rpc_res = r.get("rpc_resultado") or {}
+        if isinstance(rpc_res, dict) and rpc_res:
+            score = float(rpc_res.get("score") or r.get("score_rpc") or 0)
+            return score < 0.80 or not r.get("rpc_ok")
+        return bool(r.get("coincidencia_baja") or r.get("rpc_bajo"))
+
+    def _is_not_found_result(self, r: dict) -> bool:
+        estado = str(r.get("estado", "")).upper()
+        texto = " ".join(str(r.get(k, "")) for k in ("estado", "error", "mensaje", "archivo", "tipo", "ruta"))
+        texto_u = texto.upper()
+        return bool(
+            estado == "NO_ENCONTRADO"
+            or r.get("no_encontrado")
+            or r.get("folio_no_encontrado")
+            or r.get("registro_no_encontrado")
+            or str(r.get("archivo", "")).upper() in ("FOLIO_NO_ENCONTRADO", "REGISTRO_NO_ENCONTRADO")
+            or "NO_ENCONTRADO" in texto_u
+            or "NO ENCONTRADO" in texto_u
+            or "REGISTRO_NO_ENCONTRADO" in texto_u
+        )
+
+    def _is_incomplete_result(self, r: dict) -> bool:
+        estado = str(r.get("estado", "")).upper()
+        if estado == "INCOMPLETO":
+            return True
+        if self._is_success_result(r) or self._is_not_found_result(r):
+            return False
+        return bool(r.get("archivos_error") or r.get("pdf_encontrado") is False or r.get("organizado_ok") is False)
+
+    def _score_text(self, r: dict) -> str:
+        rpc_res = r.get("rpc_resultado") or {}
+        score = r.get("score_rpc")
+        if isinstance(rpc_res, dict):
+            score = rpc_res.get("score", score)
+        try:
+            score_f = float(score or 0)
+            if score_f <= 1:
+                score_f *= 100
+            return f"{score_f:.0f}%" if score_f else "—"
+        except Exception:
+            return "—"
+
+    def _stat_col(self, title: str, value) -> ft.Control:
+        return ft.Column(
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=2,
+            controls=[
+                ft.Text(str(value), size=24, color="#FFF", weight=ft.FontWeight.W_800),
+                ft.Text(title, size=11, color="#E0F7FA", weight=ft.FontWeight.W_600),
+            ],
+        )
+
+    def _summary_chip(self, title: str, detail: str) -> ft.Control:
+        return ft.Container(
+            padding=ft.Padding.symmetric(horizontal=10, vertical=7),
+            border_radius=ft.BorderRadius.all(7),
+            border=ft.Border.all(1, BORDER_COLOR),
+            bgcolor=PAGE_BG,
+            content=ft.Column(
+                spacing=2,
+                controls=[
+                    ft.Text(title, size=12, color=TEXT_DARK, weight=ft.FontWeight.W_700),
+                    ft.Text(detail or "—", size=11, color=TEXT_GRAY),
+                ],
+            ),
+        )
+
+    def _identifier_for_csv(self, r: dict) -> str:
+        return str(
+            r.get("registro")
+            or r.get("numero_registro")
+            or r.get("folio")
+            or r.get("folio_satys")
+            or r.get("id")
+            or ""
+        ).strip()
+
+    def _summary_csv_for_items(self, items: list[dict]) -> str:
+        buff = io.StringIO()
+        writer = csv.writer(buff, lineterminator="\n")
+        writer.writerow(["numero"])
+        seen = set()
+        for r in items:
+            numero = self._identifier_for_csv(r)
+            if not numero or numero == "?" or numero in seen:
+                continue
+            seen.add(numero)
+            writer.writerow([numero])
+        return buff.getvalue().strip()
+
+    def _copy_summary_items_csv(self, titulo: str, items: list[dict]) -> None:
+        csv_text = self._summary_csv_for_items(items)
+        try:
+            self.page.set_clipboard(csv_text)
+            self._show_toast(f"CSV copiado: {titulo} ({max(len(csv_text.splitlines()) - 1, 0)} número(s))")
+        except Exception:
+            self._show_toast("No se pudo copiar el CSV")
+
+    def _copy_csv_button(self, titulo: str, items: list[dict]) -> ft.Control:
+        return ft.TextButton(
+            "Copiar CSV",
+            icon=ft.Icons.CONTENT_COPY,
+            style=ft.ButtonStyle(
+                color=TEAL_PRIMARY,
+                padding=ft.Padding.symmetric(horizontal=8, vertical=0),
+            ),
+            on_click=lambda e, t=titulo, it=items: self._copy_summary_items_csv(t, it),
+        )
+
+    def _resumen_seccion(self, titulo: str, items: list[dict], color: str, detalle_fn) -> ft.Control:
+        chips = []
+        for r in items:
+            chips.append(self._summary_chip(self._result_folio(r), detalle_fn(r)))
+        return ft.Container(
+            padding=ft.Padding.all(14),
+            border_radius=ft.BorderRadius.all(10),
+            border=ft.Border.all(1, BORDER_COLOR),
+            bgcolor=CARD_BG,
+            content=ft.Column(
+                spacing=10,
+                controls=[
+                    ft.Row(
+                        spacing=8,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        controls=[
+                            ft.Container(width=4, height=20, bgcolor=color, border_radius=ft.BorderRadius.all(2)),
+                            ft.Text(titulo, size=13, color=TEXT_DARK, weight=ft.FontWeight.W_700),
+                            ft.Container(
+                                padding=ft.Padding.symmetric(horizontal=8, vertical=2),
+                                bgcolor=color,
+                                border_radius=ft.BorderRadius.all(10),
+                                content=ft.Text(str(len(items)), size=11, color="#FFF", weight=ft.FontWeight.W_700),
+                            ),
+                            ft.Container(expand=True),
+                            self._copy_csv_button(titulo, items),
+                        ],
+                    ),
+                    ft.Row(wrap=True, spacing=8, run_spacing=8, controls=chips)
+                    if chips else ft.Text("Ninguno.", size=12, color=TEXT_MUTED, italic=True),
+                ],
+            ),
+        )
+
+    def _resumen_seccion_sin_operador(self, items: list[dict]) -> ft.Control:
+        chips = []
+        for r in items:
+            folio = self._result_folio(r)
+            id_sol = r.get("id_solicitante") or r.get("id_solicitante_satys") or "N/A"
+            sin_op = r.get("sin_operador_dir") or str(OUTPUT_DIR / "_sin_operador" / folio)
+            chips.append(
+                ft.Container(
+                    padding=ft.Padding.symmetric(horizontal=12, vertical=8),
+                    border_radius=ft.BorderRadius.all(7),
+                    border=ft.Border.all(1, BORDER_COLOR),
+                    bgcolor=PAGE_BG,
+                    content=ft.Column(
+                        spacing=3,
+                        controls=[
+                            ft.Text(f"Folio: {folio}", size=12, color=TEXT_DARK, weight=ft.FontWeight.W_700),
+                            ft.Text(f"id_solicitante={id_sol} — no encontrado en catálogo RPC", size=11, color=TEXT_GRAY),
+                            ft.Row(
+                                spacing=4,
+                                controls=[
+                                    ft.Icon(ft.Icons.ARROW_FORWARD, size=11, color=ORANGE_WARN),
+                                    ft.Text(f"Mueve archivos desde: {sin_op}", size=10, color=ORANGE_WARN, italic=True),
+                                ],
+                            ),
+                        ],
+                    ),
+                )
+            )
+        return ft.Container(
+            padding=ft.Padding.all(14),
+            border_radius=ft.BorderRadius.all(10),
+            border=ft.Border.all(1, BORDER_COLOR),
+            bgcolor=CARD_BG,
+            content=ft.Column(
+                spacing=10,
+                controls=[
+                    ft.Row(
+                        spacing=8,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        controls=[
+                            ft.Container(width=4, height=20, bgcolor=ORANGE_WARN, border_radius=ft.BorderRadius.all(2)),
+                            ft.Text("📁 SIN OPERADOR EN CATÁLOGO (revisión manual)", size=13, color=TEXT_DARK, weight=ft.FontWeight.W_700),
+                            ft.Container(
+                                padding=ft.Padding.symmetric(horizontal=8, vertical=2),
+                                bgcolor=ORANGE_WARN,
+                                border_radius=ft.BorderRadius.all(10),
+                                content=ft.Text(str(len(items)), size=11, color="#FFF", weight=ft.FontWeight.W_700),
+                            ),
+                            ft.Container(expand=True),
+                            self._copy_csv_button("SIN OPERADOR EN CATÁLOGO", items),
+                        ],
+                    ),
+                    ft.Column(spacing=6, controls=chips) if chips else ft.Text("Ninguno.", size=12, color=TEXT_MUTED, italic=True),
+                ],
+            ),
+        )
+
+    def _metadata_from_folder(self, carpeta: Path) -> dict:
+        meta = {}
+        for name in ("metadata_satys.json", "metadata_tramite_nuevo.json", "metadata_completo.json"):
+            mp = carpeta / name
+            if mp.exists():
+                try:
+                    value = json.loads(mp.read_text(encoding="utf-8"))
+                    if isinstance(value, dict):
+                        meta.update(value)
+                except Exception:
+                    pass
+        return meta
+
+    def _metadata_card(self, r: dict) -> ft.Control | None:
+        folio = self._result_folio(r)
+        carpeta = self._result_folder(r)
+        meta = self._metadata_from_folder(carpeta)
+        if not meta and not r:
             return None
 
+        nombre = meta.get("nombre_operador") or meta.get("razon_social") or r.get("nombre") or r.get("nombre_operador") or r.get("operador") or "—"
+        asunto = meta.get("asunto") or r.get("asunto") or "—"
+        id_sol = meta.get("id_solicitante") or r.get("id_solicitante") or "—"
+        rep_leg = meta.get("representante_legal") or r.get("representante_legal") or "—"
+        fecha_reg = meta.get("fecha_registro") or meta.get("fecha") or r.get("fecha") or "—"
+
+        archivos = []
+        if carpeta.exists():
+            try:
+                for f in carpeta.iterdir():
+                    if f.is_file() and f.suffix.lower() not in {".json", ".txt"}:
+                        archivos.append(f.name)
+            except Exception:
+                pass
+        if not archivos:
+            for key in ("archivos_descargados", "archivos", "files"):
+                val = r.get(key)
+                if isinstance(val, list):
+                    for item in val:
+                        if isinstance(item, dict):
+                            name = item.get("nombre") or item.get("archivo") or item.get("filename")
+                        else:
+                            name = str(item)
+                        if name:
+                            archivos.append(name)
+
+        score = self._score_text(r)
+        badge_color = TEAL_PRIMARY if self._is_success_result(r) or r.get("rpc_ok") else RED_ERR if self._is_not_found_result(r) else ORANGE_WARN
+        lista_archivos = []
+        if archivos:
+            lista_archivos.append(ft.Text("Archivos descargados:", size=11, color=TEXT_GRAY, weight=ft.FontWeight.W_600))
+            for arch in archivos[:12]:
+                ext = arch.lower()
+                icono = ft.Icons.PICTURE_AS_PDF if ext.endswith(".pdf") else ft.Icons.TABLE_CHART if ext.endswith((".xlsx", ".xls", ".csv")) else ft.Icons.INSERT_DRIVE_FILE
+                color = RED_ERR if ext.endswith(".pdf") else GREEN_OK if ext.endswith((".xlsx", ".xls", ".csv")) else TEXT_GRAY
+                lista_archivos.append(
+                    ft.Row(spacing=4, controls=[ft.Icon(icono, size=12, color=color), ft.Text(arch, size=11, color=TEXT_DARK)])
+                )
+            if len(archivos) > 12:
+                lista_archivos.append(ft.Text(f"… y {len(archivos)-12} archivo(s) más", size=11, color=TEXT_MUTED))
+        else:
+            lista_archivos.append(ft.Text("Sin archivos descargados", size=11, color=TEXT_MUTED, italic=True))
+
+        return ft.Container(
+            bgcolor=PAGE_BG,
+            padding=ft.Padding.all(12),
+            border_radius=ft.BorderRadius.all(8),
+            border=ft.Border.all(1, BORDER_COLOR),
+            content=ft.Column(
+                spacing=8,
+                controls=[
+                    ft.Row(
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        controls=[
+                            ft.Text(f"Folio: {folio}", size=14, color=TEXT_DARK, weight=ft.FontWeight.W_700),
+                            ft.Row(
+                                spacing=10,
+                                controls=[
+                                    ft.TextButton(
+                                        "Abrir carpeta",
+                                        icon=ft.Icons.FOLDER_OPEN,
+                                        style=ft.ButtonStyle(color=TEAL_PRIMARY, padding=ft.Padding.symmetric(horizontal=8, vertical=0)),
+                                        on_click=lambda e, p=carpeta: _abrir_ruta_al_frente(p),
+                                    ),
+                                    ft.Container(
+                                        padding=ft.Padding.symmetric(horizontal=7, vertical=3),
+                                        bgcolor=badge_color,
+                                        border_radius=ft.BorderRadius.all(6),
+                                        content=ft.Text(f"RPC Exactitud: {score}", size=11, color="#FFF", weight=ft.FontWeight.W_600),
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                    ft.Column(
+                        spacing=2,
+                        controls=[
+                            ft.Text(f"Nombre: {nombre}", size=12, color=TEXT_DARK, weight=ft.FontWeight.W_600),
+                            ft.Text(f"Asunto: {asunto}", size=11, color=TEXT_GRAY),
+                            ft.Row(
+                                spacing=15,
+                                wrap=True,
+                                controls=[
+                                    ft.Text(f"ID: {id_sol}", size=11, color=TEXT_GRAY),
+                                    ft.Text(f"Rep. Legal: {rep_leg}", size=11, color=TEXT_GRAY),
+                                    ft.Text(f"Fecha: {fecha_reg}", size=11, color=TEXT_GRAY),
+                                ],
+                            ),
+                        ],
+                    ),
+                    ft.Divider(height=1, color=DIVIDER_COLOR),
+                    ft.Column(spacing=2, controls=lista_archivos),
+                ],
+            ),
+        )
+
+    def _metadata_panel(self, resultados: list[dict]) -> ft.Control | None:
+        cards = []
+        for r in resultados:
+            card = self._metadata_card(r)
+            if card:
+                cards.append(card)
+        if not cards:
+            return None
         return ft.Container(
             padding=ft.Padding.all(14),
             border_radius=ft.BorderRadius.all(10),
@@ -1049,8 +1751,7 @@ class SATySApp:
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                         controls=[
                             ft.Icon(ft.Icons.DATA_OBJECT, size=18, color=BLUE_INFO),
-                            ft.Text("Metadatos extraídos por folio", size=13,
-                                    weight=ft.FontWeight.W_700, color=TEXT_DARK),
+                            ft.Text("Metadatos extraídos por folio", size=13, color=TEXT_DARK, weight=ft.FontWeight.W_700),
                         ],
                     ),
                     ft.Column(spacing=8, controls=cards),
@@ -1058,787 +1759,753 @@ class SATySApp:
             ),
         )
 
-    def _stat_col(self, title, value):
-        return ft.Column(
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2,
+    def _build_screen_resumen(self) -> ft.Control:
+        data, source = self._load_summary_source()
+        resultados = self._summary_results(data)
+
+        if not data:
+            msg = (
+                "Ejecución actual en curso: todavía no se generan resultados para este TXT."
+                if self._running
+                else "No encontré resultados para el TXT seleccionado. Cuando ejecutes el proceso, aparecerán aquí."
+            )
+            return ft.Column(
+                spacing=16,
+                expand=True,
+                controls=[
+                    self._card(
+                        "Resultados",
+                        "Se actualiza automáticamente con la ejecución actual.",
+                        ft.Column(
+                            spacing=10,
+                            controls=[
+                                ft.Text(msg, size=13, color=TEXT_GRAY),
+                                ft.Row(spacing=8, controls=[
+                                    ft.ElevatedButton(
+                                        "Actualizar",
+                                        icon=ft.Icons.REFRESH,
+                                        style=ft.ButtonStyle(bgcolor=TEAL_PRIMARY, color="white", shape=ft.RoundedRectangleBorder(radius=9)),
+                                        on_click=lambda e: self._refresh_summary_if_visible(force=True),
+                                    ),
+                                    self._small_button("Abrir descargas/", ft.Icons.FOLDER, lambda e: _abrir_ruta_al_frente(self._descargas_dir_actual())),
+                                ]),
+                            ],
+                        ),
+                        icon=ft.Icons.SUMMARIZE_OUTLINED,
+                    )
+                ],
+            )
+
+        exitosos = [r for r in resultados if self._is_success_result(r)]
+        duplicados = [r for r in resultados if self._is_duplicate_result(r)]
+        baja = [r for r in resultados if self._is_low_match_result(r)]
+        no_encontrados = [r for r in resultados if self._is_not_found_result(r)]
+        sin_operador = [
+            r for r in resultados
+            if (not r.get("rpc_ok")) and not (r.get("rpc_resultado") or {}) and not self._is_success_result(r) and r not in no_encontrados
+        ]
+        incompletos = [r for r in resultados if self._is_incomplete_result(r) and r not in no_encontrados and r not in sin_operador]
+        errores = [
+            r for r in resultados
+            if r not in exitosos and r not in duplicados and r not in baja and r not in no_encontrados and r not in incompletos and r not in sin_operador
+        ]
+
+        # Antes aquí se mostraba una tarjeta azul de totales generales.
+        # Se deja fuera de la interfaz para que Resultados muestre solo las secciones operativas.
+
+        metadata_panel = self._metadata_panel(resultados)
+        controls = [
+            self._card(
+                "Resultados",
+                f"Fuente: {source}" if source else None,
+                ft.Column(
+                    spacing=10,
+                    controls=[
+                        ft.Row(spacing=8, controls=[
+                            ft.ElevatedButton(
+                                "Actualizar resultados",
+                                icon=ft.Icons.REFRESH,
+                                style=ft.ButtonStyle(bgcolor=TEAL_PRIMARY, color="white", shape=ft.RoundedRectangleBorder(radius=9)),
+                                on_click=lambda e: self._rebuild(),
+                            ),
+                            self._small_button("Abrir descargas/", ft.Icons.FOLDER, lambda e: _abrir_ruta_al_frente(self._descargas_dir_actual())),
+                            self._small_button("Abrir output/", ft.Icons.FOLDER_COPY, lambda e: _abrir_ruta_al_frente(OUTPUT_DIR)),
+                        ]),
+                        self._resumen_seccion(
+                            "🟢 Éxito total",
+                            exitosos,
+                            GREEN_OK,
+                            lambda r: (r.get("rpc_resultado") or {}).get("nombre_completo") or r.get("operador") or r.get("nombre") or "Organizado correctamente",
+                        ),
+                        self._resumen_seccion(
+                            "🔴 Errores",
+                            errores + incompletos + no_encontrados,
+                            RED_ERR,
+                            lambda r: r.get("error") or r.get("mensaje") or r.get("estado") or "Revisión necesaria",
+                        ),
+                        self._resumen_seccion_sin_operador(sin_operador),
+                    ],
+                ),
+                icon=ft.Icons.SUMMARIZE_OUTLINED,
+            ),
+        ]
+        if metadata_panel:
+            controls.append(metadata_panel)
+
+        return ft.Column(spacing=16, expand=True, scroll=ft.ScrollMode.AUTO, controls=controls)
+
+    # ════════════════════════════════════════════════════
+    #  PANTALLA: SALIDAS
+    # ════════════════════════════════════════════════════
+
+    def _output_tile(self, title: str, path: Path, description: str, status_control: ft.Text, icon, is_folder=False) -> ft.Control:
+        return ft.Container(
+            bgcolor=SOFT_CARD_BG,
+            border_radius=ft.BorderRadius.all(12),
+            border=ft.Border.all(1, BORDER_COLOR),
+            padding=ft.Padding.all(14),
+            content=ft.Row(
+                spacing=12,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                controls=[
+                    ft.Container(
+                        width=42,
+                        height=42,
+                        border_radius=ft.BorderRadius.all(10),
+                        bgcolor="#E5F1F2",
+                        content=ft.Icon(icon, color=TEAL_PRIMARY, size=22),
+                    ),
+                    ft.Column(
+                        expand=True,
+                        spacing=3,
+                        controls=[
+                            ft.Text(title, size=14, color=TEXT_DARK, weight=ft.FontWeight.W_700),
+                            ft.Text(str(path), size=12, color=TEXT_GRAY),
+                            ft.Text(description, size=12, color=TEXT_MUTED),
+                            status_control,
+                        ],
+                    ),
+                    self._small_button("Abrir", ft.Icons.OPEN_IN_NEW, lambda e, p=path, folder=is_folder: _abrir_ruta_al_frente(p, seleccionar_archivo=not folder)),
+                ],
+            ),
+        )
+
+    def _build_screen_salidas(self) -> ft.Control:
+        self._refresh_outputs()
+        outputs = ft.Column(
+            spacing=12,
             controls=[
-                ft.Text(str(value), size=24, color="#FFF", weight=ft.FontWeight.W_800),
-                ft.Text(title, size=11, color="#E0F7FA", weight=ft.FontWeight.W_600),
+                self._output_tile(
+                    "Excel de control",
+                    EXCEL_CONTROL,
+                    "Archivo principal actualizado por el flujo.",
+                    self.out_excel_control_status,
+                    ft.Icons.TABLE_CHART,
+                ),
+                self._output_tile(
+                    "Excel consolidado de folios/registros",
+                    EXCEL_CONSOLIDADO,
+                    "Resumen completo generado dentro de output/.",
+                    self.out_excel_consolidado_status,
+                    ft.Icons.FACT_CHECK_OUTLINED,
+                ),
+                self._output_tile(
+                    "Carpetas organizadas",
+                    OUTPUT_DIR,
+                    "Aquí quedan las carpetas finales por folio, registro u operador según el procesamiento.",
+                    self.out_output_status,
+                    ft.Icons.FOLDER_COPY,
+                    is_folder=True,
+                ),
+                self._output_tile(
+                    "Descargas temporales",
+                    DESCARGAS_DIR,
+                    "Carpetas de trabajo generadas durante la descarga desde SATyS.",
+                    self.out_descargas_status,
+                    ft.Icons.DOWNLOAD,
+                    is_folder=True,
+                ),
             ],
         )
 
-    def _resumen_seccion(self, titulo, items, color, detalle_fn) -> ft.Container:
-        count = len(items)
-        chips = []
-        for r in items:
-            folio = r.get("folio", "?")
-            det   = detalle_fn(r)
-            chips.append(
-                ft.Container(
-                    padding=ft.Padding.symmetric(horizontal=10, vertical=6),
-                    border_radius=ft.BorderRadius.all(6),
-                    border=ft.Border.all(1, BORDER_COLOR),
-                    bgcolor=PAGE_BG,
-                    content=ft.Column(
-                        spacing=2,
-                        controls=[
-                            ft.Text(folio, size=12, weight=ft.FontWeight.W_700, color=TEXT_DARK),
-                            ft.Text(det,   size=11, color=TEXT_GRAY),
-                        ],
-                    ),
-                )
-            )
-        return ft.Container(
-            padding=ft.Padding.all(14),
-            border_radius=ft.BorderRadius.all(10),
-            border=ft.Border.all(1, BORDER_COLOR),
-            bgcolor=CARD_BG,
-            content=ft.Column(
-                spacing=10,
-                controls=[
-                    ft.Row(
-                        spacing=8,
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        controls=[
-                            ft.Container(width=4, height=20, bgcolor=color,
-                                         border_radius=ft.BorderRadius.all(2)),
-                            ft.Text(titulo, size=13, weight=ft.FontWeight.W_700, color=TEXT_DARK),
-                            ft.Container(
-                                padding=ft.Padding.symmetric(horizontal=8, vertical=2),
-                                bgcolor=color, border_radius=ft.BorderRadius.all(10),
-                                content=ft.Text(str(count), size=11, color="#FFF",
-                                                weight=ft.FontWeight.W_700),
-                            ),
-                        ],
-                    ),
-                    (ft.Row(wrap=True, spacing=8, run_spacing=8, controls=chips)
-                     if chips
-                     else ft.Text("Ninguno.", size=12, color=TEXT_MUTED, italic=True)),
-                ],
-            ),
-        )
-
-    def _resumen_seccion_sin_operador(self, items) -> ft.Container:
-        """Sección especializada para folios sin operador en catálogo."""
-        count  = len(items)
-        COLOR  = ORANGE_WARN   # naranja — requiere acción manual
-        chips  = []
-        for r in items:
-            folio  = r.get("folio", "?")
-            id_sol = r.get("id_solicitante", "N/A")
-            sin_op = r.get("sin_operador_dir",
-                           f"output\\_sin_operador\\{folio}")
-            chips.append(
-                ft.Container(
-                    padding=ft.Padding.symmetric(horizontal=12, vertical=8),
-                    border_radius=ft.BorderRadius.all(6),
-                    border=ft.Border.all(1, BORDER_COLOR),
-                    bgcolor=PAGE_BG,
-                    content=ft.Column(
-                        spacing=3,
-                        controls=[
-                            ft.Text(
-                                f"Folio: {folio}",
-                                size=12, weight=ft.FontWeight.W_700, color=TEXT_DARK,
-                            ),
-                            ft.Text(
-                                f"id_solicitante={id_sol} — no encontrado en catálogo RPC",
-                                size=11, color=TEXT_GRAY,
-                            ),
-                            ft.Row(
-                                spacing=4,
-                                controls=[
-                                    ft.Icon(ft.Icons.ARROW_FORWARD, size=11, color=COLOR),
-                                    ft.Text(
-                                        f"Mueve archivos desde: {sin_op}",
-                                        size=10, color=COLOR, italic=True,
-                                    ),
-                                ],
-                            ),
-                        ],
-                    ),
-                )
-            )
-        return ft.Container(
-            padding=ft.Padding.all(14),
-            border_radius=ft.BorderRadius.all(10),
-            border=ft.Border.all(1, BORDER_COLOR),
-            bgcolor=CARD_BG,
-            content=ft.Column(
-                spacing=10,
-                controls=[
-                    ft.Row(
-                        spacing=8,
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        controls=[
-                            ft.Container(
-                                width=4, height=20, bgcolor=COLOR,
-                                border_radius=ft.BorderRadius.all(2),
-                            ),
-                            ft.Text(
-                                "📁 SIN OPERADOR EN CATÁLOGO (revisión manual)",
-                                size=13, weight=ft.FontWeight.W_700, color=TEXT_DARK,
-                            ),
-                            ft.Container(
-                                padding=ft.Padding.symmetric(horizontal=8, vertical=2),
-                                bgcolor=COLOR,
-                                border_radius=ft.BorderRadius.all(10),
-                                content=ft.Text(
-                                    str(count), size=11, color="#FFF",
-                                    weight=ft.FontWeight.W_700,
-                                ),
-                            ),
-                        ],
-                    ),
-                    (
-                        ft.Column(spacing=6, controls=chips)
-                        if chips
-                        else ft.Text("Ninguno.", size=12, color=TEXT_MUTED, italic=True)
-                    ),
-                ],
-            ),
-        )
-
-    # ════════════════════════════════════════════════════
-    #  HISTORIAL
-    # ════════════════════════════════════════════════════
-
-    def _agregar_a_historial(self, rc: int):
-        log_path = DESCARGA_BASE / "procesamiento_log.json"
-        total = exitosos = 0
-        modo  = "—"
-        fecha = datetime.now().strftime("%d/%m/%Y %H:%M")
-
-        if log_path.exists():
-            try:
-                data     = json.loads(log_path.read_text(encoding="utf-8"))
-                total    = data.get("total_folios", 0)
-                exitosos = data.get("total_exitosos", 0)
-                modo     = data.get("modo_extraccion", "—")
-            except Exception:
-                pass
-
-        self._historial.insert(0, {
-            "fecha": fecha, "total": total,
-            "exitosos": exitosos, "modo": modo, "rc": rc,
-        })
-        self._rebuild_historial()
-
-    def _rebuild_historial(self):
-        if not self._historial:
-            self.hist_column.controls = [
-                ft.Container(
-                    alignment=ft.Alignment.CENTER,
-                    padding=ft.Padding.all(40),
-                    content=ft.Column(
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8,
-                        controls=[
-                            ft.Icon(ft.Icons.HISTORY_TOGGLE_OFF, color=TEXT_MUTED, size=36),
-                            ft.Text("Sin ejecuciones en esta sesión", color=TEXT_MUTED, size=13),
-                        ],
-                    ),
-                )
-            ]
-            return
-
-        rows = []
-        for i, h in enumerate(self._historial):
-            ok = h["rc"] == 0
-            bg = CARD_BG if i % 2 == 0 else "#F8FAFB"
-            rows.append(
-                ft.Container(
-                    bgcolor=bg,
-                    padding=ft.Padding.symmetric(horizontal=16, vertical=12),
-                    border=ft.Border.only(bottom=ft.BorderSide(1, DIVIDER_COLOR)),
-                    content=ft.Row(
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        controls=[
-                            ft.Icon(ft.Icons.CHECK_CIRCLE if ok else ft.Icons.CANCEL,
-                                    color=GREEN_OK if ok else RED_ERR, size=18),
-                            ft.Container(width=10),
-                            ft.Container(width=130,
-                                content=ft.Text(h["fecha"], size=13, color=TEXT_DARK)),
-                            ft.Container(width=90,
-                                content=ft.Text(f"{h['exitosos']}/{h['total']} folios",
-                                                size=13, color=TEAL_PRIMARY,
-                                                weight=ft.FontWeight.W_600)),
-                            ft.Container(expand=True,
-                                content=ft.Text(f"Extracción: {h['modo']}",
-                                                size=12, color=TEXT_GRAY)),
-                            ft.Container(
-                                padding=ft.Padding.symmetric(horizontal=10, vertical=3),
-                                border_radius=ft.BorderRadius.all(10),
-                                bgcolor=GREEN_OK if ok else RED_ERR,
-                                content=ft.Text("Exitoso" if ok else "Error",
-                                                size=11, color="#FFF",
-                                                weight=ft.FontWeight.W_600),
-                            ),
-                        ],
-                    ),
-                )
-            )
-        self.hist_column.controls = rows
-
-    # ════════════════════════════════════════════════════
-    #  TOAST
-    # ════════════════════════════════════════════════════
-
-    def show_toast(self, msg: str, error: bool = False):
-        icon = self.toast.content.controls[0]
-        text = self.toast.content.controls[1]
-        icon.name  = ft.Icons.ERROR_OUTLINE if error else ft.Icons.CHECK_CIRCLE
-        icon.color = RED_ERR if error else GREEN_OK
-        text.value = msg
-        self.toast.visible = True
-        self.page.update()
-        def _hide():
-            time.sleep(2.5)
-            self.toast.visible = False
-            try:
-                self.page.update()
-            except Exception:
-                pass
-        threading.Thread(target=_hide, daemon=True).start()
-
-    # ════════════════════════════════════════════════════
-    #  PANTALLA: PROCESAR FOLIOS
-    # ════════════════════════════════════════════════════
-
-    def _build_screen_procesar(self) -> ft.Control:
-
-        # ── Tarjeta de configuración ──────────────────────
-        config_card = ft.Container(
-            bgcolor=CARD_BG,
-            border_radius=ft.BorderRadius.all(14),
-            padding=ft.Padding.all(20),
-            shadow=ft.BoxShadow(blur_radius=16, color="#10000000", offset=ft.Offset(0, 3)),
-            content=ft.Column(
-                spacing=14,
-                controls=[
-                    ft.Row(
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                        controls=[
-                            ft.Text("Configuración de ejecución", size=15,
-                                    weight=ft.FontWeight.W_700, color=TEXT_DARK),
-                            # Accesos rápidos a carpetas
-                            ft.Row(
-                                spacing=8,
-                                controls=[
-                                    ft.Text("Abrir:", size=12, color=TEXT_MUTED),
-                                    self.btn_abrir_descargas,
-                                    self.btn_abrir_output,
-                                    self.btn_abrir_excel,
-                                ],
-                            ),
-                        ],
-                    ),
-                    ft.Divider(height=1, color=DIVIDER_COLOR),
-
-                    # Modo + workers + navegador
-                    ft.Row(
-                        spacing=14,
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        wrap=True,
-                        controls=[
-                            ft.Text("Modo:", size=13, color=TEXT_GRAY, width=50),
-                            self.dd_modo,
-                            self.txt_workers,
-                            self.sw_navegador,
-                        ],
-                    ),
-
-                    # Filas dinámicas según modo
-                    self.folio_rango_row,
-                    self.folio_manual_row,
-                    self.folio_archivo_row,
-                    self.folio_todos_text,
-
-                    ft.Divider(height=1, color=DIVIDER_COLOR),
-
-                    # Botones + status
-                    ft.Row(
-                        spacing=12,
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        controls=[
-                            self.btn_iniciar,
-                            self.btn_detener,
-                            ft.Container(expand=True),
-                            self.status_icon,
-                            self.status_label,
-                            self.folio_counter,
-                        ],
-                    ),
-                    self.progress_bar,
-                ],
-            ),
-        )
-
-        # ── Tarjeta de log ────────────────────────────────
-        log_card = ft.Container(
-            height=300,
-            bgcolor=CARD_BG,
-            border_radius=ft.BorderRadius.all(14),
-            shadow=ft.BoxShadow(blur_radius=16, color="#10000000", offset=ft.Offset(0, 3)),
-            padding=ft.Padding.all(0),
-            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
-            content=ft.Column(
-                spacing=0, expand=True,
-                controls=[
-                    ft.Container(
-                        bgcolor=TABLE_HEADER_BG,
-                        padding=ft.Padding.symmetric(horizontal=16, vertical=10),
-                        border=ft.Border.only(bottom=ft.BorderSide(1, BORDER_COLOR)),
-                        content=ft.Row(
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                            controls=[
-                                ft.Icon(ft.Icons.TERMINAL, size=16, color=TEXT_GRAY),
-                                ft.Container(width=6),
-                                ft.Text("Log del proceso", size=13,
-                                        weight=ft.FontWeight.W_600, color=TEXT_DARK),
-                                ft.Container(expand=True),
-                                self.btn_copiar_log,
-                                self.btn_limpiar,
-                            ],
-                        ),
-                    ),
-                    ft.Container(
-                        expand=True, bgcolor=LOG_BG,
-                        padding=ft.Padding.all(14),
-                        content=self.log_column,
-                    ),
-                ],
-            ),
-        )
-
-        # ── Tarjeta de resumen ────────────────────────────
-        resumen_card = ft.Container(
-            bgcolor=CARD_BG,
-            border_radius=ft.BorderRadius.all(14),
-            padding=ft.Padding.all(20),
-            shadow=ft.BoxShadow(blur_radius=16, color="#10000000", offset=ft.Offset(0, 3)),
-            content=ft.Column(
-                spacing=12,
-                controls=[
-                    ft.Row(
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        controls=[
-                            ft.Icon(ft.Icons.SUMMARIZE_OUTLINED, size=18, color=TEAL_PRIMARY),
-                            ft.Container(width=8),
-                            ft.Text("Resumen ejecutivo", size=15,
-                                    weight=ft.FontWeight.W_700, color=TEXT_DARK),
-                        ],
-                    ),
-                    ft.Divider(height=1, color=DIVIDER_COLOR),
-                    self.resumen_column,
-                ],
-            ),
-        )
-
         return ft.Column(
-            spacing=16, expand=True, scroll=ft.ScrollMode.AUTO,
-            controls=[config_card, log_card, resumen_card],
+            spacing=16,
+            expand=True,
+            controls=[
+                self._card(
+                    "Salidas del proceso",
+                    "Verifica y abre los archivos/carpeta que entrega la automatización.",
+                    ft.Column(spacing=12, controls=[
+                        ft.Row(spacing=8, controls=[
+                            ft.ElevatedButton(
+                                "Actualizar estado",
+                                icon=ft.Icons.REFRESH,
+                                style=ft.ButtonStyle(bgcolor=TEAL_PRIMARY, color="white", shape=ft.RoundedRectangleBorder(radius=9)),
+                                on_click=lambda e: self._refresh_outputs_and_update(),
+                            ),
+                            self._small_button("Abrir output/", ft.Icons.FOLDER_COPY, lambda e: _abrir_ruta_al_frente(OUTPUT_DIR)),
+                            self._small_button("Abrir TrámitesCRT.xlsx", ft.Icons.TABLE_CHART, lambda e: _abrir_ruta_al_frente(EXCEL_CONTROL, seleccionar_archivo=True)),
+                        ]),
+                        outputs,
+                    ]),
+                    icon=ft.Icons.OUTPUT,
+                )
+            ],
         )
 
     # ════════════════════════════════════════════════════
     #  PANTALLA: HISTORIAL
     # ════════════════════════════════════════════════════
 
-    def _build_screen_historial(self) -> ft.Control:
-        self._rebuild_historial()
-        header = ft.Container(
-            bgcolor=TABLE_HEADER_BG,
-            padding=ft.Padding.symmetric(horizontal=16, vertical=10),
-            border_radius=ft.BorderRadius.only(top_left=10, top_right=10),
-            border=ft.Border.only(bottom=ft.BorderSide(1, BORDER_COLOR)),
+    def _history_row(self, item: dict) -> ft.Control:
+        ok = item.get("return_code") == 0
+        return ft.Container(
+            bgcolor=SOFT_CARD_BG,
+            border_radius=ft.BorderRadius.all(10),
+            border=ft.Border.all(1, BORDER_COLOR),
+            padding=ft.Padding.all(12),
             content=ft.Row(
                 controls=[
-                    ft.Container(width=28),
-                    ft.Container(width=130, content=ft.Text("Fecha", size=12, color=TEXT_GRAY, weight=ft.FontWeight.W_700)),
-                    ft.Container(width=90,  content=ft.Text("Folios", size=12, color=TEXT_GRAY, weight=ft.FontWeight.W_700)),
-                    ft.Container(expand=True, content=ft.Text("Modo extracción", size=12, color=TEXT_GRAY, weight=ft.FontWeight.W_700)),
-                    ft.Text("Estado", size=12, color=TEXT_GRAY, weight=ft.FontWeight.W_700),
-                ],
-            ),
-        )
-        return ft.Container(
-            expand=True, bgcolor=CARD_BG,
-            border_radius=ft.BorderRadius.all(14),
-            padding=ft.Padding.all(0),
-            shadow=ft.BoxShadow(blur_radius=16, color="#10000000", offset=ft.Offset(0, 3)),
-            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
-            content=ft.Column(
-                spacing=0, expand=True,
-                controls=[
-                    ft.Container(
-                        padding=ft.Padding.symmetric(horizontal=20, vertical=16),
-                        border=ft.Border.only(bottom=ft.BorderSide(1, BORDER_COLOR)),
-                        content=ft.Row(
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                            controls=[
-                                ft.Icon(ft.Icons.HISTORY, size=18, color=TEAL_PRIMARY),
-                                ft.Container(width=8),
-                                ft.Text("Historial de ejecuciones", size=15,
-                                        weight=ft.FontWeight.W_700, color=TEXT_DARK),
-                            ],
-                        ),
+                    ft.Icon(ft.Icons.CHECK_CIRCLE if ok else ft.Icons.ERROR, color=GREEN_OK if ok else RED_ERR, size=20),
+                    ft.Column(
+                        expand=True,
+                        spacing=2,
+                        controls=[
+                            ft.Text(item.get("when", "—"), size=13, color=TEXT_DARK, weight=ft.FontWeight.W_700),
+                            ft.Text(item.get("kind", "—"), size=12, color=TEXT_GRAY),
+                            ft.Text(item.get("txt", "—"), size=11, color=TEXT_MUTED),
+                        ],
                     ),
-                    header,
-                    self.hist_column,
+                    ft.Text(f"Código {item.get('return_code', '—')}", size=12, color=GREEN_OK if ok else RED_ERR),
                 ],
             ),
         )
+
+    def _build_screen_historial(self) -> ft.Control:
+        hist = self._cfg.get("historial", []) or []
+        self._historial = hist
+        controls = [self._history_row(x) for x in reversed(hist[-20:])]
+        if not controls:
+            controls = [ft.Text("Todavía no hay ejecuciones registradas en esta interfaz.", size=13, color=TEXT_MUTED)]
+        card = self._card(
+            "Historial de ejecuciones",
+            "Últimas ejecuciones lanzadas desde esta UI.",
+            ft.Column(spacing=10, controls=controls),
+            icon=ft.Icons.HISTORY,
+        )
+        return ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, controls=[card])
 
     # ════════════════════════════════════════════════════
     #  PANTALLA: CONFIGURACIÓN
     # ════════════════════════════════════════════════════
 
     def _build_screen_config(self) -> ft.Control:
-
-        def _field_row(label, ctrl_row, hint=""):
-            return ft.Column(
-                spacing=6,
-                controls=[
-                    ft.Text(label, size=12, color=TEXT_GRAY, weight=ft.FontWeight.W_600),
-                    ctrl_row,
-                    ft.Text(hint, size=11, color=TEXT_MUTED, italic=True) if hint else ft.Container(height=0),
-                ],
-            )
-
-        # ── Fila de Python con botón Examinar ─────────────
-        row_python = ft.Row(
-            spacing=8,
+        return ft.Column(
+            spacing=16,
+            expand=True,
             controls=[
-                self.txt_python_path,
-                ft.Button(
-                    content=ft.Row(
-                        spacing=6, tight=True,
+                self._card(
+                    "Configuración del entorno",
+                    "Solo cambia esto si moviste el Python portable o el script principal.",
+                    ft.Column(
+                        spacing=12,
                         controls=[
-                            ft.Icon(ft.Icons.FOLDER_OPEN, size=15, color="#FFF"),
-                            ft.Text("Examinar", size=12, color="#FFF"),
+                            ft.Row(spacing=10, controls=[
+                                self.txt_python,
+                                self._small_button("Examinar", ft.Icons.SEARCH, lambda e: self._choose_python()),
+                            ]),
+                            ft.Row(spacing=10, controls=[
+                                self.txt_script,
+                                self._small_button("Examinar", ft.Icons.SEARCH, lambda e: self._choose_script()),
+                            ]),
+                            ft.Row(spacing=10, controls=[
+                                ft.ElevatedButton(
+                                    "Guardar configuración",
+                                    icon=ft.Icons.SAVE,
+                                    style=ft.ButtonStyle(bgcolor=TEAL_PRIMARY, color="white", shape=ft.RoundedRectangleBorder(radius=9)),
+                                    on_click=lambda e: self._save_ui_config(show=True),
+                                ),
+                                self._small_button("Restaurar recomendados", ft.Icons.RESTORE, lambda e: self._reset_defaults()),
+                            ]),
                         ],
                     ),
-                    bgcolor=TEAL_PRIMARY,
-                    style=ft.ButtonStyle(
-                        shape=ft.RoundedRectangleBorder(radius=8),
-                        padding=ft.Padding.symmetric(horizontal=14, vertical=10),
-                        elevation=0,
-                    ),
-                    on_click=self._on_pick_py,
+                    icon=ft.Icons.SETTINGS,
+                ),
+                self._card(
+                    "Recomendación de uso",
+                    None,
+                    ft.Column(spacing=8, controls=[
+                        ft.Text("• Entrada: un archivo TXT con un registro o folio por línea.", size=13, color=TEXT_GRAY),
+                        ft.Text(f"• Credenciales: {CREDENCIALES_FILE} usa dos líneas: usuario y contraseña.", size=13, color=TEXT_GRAY),
+                        ft.Text("• Para producción: 6 ventanas y modo rápido sin navegador visible.", size=13, color=TEXT_GRAY),
+                        ft.Text("• Las salidas importantes son TrámitesCRT.xlsx y la carpeta output/.", size=13, color=TEXT_GRAY),
+                        ft.Text("• Los botones que abren ventanas usan Win32 para aparecer delante del navegador.", size=13, color=TEXT_GRAY),
+                    ]),
+                    icon=ft.Icons.INFO_OUTLINE,
                 ),
             ],
         )
 
-        # ── Fila de script con botón Examinar ─────────────
-        row_script = ft.Row(
-            spacing=8,
-            controls=[
-                self.txt_script_path,
-                ft.Button(
-                    content=ft.Row(
-                        spacing=6, tight=True,
-                        controls=[
-                            ft.Icon(ft.Icons.FOLDER_OPEN, size=15, color="#FFF"),
-                            ft.Text("Examinar", size=12, color="#FFF"),
-                        ],
-                    ),
-                    bgcolor=TEAL_PRIMARY,
-                    style=ft.ButtonStyle(
-                        shape=ft.RoundedRectangleBorder(radius=8),
-                        padding=ft.Padding.symmetric(horizontal=14, vertical=10),
-                        elevation=0,
-                    ),
-                    on_click=self._on_pick_script,
-                ),
-            ],
-        )
-
-        def _guardar(e):
-            _save_config({
-                "folio_ini":    self.txt_folio_ini.value,
-                "folio_fin":    self.txt_folio_fin.value,
-                "workers":      self.txt_workers.value,
-                "modo":         self.dd_modo.value,
-                "ver_navegador": self.sw_navegador.value,
-                "python_path":  self.txt_python_path.value,
-                "script_path":  self.txt_script_path.value,
-            })
-            self.show_toast("✅ Configuración guardada en config_satys.json")
-
-        return ft.Container(
-            bgcolor=CARD_BG,
-            border_radius=ft.BorderRadius.all(14),
-            padding=ft.Padding.all(24),
-            shadow=ft.BoxShadow(blur_radius=16, color="#10000000", offset=ft.Offset(0, 3)),
-            content=ft.Column(
-                spacing=20,
-                controls=[
-                    ft.Text("Configuración del entorno", size=15,
-                            weight=ft.FontWeight.W_700, color=TEXT_DARK),
-                    ft.Divider(height=1, color=DIVIDER_COLOR),
-
-                    _field_row(
-                        "Ejecutable de Python",
-                        row_python,
-                        r"Ej: python_portable\python.exe  ó  C:\Python312\python.exe",
-                    ),
-                    _field_row(
-                        "Script principal",
-                        row_script,
-                        "Ruta al archivo main_procesar.py",
-                    ),
-
-                    ft.Divider(height=1, color=DIVIDER_COLOR),
-
-                    ft.Container(
-                        bgcolor=PAGE_BG,
-                        border_radius=ft.BorderRadius.all(10),
-                        padding=ft.Padding.all(14),
-                        content=ft.Column(
-                            spacing=6,
-                            controls=[
-                                ft.Row(
-                                    spacing=8,
-                                    controls=[
-                                        ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=BLUE_INFO),
-                                        ft.Text("Credenciales", size=13,
-                                                weight=ft.FontWeight.W_600, color=TEXT_DARK),
-                                    ],
-                                ),
-                                ft.Text(
-                                    "Las credenciales de SATyS (SATYS_USER / SATYS_PASS) y Azure AI "
-                                    "(AZURE_DOCUMENT_INTELLIGENCE_KEY) se leen de variables de entorno "
-                                    "o del archivo .env en el directorio del proyecto.",
-                                    size=12, color=TEXT_GRAY,
-                                ),
-                            ],
-                        ),
-                    ),
-
-                    ft.Container(
-                        bgcolor="#FFF8E1",
-                        border_radius=ft.BorderRadius.all(10),
-                        border=ft.Border.all(1, "#FFECB3"),
-                        padding=ft.Padding.all(14),
-                        content=ft.Row(
-                            spacing=8,
-                            controls=[
-                                ft.Icon(ft.Icons.KEYBOARD, size=16, color=ORANGE_WARN),
-                                ft.Text(
-                                    "Atajos: F5 = Iniciar proceso  ·  Esc = Detener proceso",
-                                    size=12, color=ORANGE_WARN, weight=ft.FontWeight.W_600,
-                                ),
-                            ],
-                        ),
-                    ),
-
-                    ft.Button(
-                        "Guardar configuración",
-                        icon=ft.Icons.SAVE_OUTLINED,
-                        bgcolor=TEAL_PRIMARY, color="#FFF",
-                        style=ft.ButtonStyle(
-                            shape=ft.RoundedRectangleBorder(radius=8),
-                            elevation=0,
-                        ),
-                        on_click=_guardar,
-                    ),
-                ],
-            ),
-        )
-
     # ════════════════════════════════════════════════════
-    #  BARRA LATERAL
+    #  EVENTOS DE NAVEGACIÓN / FORMULARIO
     # ════════════════════════════════════════════════════
 
-    def _build_nav_item(self, label: str, icon_out, icon_fill) -> ft.Container:
-        active = label == self.active_nav
+    def _toggle_sidebar(self, e=None) -> None:
+        self._sidebar_visible = not self._sidebar_visible
+        self._rebuild()
 
-        def on_click(e):
-            self.active_nav = label
-            self._rebuild_sidebar()
-            self._switch_screen(label)
+    def _select_nav(self, label: str) -> None:
+        self.active_nav = label
+        titles = {
+            "Procesar": "Procesamiento SATyS",
+            "Resumen": "Resultados",
+            "Salidas": "Archivos generados",
+            "Historial": "Historial",
+            "Configuración": "Configuración",
+        }
+        self.header_title.value = titles.get(label, label)
+        # No asignamos aquí screen_container.content. _rebuild() llama a build(),
+        # y build() usa _build_active_screen() para pintar la pantalla correcta.
+        self._rebuild()
+
+    def _on_form_change(self, e=None) -> None:
+        self._items_detectados = _line_count_txt(self.txt_archivo.value or "")
+        self.counter_label.value = f"{self._items_detectados} elementos detectados"
+        self._update_command_preview()
+        self._save_ui_config(show=False)
+        try:
+            changed_control = getattr(e, "control", None)
+            if changed_control in (self.dd_tipo_txt, self.txt_archivo):
+                self._last_summary_refresh_ts = 0.0
+                self._refresh_summary_if_visible(force=True)
+            else:
+                self.page.update()
+        except Exception:
+            pass
+
+    def _handle_keyboard(self, e: ft.KeyboardEvent) -> None:
+        key = (e.key or "").upper()
+        if key == "F5" and not self._running:
+            self._start_process(None)
+        elif key == "ESCAPE" and self._running:
+            self._stop_process(None)
+
+    # ════════════════════════════════════════════════════
+    #  EXAMINAR / ABRIR ARCHIVOS
+    # ════════════════════════════════════════════════════
+
+    def _choose_txt(self, e=None) -> None:
+        current = Path(self.txt_archivo.value).parent if self.txt_archivo.value else Path.cwd()
+        ruta = _abrir_dialogo_archivo_al_frente(
+            "Selecciona archivo TXT de registros o folios",
+            "Archivos TXT (*.txt)|*.txt|Todos los archivos (*.*)|*.*",
+            str(current if current.exists() else Path.cwd()),
+        )
+        if ruta:
+            self.txt_archivo.value = ruta
+            self._on_form_change()
+            self._last_summary_refresh_ts = 0.0
+            self._refresh_summary_if_visible(force=True)
+            self._show_toast("Archivo TXT seleccionado")
+
+    def _choose_python(self) -> None:
+        ruta = _abrir_dialogo_archivo_al_frente(
+            "Selecciona python.exe",
+            "Python executable (python.exe)|python.exe|Ejecutables (*.exe)|*.exe|Todos los archivos (*.*)|*.*",
+            str(Path.cwd()),
+        )
+        if ruta:
+            self.txt_python.value = ruta
+            self._on_form_change()
+
+    def _choose_script(self) -> None:
+        ruta = _abrir_dialogo_archivo_al_frente(
+            "Selecciona main_procesar.py",
+            "Python (*.py)|*.py|Todos los archivos (*.*)|*.*",
+            str(Path.cwd()),
+        )
+        if ruta:
+            self.txt_script.value = ruta
+            self._on_form_change()
+
+    # ════════════════════════════════════════════════════
+    #  COMANDO / VALIDACIÓN / CONFIG
+    # ════════════════════════════════════════════════════
+
+    def _current_credentials(self) -> tuple[str, str]:
+        usuario = (self.txt_satys_user.value or "").strip()
+        password = (self.txt_satys_pass.value or "").strip()
+        return usuario, password
+
+    def _reload_credentials(self, e=None) -> None:
+        usuario, password, source = _read_satys_credentials()
+        self.txt_satys_user.value = usuario
+        self.txt_satys_pass.value = password
+        self.cred_status.value = source
+        self.cred_status.color = GREEN_OK if usuario and password else ORANGE_WARN
+        self._show_toast("Credenciales recargadas")
+        try:
             self.page.update()
+        except Exception:
+            pass
 
-        return ft.Container(
-            padding=ft.Padding.symmetric(horizontal=14, vertical=11),
-            margin=ft.Margin.only(left=10, right=10, bottom=4),
-            border_radius=ft.BorderRadius.all(8),
-            bgcolor=SIDEBAR_SEL_BG if active else None,
-            ink=True,
-            on_click=on_click,
-            content=ft.Row(
-                spacing=12,
-                controls=[
-                    ft.Icon(icon_fill if active else icon_out, size=19,
-                            color=TEAL_DARK if active else TEXT_GRAY),
-                    ft.Text(label, size=13.5,
-                            color=TEAL_DARK if active else TEXT_GRAY,
-                            weight=ft.FontWeight.W_600 if active else ft.FontWeight.W_400),
-                ],
-            ),
-        )
+    def _save_credentials_to_file(self, e=None) -> None:
+        usuario, password = self._current_credentials()
+        if not usuario or not password:
+            self.cred_status.value = "No guardé: usuario y contraseña SATyS son obligatorios."
+            self.cred_status.color = RED_ERR
+            self._show_toast("Faltan credenciales", seconds=3)
+            try:
+                self.page.update()
+            except Exception:
+                pass
+            return
+        ok, msg = _write_satys_credentials(usuario, password)
+        self.cred_status.value = msg
+        self.cred_status.color = GREEN_OK if ok else RED_ERR
+        self._show_toast("Credenciales guardadas" if ok else "No se pudo guardar", seconds=3)
+        try:
+            self.page.update()
+        except Exception:
+            pass
 
-    def _rebuild_sidebar(self):
-        self.sidebar_nav_col.controls = [
-            self._build_nav_item(*item) for item in NAV_ITEMS
-        ]
+    def _save_ui_config(self, show: bool = False) -> None:
+        self._cfg.update({
+            "input_kind": self.dd_tipo_txt.value,
+            "txt_path": self.txt_archivo.value or "",
+            "workers": self.txt_workers.value or str(DEFAULT_WORKERS),
+            "headless": bool(self.sw_headless.value),
+            "python_path": self.txt_python.value or _python_exe_default(),
+            "script_path": self.txt_script.value or DEFAULT_SCRIPT,
+        })
+        _save_config(self._cfg)
+        if show:
+            self._show_toast("Configuración guardada")
 
-    def _build_sidebar(self) -> ft.Container:
-        self.sidebar_nav_col = ft.Column(spacing=0)
-        self._rebuild_sidebar()
+    def _reset_defaults(self) -> None:
+        self.txt_python.value = _python_exe_default()
+        self.txt_script.value = DEFAULT_SCRIPT
+        self.txt_workers.value = str(DEFAULT_WORKERS)
+        self.sw_headless.value = DEFAULT_HEADLESS
+        self.dd_tipo_txt.value = "registros"
+        self._on_form_change()
+        self._show_toast("Valores recomendados restaurados")
 
-        self.sidebar_container = ft.Container(
-            width=230,
-            bgcolor=SIDEBAR_BG,
-            content=ft.Column(
-                controls=[
-                    ft.Container(
-                        padding=ft.Padding.only(left=18, right=18, top=22, bottom=10),
-                        content=ft.Image(src="logo.png", width=150, fit=ft.BoxFit.CONTAIN),
-                    ),
-                    ft.Divider(height=1, color="#BDD0D1"),
-                    ft.Container(height=8),
-                    ft.Container(
-                        padding=ft.Padding.symmetric(horizontal=16, vertical=4),
-                        content=ft.Text("AUTOMATIZACIÓN SATyS", size=10,
-                                        color=TEXT_MUTED, weight=ft.FontWeight.W_700),
-                    ),
-                    ft.Container(height=4),
-                    self.sidebar_nav_col,
-                    ft.Container(expand=True),
-                    ft.Container(
-                        padding=ft.Padding.only(left=16, right=16, bottom=16),
-                        content=ft.Text("© CRT 2025", size=11, color=TEXT_MUTED),
-                    ),
-                ],
-            ),
-        )
-        return self.sidebar_container
+    def _build_args(self) -> list[str]:
+        python_path = (self.txt_python.value or _python_exe_default()).strip()
+        script_path = (self.txt_script.value or DEFAULT_SCRIPT).strip()
+        txt_path = (self.txt_archivo.value or "").strip().strip('"')
 
-    # ════════════════════════════════════════════════════
-    #  ENCABEZADO
-    # ════════════════════════════════════════════════════
+        args = [python_path, script_path]
+        if self.dd_tipo_txt.value == "folios":
+            args += ["--archivo-folios", txt_path]
+        else:
+            args += ["--archivo-registro", txt_path]
 
-    def _build_header(self) -> ft.Row:
-        screen_titles = {
-            "Procesar Folios": "Gestor de Automatización",
-            "Historial":       "Historial de Ejecuciones",
-            "Configuración":   "Configuración del Entorno",
-        }
-        return ft.Row(
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-            vertical_alignment=ft.CrossAxisAlignment.START,
-            controls=[
-                ft.Row(
-                    spacing=10,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                    controls=[
-                        self.btn_toggle_sidebar,
-                        ft.Column(
-                            spacing=2,
-                            controls=[
-                                ft.Text("SATyS — Control de Descarga y Procesamiento",
-                                        size=13, color=TEXT_GRAY),
-                                ft.Text(screen_titles.get(self.active_nav, ""),
-                                        size=22, color=TEXT_DARK, weight=ft.FontWeight.W_700),
-                            ],
-                        ),
-                    ],
-                ),
-                ft.Row(
-                    spacing=10,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                    controls=[
-                        ft.CircleAvatar(
-                            content=ft.Icon(ft.Icons.PERSON, color="#9AA3A6"),
-                            bgcolor="#E4E7E9", radius=18,
-                        ),
-                        ft.Text("CRT Usuario", size=13, color=TEXT_DARK,
-                                weight=ft.FontWeight.W_600),
-                    ],
-                ),
-            ],
-        )
+        workers = (self.txt_workers.value or str(DEFAULT_WORKERS)).strip()
+        if workers:
+            args += ["--workers", workers]
 
-    # ════════════════════════════════════════════════════
-    #  SWITCH DE PANTALLAS
-    # ════════════════════════════════════════════════════
+        if self.sw_headless.value:
+            args.append("--headless")
 
-    def _switch_screen(self, label: str):
-        screens = {
-            "Procesar Folios": self._build_screen_procesar,
-            "Historial":       self._build_screen_historial,
-            "Configuración":   self._build_screen_config,
-        }
-        builder = screens.get(label, self._build_screen_procesar)
-        self.header_row.controls[0].controls[1].controls[1].value = {
-            "Procesar Folios": "Gestor de Automatización",
-            "Historial":       "Historial de Ejecuciones",
-            "Configuración":   "Configuración del Entorno",
-        }.get(label, "")
-        self.screen_container.content = builder()
+        return args
+
+    def _update_command_preview(self) -> None:
+        try:
+            self.command_preview.value = _command_to_string(self._build_args())
+        except Exception as ex:
+            self.command_preview.value = f"No se pudo preparar el comando: {ex}"
+
+    def _validate_before_run(self) -> tuple[bool, str]:
+        python_path = Path((self.txt_python.value or "").strip().strip('"'))
+        script_path = Path((self.txt_script.value or "").strip().strip('"'))
+        txt_path = Path((self.txt_archivo.value or "").strip().strip('"'))
+
+        if not self.txt_archivo.value.strip():
+            return False, "Selecciona un archivo TXT de entrada."
+        if not txt_path.exists() or not txt_path.is_file():
+            return False, f"El TXT no existe:\n{txt_path}"
+        if txt_path.suffix.lower() != ".txt":
+            return False, "La entrada debe ser un archivo .txt."
+        if _line_count_txt(str(txt_path)) <= 0:
+            return False, "El TXT no tiene registros o folios válidos."
+        if not script_path.exists() or not script_path.is_file():
+            return False, f"No encontré el script principal:\n{script_path}"
+        if python_path.name.lower().endswith("python.exe") and not python_path.exists():
+            return False, f"No encontré el Python indicado:\n{python_path}"
+        try:
+            workers = int((self.txt_workers.value or "0").strip())
+            if workers < 1 or workers > 20:
+                return False, "Ventanas debe estar entre 1 y 20."
+        except Exception:
+            return False, "Ventanas debe ser un número."
+        satys_user, satys_pass = self._current_credentials()
+        if not satys_user or not satys_pass:
+            return False, (
+                "Faltan credenciales SATyS. Escríbelas en Usuario/Contraseña "
+                "o guarda el archivo de credenciales."
+            )
+        return True, "OK"
 
     # ════════════════════════════════════════════════════
-    #  BUILD COMPLETO
+    #  EJECUCIÓN
     # ════════════════════════════════════════════════════
 
-    def build(self) -> ft.Stack:
-        sidebar = self._build_sidebar()
+    def _start_process(self, e=None) -> None:
+        if self._running:
+            return
 
-        self.header_row = self._build_header()
-        self.screen_container = ft.Container(
-            expand=True,
-            content=self._build_screen_procesar(),
+        self._on_form_change()
+        ok, msg = self._validate_before_run()
+        if not ok:
+            self._show_toast(msg, seconds=3)
+            self._append_log(f"[{_ts()}] ❌ {msg}", LOG_ERROR)
+            return
+
+        args = self._build_args()
+        self._save_ui_config(show=False)
+        self._prepare_current_run_summary()
+        self._set_running(True)
+        self._clear_log(None)
+        self._refresh_summary_if_visible(force=True)
+        self._start_summary_auto_refresh()
+        self._append_log("═" * 72, "#A0BBCC")
+        self._append_log(f"[{_ts()}] 🚀 Iniciando automatización SATyS", LOG_INFO)
+        self._append_log(f"[{_ts()}] Entrada: {self.dd_tipo_txt.options[0].text if self.dd_tipo_txt.value == 'registros' else self.dd_tipo_txt.options[1].text}", LOG_INFO)
+        self._append_log(f"[{_ts()}] TXT: {self.txt_archivo.value}", LOG_INFO)
+        satys_user, satys_pass = self._current_credentials()
+        self._append_log(f"[{_ts()}] Elementos detectados: {_line_count_txt(self.txt_archivo.value)}", LOG_INFO)
+        self._append_log(f"[{_ts()}] Usuario SATyS: {satys_user}", LOG_INFO)
+        self._append_log(f"[{_ts()}] Archivo credenciales: {CREDENCIALES_FILE}", LOG_MUTED)
+        self._append_log(f"[{_ts()}] Comando: {_command_to_string(args)}", LOG_MUTED)
+        self._append_log("═" * 72, "#A0BBCC")
+
+        def run_process() -> None:
+            try:
+                env = os.environ.copy()
+                env["PYTHONIOENCODING"] = "utf-8"
+                env["PYTHONUNBUFFERED"] = "1"
+                env["SATYS_USER"] = satys_user
+                env["SATYS_PASS"] = satys_pass
+                env["SATYS_CREDENTIALS_FILE"] = str(CREDENCIALES_FILE)
+                script_path = Path((self.txt_script.value or DEFAULT_SCRIPT).strip().strip('"'))
+                cwd = str(script_path.resolve().parent) if script_path.exists() else None
+
+                self._process = subprocess.Popen(
+                    args,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    env=env,
+                    cwd=cwd,
+                    bufsize=1,
+                )
+                assert self._process.stdout is not None
+                for line in self._process.stdout:
+                    self._log_queue.put(line.rstrip("\n"))
+                self._process.wait()
+                self._log_queue.put(("__done__", self._process.returncode))
+            except Exception as ex:
+                self._log_queue.put(f"❌ Error al lanzar proceso: {ex}")
+                self._log_queue.put(("__done__", -1))
+
+        def drain_log() -> None:
+            rc = None
+            while True:
+                batch = []
+                try:
+                    while len(batch) < 30:
+                        item = self._log_queue.get(timeout=0.05)
+                        if isinstance(item, tuple) and item[0] == "__done__":
+                            rc = item[1]
+                            break
+                        batch.append(item)
+                except queue.Empty:
+                    pass
+
+                if batch:
+                    for line in batch:
+                        self._append_log(line, _color_for_line(line))
+                    self._refresh_summary_if_visible(force=False)
+                    try:
+                        self.page.update()
+                    except Exception:
+                        pass
+
+                if rc is not None:
+                    break
+
+            self._finish_process(int(rc or 0))
+
+        threading.Thread(target=run_process, daemon=True).start()
+        threading.Thread(target=drain_log, daemon=True).start()
+        try:
+            self.page.update()
+        except Exception:
+            pass
+
+    def _stop_process(self, e=None) -> None:
+        if not self._running or not self._process:
+            return
+        self._append_log(f"[{_ts()}] ⚠️ Deteniendo proceso por solicitud del usuario...", LOG_WARNING)
+        try:
+            self._process.terminate()
+            try:
+                self._process.wait(timeout=4)
+            except subprocess.TimeoutExpired:
+                self._process.kill()
+        except Exception as ex:
+            self._append_log(f"[{_ts()}] ❌ No se pudo detener: {ex}", LOG_ERROR)
+        self._set_running(False)
+
+    def _finish_process(self, rc: int) -> None:
+        if rc == 0:
+            self._append_log(f"[{_ts()}] ✅ Proceso completado correctamente.", LOG_SUCCESS)
+        else:
+            self._append_log(f"[{_ts()}] ❌ Proceso terminó con código {rc}.", LOG_ERROR)
+        self._set_running(False)
+        self._refresh_outputs()
+        self._add_history(rc)
+        self._refresh_summary_if_visible(force=True)
+        try:
+            self.page.update()
+        except Exception:
+            pass
+
+    def _set_running(self, running: bool) -> None:
+        self._running = running
+        self.btn_iniciar.visible = not running
+        self.btn_detener.visible = running
+        self.progress.visible = running
+        self.progress.value = None if running else 0
+        self.status_icon.color = TEAL_PROGRESS if running else TEXT_MUTED
+        self.status_label.value = "Procesando..." if running else "Listo"
+        self.status_label.color = TEAL_PRIMARY if running else TEXT_MUTED
+
+    def _add_history(self, rc: int) -> None:
+        kind = "Números de registro CRT" if self.dd_tipo_txt.value == "registros" else "Folios SATyS"
+        hist = self._cfg.get("historial", []) or []
+        hist.append({
+            "when": _dt(),
+            "return_code": rc,
+            "kind": kind,
+            "txt": self.txt_archivo.value,
+            "count": _line_count_txt(self.txt_archivo.value),
+        })
+        self._cfg["historial"] = hist[-50:]
+        _save_config(self._cfg)
+
+    # ════════════════════════════════════════════════════
+    #  LOG
+    # ════════════════════════════════════════════════════
+
+    def _append_log(self, text: str, color: str = LOG_TEXT) -> None:
+        self._log_lines.append(text)
+        try:
+            print(text, flush=True)
+        except Exception:
+            pass
+        self.log_view.controls.append(
+            ft.Text(
+                text,
+                size=12,
+                color=color,
+                font_family="Consolas",
+                selectable=True,
+                no_wrap=True,
+            )
         )
 
-        main_area = ft.Container(
-            expand=True, bgcolor=PAGE_BG,
-            padding=ft.Padding.only(left=28, right=28, top=22, bottom=14),
-            content=ft.Column(
-                spacing=18, expand=True,
-                controls=[
-                    self.header_row,
-                    self.screen_container,
-                    ft.Text(
-                        "Optimizado para Windows  ·  © Comisión Reguladora de Telecomunicaciones 2025",
-                        size=11, color=TEXT_MUTED, text_align=ft.TextAlign.CENTER,
-                    ),
-                ],
-            ),
-        )
+    def _clear_log(self, e=None) -> None:
+        self._log_lines.clear()
+        self.log_view.controls.clear()
+        try:
+            self.page.update()
+        except Exception:
+            pass
 
-        return ft.Stack(
-            expand=True,
-            controls=[
-                ft.Row(
-                    expand=True, spacing=0,
-                    controls=[sidebar, main_area],
-                ),
-                ft.Container(top=16, right=16, content=self.toast),
-            ],
-        )
+    def _copy_log(self, e=None) -> None:
+        text = "\n".join(self._log_lines)
+        try:
+            self.page.set_clipboard(text)
+            self._show_toast("Log copiado")
+        except Exception:
+            self._show_toast("No se pudo copiar el log")
+
+    # ════════════════════════════════════════════════════
+    #  SALIDAS
+    # ════════════════════════════════════════════════════
+
+    def _status_text_for_path(self, path: Path, is_folder: bool = False) -> tuple[str, str]:
+        if path.exists():
+            if is_folder:
+                try:
+                    count = len([x for x in path.iterdir()])
+                except Exception:
+                    count = 0
+                return f"✅ Existe · {count} elemento(s)", GREEN_OK
+            try:
+                size_kb = path.stat().st_size / 1024
+                mod = datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+                return f"✅ Existe · {size_kb:,.1f} KB · modificado {mod}", GREEN_OK
+            except Exception:
+                return "✅ Existe", GREEN_OK
+        return "⚪ Aún no existe", TEXT_MUTED
+
+    def _refresh_outputs(self) -> None:
+        for control, path, is_folder in [
+            (self.out_excel_control_status, EXCEL_CONTROL, False),
+            (self.out_excel_consolidado_status, EXCEL_CONSOLIDADO, False),
+            (self.out_output_status, OUTPUT_DIR, True),
+            (self.out_descargas_status, DESCARGAS_DIR, True),
+        ]:
+            text, color = self._status_text_for_path(path, is_folder=is_folder)
+            control.value = text
+            control.color = color
+
+    def _refresh_outputs_and_update(self) -> None:
+        self._refresh_outputs()
+        self._show_toast("Estado actualizado")
+        try:
+            self.page.update()
+        except Exception:
+            pass
 
 
 # ════════════════════════════════════════════════════════
 #  ENTRY POINT
 # ════════════════════════════════════════════════════════
 
+
 def main(page: ft.Page):
-    page.title   = "SATyS — Gestor de Automatización CRT"
+    page.title = "SATyS — Gestor CRT"
     page.bgcolor = PAGE_BG
     page.padding = 0
 
-    # Ventana más grande por defecto
-    page.window.width      = 1400
-    page.window.height     = 860
-    page.window.min_width  = 1000
-    page.window.min_height = 650
-    page.window.resizable  = True
-    page.window.maximizable = True
+    # Ventana web local grande, pensada para uso operativo.
+    try:
+        page.window.width = 1440
+        page.window.height = 880
+        page.window.min_width = 1080
+        page.window.min_height = 680
+        page.window.resizable = True
+        page.window.maximizable = True
+    except Exception:
+        pass
 
-    page.theme = ft.Theme(
-        font_family="Segoe UI",
-        color_scheme_seed=TEAL_PRIMARY,
-    )
+    page.theme = ft.Theme(font_family="Segoe UI", color_scheme_seed=TEAL_PRIMARY)
+
+    # Consola Windows UTF-8 para logs.
+    try:
+        if hasattr(sys.stdout, "buffer") and getattr(sys.stdout, "encoding", "") != "utf-8":
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+        if hasattr(sys.stderr, "buffer") and getattr(sys.stderr, "encoding", "") != "utf-8":
+            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
     app = SATySApp(page)
     page.add(app.build())

@@ -1,8 +1,8 @@
 {
-  "fecha_ejecucion": "2026-06-30T11:49:11.914896",
+  "fecha_ejecucion": "2026-07-01T13:39:09.030725",
   "modo_extraccion": "azure",
   "total_folios": 6,
-  "total_exitosos": 0,
+  "total_exitosos": 6,
   "resultados": [
     {
       "folio": "2014",
@@ -15,7 +15,7 @@
       "imagen_sello": null,
       "fecha_sello": "18-06-2026 00:00:00",
       "rpc_ok": false,
-      "excel_ok": false,
+      "excel_ok": true,
       "organizado_ok": false,
       "modo_extraccion": "lectura_json",
       "archivos_pendientes": [
@@ -48,7 +48,7 @@
       "imagen_sello": null,
       "fecha_sello": "22/05/2026",
       "rpc_ok": true,
-      "excel_ok": false,
+      "excel_ok": true,
       "organizado_ok": true,
       "modo_extraccion": "lectura_json",
       "rpc_resultado": {
@@ -73,7 +73,7 @@
       "imagen_sello": null,
       "fecha_sello": "22/05/2026",
       "rpc_ok": true,
-      "excel_ok": false,
+      "excel_ok": true,
       "organizado_ok": true,
       "modo_extraccion": "lectura_json",
       "rpc_resultado": {
@@ -102,7 +102,7 @@
       "imagen_sello": null,
       "fecha_sello": "22/05/2026",
       "rpc_ok": true,
-      "excel_ok": false,
+      "excel_ok": true,
       "organizado_ok": true,
       "modo_extraccion": "lectura_json",
       "rpc_resultado": {
@@ -137,7 +137,7 @@
       "imagen_sello": null,
       "fecha_sello": "15-05-2026 00:00:00",
       "rpc_ok": true,
-      "excel_ok": false,
+      "excel_ok": true,
       "organizado_ok": true,
       "modo_extraccion": "lectura_json",
       "rpc_resultado": {
@@ -164,7 +164,7 @@
       "imagen_sello": null,
       "fecha_sello": "21-01-2026 00:00:00",
       "rpc_ok": false,
-      "excel_ok": false,
+      "excel_ok": true,
       "organizado_ok": false,
       "modo_extraccion": "lectura_json",
       "archivos_pendientes": [
