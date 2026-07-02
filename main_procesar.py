@@ -92,6 +92,38 @@ logging.basicConfig(
 log = logging.getLogger("SATyS-Main")
 
 
+REGISTRO_RE = re.compile(r"\b[A-Z]{2,6}\d{2}-\d{3,}\b", re.IGNORECASE)
+
+def normalizar_registro_satys(valor: str) -> str:
+    """Normaliza un número de Registro SATyS, por ejemplo CRT26-027838."""
+    valor = (valor or "").strip().upper()
+    valor = re.sub(r"\s+", "", valor)
+    m = REGISTRO_RE.search(valor)
+    return m.group(0).upper() if m else valor
+
+def cargar_registros_desde_archivo(path: str | Path) -> list[str]:
+    """
+    Lee registros desde TXT aceptando saltos de línea, espacios, comas o punto y coma.
+    Esto evita que un archivo con todos los registros en una sola línea se lea como 1 solo registro.
+    """
+    path = Path(path)
+    texto = path.read_text(encoding="utf-8-sig", errors="replace")
+    candidatos = REGISTRO_RE.findall(texto)
+    if not candidatos:
+        # Fallback: separar por cualquier whitespace/coma/punto y coma.
+        candidatos = re.split(r"[\s,;]+", texto)
+
+    registros: list[str] = []
+    vistos: set[str] = set()
+    for candidato in candidatos:
+        registro = normalizar_registro_satys(candidato)
+        if registro and registro not in vistos and REGISTRO_RE.fullmatch(registro):
+            vistos.add(registro)
+            registros.append(registro)
+    return registros
+
+
+
 # ────────────────────────────────────────────────────────
 #  PARTE 1: Descarga (importa Parte1_descarga.py)
 # ────────────────────────────────────────────────────────
@@ -667,7 +699,7 @@ Ejemplos:
                         help="Ocultar navegador de Playwright (ejecución en segundo plano).")
     parser.add_argument("--archivo-registro", type=str, default="",
                         help="Ruta a un archivo .txt con la lista de números de Registro a procesar "
-                             "(uno por línea, ej. CRT26-002483). Activa el modo de búsqueda por Registro.")
+                             "(uno por línea o separados por espacios/comas, ej. CRT26-002483). Activa el modo de búsqueda por Registro.")
     args = parser.parse_args()
 
     # Configuración local
@@ -686,26 +718,25 @@ Ejemplos:
     # MODO REGISTRO: buscar y descargar por número de Registro
     # ────────────────────────────────────────────────────────────────────────
     if args.archivo_registro:
-        registros = []
         try:
-            with open(args.archivo_registro, "r", encoding="utf-8-sig") as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith("#"):
-                        registros.append(line)
+            registros = cargar_registros_desde_archivo(args.archivo_registro)
             print(f"📄 Cargados {len(registros)} registro(s) desde {args.archivo_registro}")
         except Exception as e:
             log.error("❌ Error leyendo archivo de registros %s: %s", args.archivo_registro, e)
             return
 
         if not registros:
-            log.error("❌ El archivo de registros está vacío")
+            log.error("❌ El archivo de registros está vacío o no contiene registros con formato CRT26-000000")
             return
 
         print("\n" + "─" * 70)
         print("  MODO REGISTRO: DESCARGA POR NÚMERO DE REGISTRO")
         print("─" * 70)
-        print(f"  Registros a procesar: {', '.join(registros)}")
+        print(f"  Total de registros a procesar: {len(registros)}")
+        muestra_registros = ", ".join(registros[:50])
+        if len(registros) > 50:
+            muestra_registros += f", ... (+{len(registros) - 50} más)"
+        print(f"  Registros: {muestra_registros}")
         print("─" * 70 + "\n")
 
         # ── Ejecutar Parte 1 en modo registro ───────────────────────────

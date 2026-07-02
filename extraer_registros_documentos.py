@@ -57,6 +57,7 @@ OUTPUT_DEFAULT = Path(os.getenv("SATYS_REGISTROS_OUT", "registros_documentos_en_
 HEADLESS_DEFAULT = os.getenv("SATYS_HEADLESS", "False").lower() in ("true", "1", "yes")
 TIMEOUT_NAV = int(os.getenv("SATYS_TIMEOUT_NAV", "60000"))
 TIMEOUT_CORTO = int(os.getenv("SATYS_TIMEOUT_CORTO", "10000"))
+TIMEOUT_TABLA_REGISTROS = int(os.getenv("SATYS_TIMEOUT_TABLA_REGISTROS", "60000"))
 
 
 logging.basicConfig(
@@ -130,6 +131,7 @@ def esperar_sin_spinner(page, timeout_ms: int = 30_000) -> bool:
 
 
 def esperar_datatables(page, timeout_ms: int = 12_000) -> None:
+    page.wait_for_timeout(800)  # Wait for AJAX to trigger and UI to show processing
     try:
         page.wait_for_function(
             """
@@ -274,19 +276,19 @@ def seleccionar_todos_los_anios(page) -> None:
               };
               const selects = Array.from(document.querySelectorAll('select')).filter(visible);
               for (const select of selects) {
-                const options = Array.from(select.options);
+                const options = Array.from(select.options || []);
                 const option = options.find(opt => /todos/i.test(opt.textContent || ''));
                 const looksLikeYear = options.some(opt => /20\\d\\d/.test(opt.textContent || opt.value || ''));
                 if (option && looksLikeYear && select.value !== option.value) {
                   select.value = option.value;
                   select.dispatchEvent(new Event('change', { bubbles: true }));
-                  return { changed: true, text: option.textContent.trim() };
+                  return { changed: true, text: (option.textContent || '').trim() };
                 }
               }
               return { changed: false };
             }
             """
-        )
+        ) or {"changed": False}
         if cambio.get("changed"):
             log.info("[CFG] Año cambiado a: %s", cambio.get("text"))
             esperar_datatables(page, timeout_ms=20_000)
@@ -332,104 +334,191 @@ def cambiar_mostrar_a_100(page) -> bool:
 
 
 def leer_estado_tabla(page) -> dict:
-    return page.evaluate(
-        """
-        () => {
-          const visible = el => {
-            const style = window.getComputedStyle(el);
-            return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null;
-          };
-          const normalize = text => (text || '').replace(/\\s+/g, ' ').trim();
-          const cleanRegistro = text => {
-            const compact = (text || '').replace(/\\s+/g, '');
-            const match = compact.match(/[A-Z]{2,6}\\d{2}-\\d{3,}/i);
-            return match ? match[0].toUpperCase() : compact.toUpperCase();
-          };
+    """Lee el estado de la tabla de Documentos en Proceso.
 
-          const tables = Array.from(document.querySelectorAll('table')).filter(visible);
-          let chosen = null;
-          let registroIndex = -1;
+    Importante: en SATyS la vista es una SPA. A veces `page.evaluate()` puede
+    regresar None o fallar mientras el JavaScript del portal todavía está
+    construyendo la tabla. Por eso esta función siempre regresa un dict seguro.
+    """
+    estado_default = {
+        "registros": [],
+        "info": "",
+        "hasNext": False,
+        "found": False,
+        "pageKey": "",
+        "ready": False,
+        "error": "",
+    }
+    try:
+        estado_default["tableCount"] = page.locator("table:visible").count()
+        # Find the table that has a "Registro" column
+        tables = page.locator("table:visible")
+        chosen_table = None
+        registro_index = -1
+        
+        for i in range(tables.count()):
+            table = tables.nth(i)
+            headers = table.locator("thead th, tr th")
+            for j in range(headers.count()):
+                text = headers.nth(j).inner_text().strip()
+                if text.lower() == "registro":
+                    chosen_table = table
+                    registro_index = j
+                    break
+            if chosen_table:
+                break
+                
+        if not chosen_table:
+            return estado_default
+            
+        estado_default["found"] = True
+        
+        # Check if processing is visible
+        wrapper = chosen_table.locator("xpath=ancestor::*[contains(@class, 'dataTables_wrapper')]").first
+        if wrapper.count() == 0:
+            wrapper = page.locator("body")
+            
+        processing = wrapper.locator(".dataTables_processing:visible")
+        processing_visible = processing.count() > 0
+        
+        # Extract records
+        registros = []
+        rows = chosen_table.locator("tbody tr:visible")
+        for i in range(rows.count()):
+            row = rows.nth(i)
+            cells = row.locator("td")
+            if cells.count() > registro_index:
+                raw_text = cells.nth(registro_index).inner_text().strip()
+                if raw_text and not re.search(r"no hay|sin resultados|no data", raw_text, re.I):
+                    compact = re.sub(r"\s+", "", raw_text)
+                    match = re.search(r"[A-Z]{2,6}\d{2}-\d{3,}", compact, re.I)
+                    registro = match.group(0).upper() if match else compact.upper()
+                    if registro:
+                        registros.append(registro)
+                        
+        estado_default["registros"] = registros
+        
+        # Extract info
+        info_el = wrapper.locator(".dataTables_info, [id$='_info']").first
+        info = info_el.inner_text().strip() if info_el.count() > 0 else ""
+        estado_default["info"] = info
+        
+        # Check if next button is enabled
+        next_btn = wrapper.locator(".paginate_button.next, li.next, a.next, button.next").filter(has_text=re.compile(r"siguiente|next", re.I)).first
+        if next_btn.count() == 0:
+            next_btn = wrapper.locator(".paginate_button.next, li.next, a.next, button.next").first
+            
+        has_next = False
+        if next_btn.count() > 0:
+            # Check classes for 'disabled'
+            next_class = next_btn.get_attribute("class") or ""
+            parent = next_btn.locator("xpath=..").first
+            parent_class = parent.get_attribute("class") if parent.count() > 0 else ""
+            if "disabled" not in next_class.lower() and "disabled" not in parent_class.lower():
+                has_next = True
+                
+        estado_default["hasNext"] = has_next
+        
+        # Page key
+        if rows.count() > 0:
+            estado_default["pageKey"] = rows.first.inner_text().strip()[:180]
+            
+        # Ready
+        estado_default["ready"] = not processing_visible and (len(registros) > 0 or re.search(r"Mostrando|Showing|No hay|Sin resultados|0\s+a\s+0", info, re.I) is not None)
+        
+        return estado_default
+    except Exception as exc:
+        estado_default["error"] = str(exc)
+        return estado_default
 
-          for (const table of tables) {
-            const headers = Array.from(table.querySelectorAll('thead th')).map(th => normalize(th.innerText));
-            const idx = headers.findIndex(header => /^Registro$/i.test(header));
-            if (idx >= 0) {
-              chosen = table;
-              registroIndex = idx;
-              break;
-            }
-          }
 
-          if (!chosen) {
-            return { registros: [], info: '', hasNext: false, found: false, pageKey: '' };
-          }
+def esperar_tabla_registros_lista(page, timeout_ms: int = TIMEOUT_TABLA_REGISTROS) -> dict:
+    """Espera en ciclo hasta 1 minuto a que la tabla de Registros quede lista."""
+    inicio = time.time()
+    limite = max(timeout_ms, 1_000) / 1000
+    ultimo_estado: dict = {}
+    aviso_30s = False
 
-          const wrapper = chosen.closest('.dataTables_wrapper') || chosen.parentElement || document;
-          const registros = [];
-          for (const tr of Array.from(chosen.querySelectorAll('tbody tr'))) {
-            if (!visible(tr)) continue;
-            const cells = Array.from(tr.querySelectorAll('td'));
-            if (cells.length <= registroIndex) continue;
-            const raw = normalize(cells[registroIndex].innerText);
-            if (!raw || /no hay|sin resultados|no data/i.test(raw)) continue;
-            const registro = cleanRegistro(raw);
-            if (registro) registros.push(registro);
-          }
+    while (time.time() - inicio) < limite:
+        esperar_sin_spinner(page, timeout_ms=3_000)
+        estado = leer_estado_tabla(page)
+        ultimo_estado = estado or {}
 
-          const infoEl = wrapper.querySelector('.dataTables_info, [id$="_info"]');
-          const info = infoEl ? normalize(infoEl.innerText) : '';
-          const nextCandidates = Array.from(
-            wrapper.querySelectorAll('.paginate_button.next, li.next, a.next, button.next')
-          ).filter(visible);
-          const next = nextCandidates.find(el => /siguiente|next/i.test(el.innerText || el.textContent || '')) || nextCandidates[0];
-          const nextClass = next ? (next.getAttribute('class') || '') : '';
-          const hasNext = Boolean(next && !/disabled/i.test(nextClass));
-          const firstRow = chosen.querySelector('tbody tr');
-          const pageKey = firstRow ? normalize(firstRow.innerText).slice(0, 180) : '';
+        if ultimo_estado.get("ready") and ultimo_estado.get("found"):
+            if len(ultimo_estado.get("registros", [])) > 0 or (time.time() - inicio) > 10:
+                return ultimo_estado
 
-          return { registros, info, hasNext, found: true, pageKey };
-        }
-        """
+        if ultimo_estado.get("found") and ultimo_estado.get("registros"):
+            return ultimo_estado
+
+        if not aviso_30s and (time.time() - inicio) >= 30:
+            log.info(
+                "[WAIT] Aun esperando tabla de Registros... %.0fs/%ds (found=%s, ready=%s, tablas=%s, error=%s)",
+                time.time() - inicio,
+                int(limite),
+                ultimo_estado.get("found"),
+                ultimo_estado.get("ready"),
+                ultimo_estado.get("tableCount"),
+                ultimo_estado.get("error") or "",
+            )
+            aviso_30s = True
+
+        page.wait_for_timeout(1_000)
+
+    screenshot(page, "tabla_registros_timeout")
+    raise RuntimeError(
+        "No cargó la tabla visible con columna 'Registro' dentro de 60 segundos. "
+        f"Ultimo estado: found={ultimo_estado.get('found')}, "
+        f"ready={ultimo_estado.get('ready')}, tablas={ultimo_estado.get('tableCount')}, "
+        f"info={ultimo_estado.get('info')!r}, error={ultimo_estado.get('error')!r}"
     )
-
 
 def avanzar_siguiente(page) -> bool:
     try:
-        clicked = page.evaluate(
-            """
-            () => {
-              const visible = el => {
-                const style = window.getComputedStyle(el);
-                return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null;
-              };
-              const tables = Array.from(document.querySelectorAll('table')).filter(visible);
-              const table = tables.find(t => Array.from(t.querySelectorAll('thead th')).some(th => /^\\s*Registro\\s*$/i.test(th.innerText || '')));
-              if (!table) return false;
-              const wrapper = table.closest('.dataTables_wrapper') || table.parentElement || document;
-              const nextCandidates = Array.from(
-                wrapper.querySelectorAll('.paginate_button.next, li.next, a.next, button.next')
-              ).filter(visible);
-              const next = nextCandidates.find(el => /siguiente|next/i.test(el.innerText || el.textContent || '')) || nextCandidates[0];
-              if (!next || /disabled/i.test(next.getAttribute('class') || '')) return false;
-              const clickable = next.matches('a, button') ? next : next.querySelector('a, button') || next;
-              clickable.click();
-              return true;
-            }
-            """
-        )
-        if clicked:
-            esperar_datatables(page, timeout_ms=15_000)
-        return bool(clicked)
+        wrapper = page.locator(".dataTables_wrapper:visible").first
+        if wrapper.count() == 0:
+            wrapper = page.locator("body")
+        
+        next_btn = wrapper.locator(".paginate_button.next, li.next, a.next, button.next").filter(has_text=re.compile(r"siguiente|next", re.I)).first
+        if next_btn.count() == 0:
+            next_btn = wrapper.locator(".paginate_button.next, li.next, a.next, button.next").first
+            
+        if next_btn.count() == 0:
+            return False
+            
+        next_class = next_btn.get_attribute("class") or ""
+        parent = next_btn.locator("xpath=..").first
+        parent_class = parent.get_attribute("class") if parent.count() > 0 else ""
+        
+        if "disabled" in next_class.lower() or "disabled" in parent_class.lower():
+            return False
+            
+        next_btn.click()
+        esperar_datatables(page, timeout_ms=15_000)
+        return True
     except Exception:
         return False
 
 
-def extraer_registros(page, max_paginas: int = 100) -> list[str]:
+def extraer_registros(
+    page,
+    max_paginas: int = 100,
+    timeout_primera_pagina_ms: int = TIMEOUT_TABLA_REGISTROS,
+) -> list[str]:
     registros: list[str] = []
     vistos: set[str] = set()
 
     for pagina in range(1, max_paginas + 1):
-        estado = leer_estado_tabla(page)
+        if pagina == 1:
+            estado = esperar_tabla_registros_lista(page, timeout_ms=timeout_primera_pagina_ms)
+        else:
+            estado = leer_estado_tabla(page)
+            if not isinstance(estado, dict):
+                estado = {}
+            if not estado.get("found"):
+                # En cambios de página DataTables puede tardar unos segundos.
+                estado = esperar_tabla_registros_lista(page, timeout_ms=15_000)
+
         if not estado.get("found"):
             raise RuntimeError("No encontre una tabla visible con columna 'Registro'.")
 
@@ -464,7 +553,6 @@ def extraer_registros(page, max_paginas: int = 100) -> list[str]:
 
     return registros
 
-
 def guardar_registros(registros: list[str], output: Path, separador: str) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     if separador == "espacio":
@@ -488,6 +576,12 @@ def parse_args() -> argparse.Namespace:
         help="Formato del TXT: un registro por linea o separados por espacio.",
     )
     parser.add_argument("--max-paginas", type=int, default=100, help="Limite de paginas del DataTable.")
+    parser.add_argument(
+        "--timeout-tabla",
+        type=int,
+        default=TIMEOUT_TABLA_REGISTROS // 1000,
+        help="Segundos maximos para esperar a que cargue la tabla de Registros. Default: 60.",
+    )
     parser.add_argument(
         "--sin-todos-los-anios",
         action="store_true",
@@ -535,7 +629,11 @@ def main() -> int:
                 seleccionar_todos_los_anios(page)
             cambiar_mostrar_a_100(page)
 
-            registros = extraer_registros(page, max_paginas=args.max_paginas)
+            registros = extraer_registros(
+                page,
+                max_paginas=args.max_paginas,
+                timeout_primera_pagina_ms=args.timeout_tabla * 1000,
+            )
             guardar_registros(registros, args.output, args.separador)
             log.info("[OK] %d registros guardados en %s", len(registros), args.output)
             return 0
