@@ -95,16 +95,48 @@ DESCARGA_LOG          = DESCARGAS_DIR / "descarga_log.json"
 CREDENCIALES_FILE    = Path(os.getenv("SATYS_CREDENTIALS_FILE", str(Path.home() / ".satys" / "credenciales.txt")))
 
 NAV_ITEMS = [
-    ("Procesar",      ft.Icons.PLAY_CIRCLE_OUTLINE, ft.Icons.PLAY_CIRCLE),
-    ("Resumen",       ft.Icons.SUMMARIZE_OUTLINED,    ft.Icons.SUMMARIZE_OUTLINED),
-    ("Salidas",       ft.Icons.FOLDER_COPY_OUTLINED, ft.Icons.FOLDER_COPY),
-    ("Historial",     ft.Icons.HISTORY,              ft.Icons.HISTORY),
-    ("Configuración", ft.Icons.SETTINGS_OUTLINED,    ft.Icons.SETTINGS),
+    ("Procesar",       ft.Icons.PLAY_CIRCLE_OUTLINE,   ft.Icons.PLAY_CIRCLE),
+    ("Resumen",        ft.Icons.SUMMARIZE_OUTLINED,    ft.Icons.SUMMARIZE_OUTLINED),
+    ("Salidas",        ft.Icons.FOLDER_COPY_OUTLINED,  ft.Icons.FOLDER_COPY),
+    ("Historial",      ft.Icons.HISTORY,               ft.Icons.HISTORY),
+    ("Automatización", ft.Icons.SCHEDULE_OUTLINED,     ft.Icons.SCHEDULE),
+    ("Configuración",  ft.Icons.SETTINGS_OUTLINED,     ft.Icons.SETTINGS),
 ]
+
+# ──── Automatización diaria (monitor de registros nuevos) ────
+TASK_NAME_DIARIA        = "SATyS CRT Registros Nuevos 9am"
+MONITOR_SCRIPT          = Path("automatizar_registros_diario.py")
+BAT_INSTALAR_TAREA      = Path("instalar_tarea_diaria_satys.bat")
+BAT_DESINSTALAR_TAREA   = Path("desinstalar_tarea_diaria_satys.bat")
+BAT_EJECUTAR_MONITOR    = Path("ejecutar_monitor_registros.bat")
+LOGS_DIR                = Path("logs")
+MONITOR_ULTIMO_JSON     = LOGS_DIR / "monitor_registros_ultimo.json"
 
 # ════════════════════════════════════════════════════════
 #  HELPERS GENERALES
 # ════════════════════════════════════════════════════════
+
+
+def _consultar_tarea_diaria_instalada() -> bool:
+    """True si la tarea de Windows ya existe (schtasks /Query)."""
+    try:
+        r = subprocess.run(
+            ["schtasks", "/Query", "/TN", TASK_NAME_DIARIA],
+            capture_output=True, text=True, timeout=10,
+        )
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+def _leer_ultimo_resumen_monitor() -> dict | None:
+    """Lee logs/monitor_registros_ultimo.json (lo escribe automatizar_registros_diario.py)."""
+    if not MONITOR_ULTIMO_JSON.exists():
+        return None
+    try:
+        return json.loads(MONITOR_ULTIMO_JSON.read_text(encoding="utf-8"))
+    except Exception:
+        return None
 
 
 def _ts() -> str:
@@ -398,6 +430,7 @@ class SATySApp:
             width=260,
             height=48,
             text_size=13,
+            color=TEXT_DARK,
             border_color=BORDER_COLOR,
             focused_border_color=TEAL_PRIMARY,
             border_radius=ft.BorderRadius.all(10),
@@ -409,6 +442,7 @@ class SATySApp:
             text_size=13,
             height=48,
             expand=True,
+            color=TEXT_DARK,
             border_color=BORDER_COLOR,
             focused_border_color=TEAL_PRIMARY,
             border_radius=ft.BorderRadius.all(10),
@@ -423,6 +457,7 @@ class SATySApp:
             text_size=13,
             height=48,
             expand=True,
+            color=TEXT_DARK,
             border_color=BORDER_COLOR,
             focused_border_color=TEAL_PRIMARY,
             border_radius=ft.BorderRadius.all(10),
@@ -437,6 +472,7 @@ class SATySApp:
             text_size=13,
             height=48,
             expand=True,
+            color=TEXT_DARK,
             border_color=BORDER_COLOR,
             focused_border_color=TEAL_PRIMARY,
             border_radius=ft.BorderRadius.all(10),
@@ -446,10 +482,11 @@ class SATySApp:
 
         self.txt_workers = ft.TextField(
             value=str(cfg.get("workers", DEFAULT_WORKERS)),
-            label="Ventanas",
+            label="Workers",
             width=110,
             height=48,
             text_size=13,
+            color=TEXT_DARK,
             border_color=BORDER_COLOR,
             focused_border_color=TEAL_PRIMARY,
             border_radius=ft.BorderRadius.all(10),
@@ -468,6 +505,7 @@ class SATySApp:
             text_size=13,
             height=44,
             expand=True,
+            color=TEXT_DARK,
             border_color=BORDER_COLOR,
             focused_border_color=TEAL_PRIMARY,
             border_radius=ft.BorderRadius.all(8),
@@ -479,6 +517,7 @@ class SATySApp:
             text_size=13,
             height=44,
             expand=True,
+            color=TEXT_DARK,
             border_color=BORDER_COLOR,
             focused_border_color=TEAL_PRIMARY,
             border_radius=ft.BorderRadius.all(8),
@@ -511,7 +550,7 @@ class SATySApp:
             border_color=BORDER_COLOR,
             focused_border_color=BORDER_COLOR,
             border_radius=ft.BorderRadius.all(10),
-            color=TEXT_GRAY,
+            color=TEXT_DARK,
             content_padding=ft.Padding.all(12),
         )
 
@@ -708,9 +747,25 @@ class SATySApp:
                     ft.Row(
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                         controls=[
-                            ft.Column(spacing=2, controls=[
-                                ft.Text("AUTOMATIZACIÓN", size=11, color=TEXT_MUTED, weight=ft.FontWeight.W_700),
-                                ft.Text("SATyS CRT", size=18, color=TEAL_DARK, weight=ft.FontWeight.BOLD),
+                            ft.Row(spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER, controls=[
+                                ft.Container(
+                                    width=42,
+                                    height=42,
+                                    bgcolor=TEAL_PRIMARY,
+                                    border_radius=ft.BorderRadius.all(12),
+                                    alignment=ft.Alignment.CENTER,
+                                    gradient=ft.LinearGradient(
+                                        begin=ft.Alignment.TOP_LEFT,
+                                        end=ft.Alignment.BOTTOM_RIGHT,
+                                        colors=[TEAL_PROGRESS, TEAL_DARK]
+                                    ),
+                                    shadow=ft.BoxShadow(spread_radius=0, blur_radius=8, color="#33000000", offset=ft.Offset(0, 4)),
+                                    content=ft.Text("CRT", size=15, color="white", weight=ft.FontWeight.W_900)
+                                ),
+                                ft.Column(spacing=1, controls=[
+                                    ft.Text("AUTOMATIZACIÓN", size=10, color=TEXT_MUTED, weight=ft.FontWeight.W_800),
+                                    ft.Text("SATyS", size=20, color=TEAL_DARK, weight=ft.FontWeight.W_900),
+                                ]),
                             ]),
                             ft.IconButton(icon=ft.Icons.CHEVRON_LEFT, icon_color=TEXT_GRAY, tooltip="Contraer menú", on_click=self._toggle_sidebar),
                         ],
@@ -763,6 +818,8 @@ class SATySApp:
             return self._build_screen_salidas()
         if self.active_nav == "Historial":
             return self._build_screen_historial()
+        if self.active_nav == "Automatización":
+            return self._build_screen_automatizacion()
         if self.active_nav == "Configuración":
             return self._build_screen_config()
         return self._get_screen_procesar()
@@ -939,7 +996,7 @@ class SATySApp:
 
         ejecucion_card = self._card(
             "2. Ejecución",
-            "Parámetros normales para producción: 6 ventanas y modo rápido activado.",
+            "Parámetros normales para producción: 6 workers y modo rápido activado.",
             ft.Column(
                 spacing=12,
                 controls=[
@@ -2059,6 +2116,139 @@ class SATySApp:
         return ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, controls=[card])
 
     # ════════════════════════════════════════════════════
+    #  PANTALLA: AUTOMATIZACIÓN DIARIA
+    # ════════════════════════════════════════════════════
+
+    def _build_screen_automatizacion(self) -> ft.Control:
+        instalada = _consultar_tarea_diaria_instalada()
+        resumen = _leer_ultimo_resumen_monitor()
+
+        estado_badge = ft.Row(spacing=8, controls=[
+            ft.Icon(
+                ft.Icons.CHECK_CIRCLE if instalada else ft.Icons.CANCEL_OUTLINED,
+                color=GREEN_OK if instalada else ORANGE_WARN,
+                size=18,
+            ),
+            ft.Text(
+                f"Tarea instalada en Windows ({TASK_NAME_DIARIA}) — corre todos los días a las 9:00"
+                if instalada else
+                "Tarea no instalada todavía en este equipo",
+                size=13, color=TEXT_DARK,
+            ),
+        ])
+
+        tarjeta_estado = self._card(
+            "Tarea diaria de Windows",
+            "Detecta registros nuevos en SATyS y los procesa automáticamente cada mañana, sin intervención.",
+            ft.Column(spacing=14, controls=[
+                estado_badge,
+                ft.Row(spacing=10, wrap=True, controls=[
+                    ft.ElevatedButton(
+                        "Instalar tarea diaria", icon=ft.Icons.ADD_TASK,
+                        style=ft.ButtonStyle(bgcolor=TEAL_PRIMARY, color="white", shape=ft.RoundedRectangleBorder(radius=9)),
+                        on_click=self._instalar_tarea_diaria,
+                    ),
+                    self._small_button("Desinstalar", ft.Icons.DELETE_OUTLINE, self._desinstalar_tarea_diaria),
+                    self._small_button("Ejecutar ahora", ft.Icons.PLAY_ARROW, self._ejecutar_monitor_ahora),
+                    self._small_button("Actualizar", ft.Icons.REFRESH, lambda e: self._rebuild()),
+                ]),
+                ft.Text(
+                    "\"Instalar\" puede pedir permisos de Administrador la primera vez (crea la tarea con schtasks). "
+                    "\"Ejecutar ahora\" lanza el monitor en segundo plano; puede tardar varios minutos.",
+                    size=11, color=TEXT_MUTED,
+                ),
+            ]),
+            icon=ft.Icons.SCHEDULE,
+        )
+
+        if resumen is None:
+            contenido_resultado: ft.Control = ft.Text(
+                "Todavía no se ha ejecutado el monitor diario en este equipo.", size=13, color=TEXT_MUTED,
+            )
+        else:
+            ok = bool(resumen.get("ok"))
+            nuevos = resumen.get("nuevos") or []
+            lanzo = resumen.get("se_lanzo_procesamiento")
+            codigo = resumen.get("codigo_retorno_main_procesar")
+
+            filas = [
+                ft.Row(spacing=8, controls=[
+                    ft.Icon(ft.Icons.CHECK_CIRCLE if ok else ft.Icons.ERROR_OUTLINE,
+                            color=GREEN_OK if ok else RED_ERR, size=16),
+                    ft.Text(f"Última corrida: {resumen.get('timestamp', '—')}",
+                            size=13, weight=ft.FontWeight.W_700, color=TEXT_DARK),
+                ]),
+                ft.Text(
+                    f"Encontrados en SATyS: {resumen.get('total_extraidos', 0)}   ·   "
+                    f"Ya en Excel: {resumen.get('total_ya_en_excel', 0)}   ·   "
+                    f"Nuevos: {resumen.get('total_nuevos', 0)}",
+                    size=13, color=TEXT_GRAY,
+                ),
+                ft.Text(
+                    "Procesamiento automático: " + (
+                        f"lanzado (código de salida {codigo})" if lanzo else "no se lanzó (sin novedades)"
+                    ),
+                    size=13, color=GREEN_OK if (not lanzo or codigo == 0) else RED_ERR,
+                ),
+                ft.Text(f"Duración total: {resumen.get('duracion_seg', 0)} s", size=13, color=TEXT_GRAY),
+            ]
+            if resumen.get("error"):
+                filas.append(ft.Text(f"Error: {resumen['error']}", size=13, color=RED_ERR))
+            if nuevos:
+                muestra = ", ".join(nuevos[:30])
+                if len(nuevos) > 30:
+                    muestra += f", ... (+{len(nuevos) - 30} más)"
+                filas.append(ft.Text("Registros nuevos detectados hoy:", size=13, weight=ft.FontWeight.W_600, color=TEXT_DARK))
+                filas.append(ft.Text(muestra, size=12, color=TEXT_GRAY))
+
+            contenido_resultado = ft.Column(spacing=8, controls=filas)
+
+        tarjeta_resultado = self._card(
+            "Último resultado",
+            "Se actualiza cada vez que corre la tarea diaria, o al presionar Actualizar.",
+            contenido_resultado,
+            icon=ft.Icons.FACT_CHECK_OUTLINED,
+        )
+
+        return ft.Column(
+            expand=True, scroll=ft.ScrollMode.AUTO, spacing=16,
+            controls=[tarjeta_estado, tarjeta_resultado],
+        )
+
+    def _instalar_tarea_diaria(self, e=None) -> None:
+        if not BAT_INSTALAR_TAREA.exists():
+            self._show_toast(f"No encontré {BAT_INSTALAR_TAREA.name}", seconds=3)
+            return
+        try:
+            r = subprocess.run(["cmd", "/c", str(BAT_INSTALAR_TAREA)], capture_output=True, text=True, timeout=25)
+            ok = r.returncode == 0
+            self._show_toast("Tarea instalada" if ok else "No se pudo instalar (¿permisos de Administrador?)", seconds=3)
+        except Exception as exc:
+            self._show_toast(f"Error al instalar: {exc}", seconds=3)
+        self._rebuild()
+
+    def _desinstalar_tarea_diaria(self, e=None) -> None:
+        if not BAT_DESINSTALAR_TAREA.exists():
+            self._show_toast(f"No encontré {BAT_DESINSTALAR_TAREA.name}", seconds=3)
+            return
+        try:
+            r = subprocess.run(["cmd", "/c", str(BAT_DESINSTALAR_TAREA)], capture_output=True, text=True, timeout=25)
+            self._show_toast("Tarea eliminada" if r.returncode == 0 else "No se pudo eliminar", seconds=3)
+        except Exception as exc:
+            self._show_toast(f"Error al desinstalar: {exc}", seconds=3)
+        self._rebuild()
+
+    def _ejecutar_monitor_ahora(self, e=None) -> None:
+        if not BAT_EJECUTAR_MONITOR.exists():
+            self._show_toast(f"No encontré {BAT_EJECUTAR_MONITOR.name}", seconds=3)
+            return
+        try:
+            subprocess.Popen(["cmd", "/c", "start", "SATyS Monitor Diario", str(BAT_EJECUTAR_MONITOR)])
+            self._show_toast("Monitor lanzado en segundo plano (puede tardar varios minutos)", seconds=4)
+        except Exception as exc:
+            self._show_toast(f"Error al lanzar: {exc}", seconds=3)
+
+    # ════════════════════════════════════════════════════
     #  PANTALLA: CONFIGURACIÓN
     # ════════════════════════════════════════════════════
 
@@ -2100,7 +2290,7 @@ class SATySApp:
                     ft.Column(spacing=8, controls=[
                         ft.Text("• Entrada: un archivo TXT con un registro o folio por línea.", size=13, color=TEXT_GRAY),
                         ft.Text(f"• Credenciales: {CREDENCIALES_FILE} usa dos líneas: usuario y contraseña.", size=13, color=TEXT_GRAY),
-                        ft.Text("• Para producción: 6 ventanas y modo rápido sin navegador visible.", size=13, color=TEXT_GRAY),
+                        ft.Text("• Para producción: 6 workers y modo rápido sin navegador visible.", size=13, color=TEXT_GRAY),
                         ft.Text("• Las salidas importantes son TrámitesCRT.xlsx y la carpeta output/.", size=13, color=TEXT_GRAY),
                         ft.Text("• Los botones que abren ventanas usan Win32 para aparecer delante del navegador.", size=13, color=TEXT_GRAY),
                     ]),
@@ -2124,6 +2314,7 @@ class SATySApp:
             "Resumen": "Resultados",
             "Salidas": "Archivos generados",
             "Historial": "Historial",
+            "Automatización": "Automatización diaria",
             "Configuración": "Configuración",
         }
         self.header_title.value = titles.get(label, label)
@@ -2300,9 +2491,9 @@ class SATySApp:
         try:
             workers = int((self.txt_workers.value or "0").strip())
             if workers < 1 or workers > 20:
-                return False, "Ventanas debe estar entre 1 y 20."
+                return False, "Workers debe estar entre 1 y 20."
         except Exception:
-            return False, "Ventanas debe ser un número."
+            return False, "Workers debe ser un número."
         satys_user, satys_pass = self._current_credentials()
         if not satys_user or not satys_pass:
             return False, (

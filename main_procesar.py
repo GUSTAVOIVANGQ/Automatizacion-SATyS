@@ -581,75 +581,61 @@ def procesar_folio(
 
 
 def imprimir_reporte(resultados: list):
-    """Imprime el reporte final con un resumen ejecutivo orientado a la accion."""
+    """Imprime el reporte final con un resumen ejecutivo orientado a la accion.
+
+    Categorías (mutuamente excluyentes, en orden de prioridad):
+    - exitosos    : rpc_ok=True + organizado_ok=True + excel_ok=True
+                    → archivos descargados y organizados en carpeta del operador
+    - sin_operador: NO exitoso, tiene nombre_operador (capturado de SATyS) pero
+                    el id_solicitante no se encontró en el catálogo RPC
+                    → archivos en _sin_operador/, requiere acción manual
+    - errores     : NO exitoso, NO tiene nombre_operador de ninguna fuente
+                    → SATyS no devolvió datos del tramite, revisar el portal
+    """
     print("\n" + "═" * 70)
     print("  RESUMEN EJECUTIVO — ACCIONES REQUERIDAS")
     print("═" * 70)
 
-    # Éxito: RPC con match exacto (id_exacto o fuzzy >= 80%) Y Excel actualizado
+    # ── Categorías mutuamente excluyentes ──────────────────────────────────
+    # 1) Exitosos: RPC encontrado, Excel actualizado y archivos organizados
     exitosos = [
         r for r in resultados
         if r.get('rpc_ok') and r.get('organizado_ok') and r.get('excel_ok')
     ]
-    # Empates: más de un operador con el mismo score
-    empates = [
-        r for r in resultados
-        if r.get('rpc_resultado', {}).get('empate')
-    ]
-    # Coincidencia baja: hay rpc_resultado pero ok=False y no es empate (score < 80%)
-    dudosos = [
-        r for r in resultados
-        if r.get('rpc_resultado') and not r.get('rpc_ok')
-        and not r.get('rpc_resultado', {}).get('empate')
-        and not r.get('organizado_ok')  # evitar duplicar exitosos con empate=False
-    ]
-    # Sin operador: no hay rpc_resultado en absoluto (id_solicitante no en catálogo
-    # Y no hay nombre de operador disponible para búsqueda)
+
+    # Los no-exitosos se subdividen por si tienen nombre_operador o no
+    no_exitosos = [r for r in resultados if r not in exitosos]
+
+    # 2) Sin operador en catálogo: SATyS sí entregó el nombre del operador
+    #    pero el id_solicitante no está en el catálogo RPC.
+    #    Tienen sus archivos en output/_sin_operador/ y necesitan revisión manual.
     sin_operador = [
-        r for r in resultados
-        if not r.get('rpc_ok') and not r.get('rpc_resultado')
-        and not r.get('organizado_ok')
-    ]
-    # Errores reales: folios donde no hay nombre de operador de ninguna fuente
-    errores = [
-        r for r in resultados
-        if not r.get('rpc_ok')
-        and not r.get('nombre_operador')
-        and not r.get('organizado_ok')
+        r for r in no_exitosos
+        if r.get('nombre_operador')  # hay nombre extraído de SATyS
     ]
 
+    # 3) Errores reales: SATyS no devolvió nombre de operador en ninguna fuente
+    errores = [
+        r for r in no_exitosos
+        if not r.get('nombre_operador')
+    ]
+
+    # ── Imprimir secciones ─────────────────────────────────────────────────
     print(f"\n  🟢 ÉXITO TOTAL ({len(exitosos)} folios):")
     if not exitosos:
         print("       Ninguno.")
     for r in exitosos:
         print(f"       ✓ {r['folio']} -> Organizado en: {r.get('rpc_resultado', {}).get('nombre_completo', 'N/A')}")
 
-    # print(f"\n  🟠 DUPLICADOS EN RPC ({len(empates)} folios) - REVISIÓN MANUAL:")
-    # if not empates:
-    #     print("       Ninguno.")
-    # for r in empates:
-    #     nombre = r.get('rpc_resultado', {}).get('nombre_completo', 'N/A')
-    #     print(f"       ⚠️ {r['folio']} -> El sistema encontró MÁS DE UN '{nombre}' (con distintos IDs) en la BD.")
-    #     print(f"          👉 ACCIÓN: Revisa manualmente en qué carpeta de concesionario debe ir y muévelo desde 'output\\_sin_operador\\{r['folio']}'.")
-
-    # print(f"\n  🟡 COINCIDENCIA BAJA ({len(dudosos)} folios) - REVISIÓN MANUAL:")
-    # if not dudosos:
-    #     print("       Ninguno.")
-    # for r in dudosos:
-    #     score = r.get('rpc_resultado', {}).get('score', 0) * 100 if r.get('rpc_resultado') else 0
-    #     nombre_detectado = r.get('rpc_resultado', {}).get('nombre_completo', 'N/A')
-    #     sin_op = r.get('sin_operador_dir', f'output\\_sin_operador\\{r["folio"]}')
-    #     print(f"       ⚠️ {r['folio']}")
-    #     print(f"          Coincidencia insuficiente: {score:.0f}% (El sistema detectó '{nombre_detectado}')")
-    #     print(f"          👉 ACCIÓN: Mueve los archivos desde '{sin_op}' a la carpeta correcta.")
-
     print(f"\n  📁 SIN OPERADOR EN CATÁLOGO ({len(sin_operador)} folios) - EN _sin_operador:")
     if not sin_operador:
         print("       Ninguno.")
     for r in sin_operador:
         id_sol = r.get('id_solicitante', 'N/A')
+        nombre_op = r.get('nombre_operador', 'N/A')
         sin_op = r.get('sin_operador_dir', f'output\\_sin_operador\\{r["folio"]}')
-        print(f"       📂 {r['folio']} -> id_solicitante={id_sol} no encontrado en catálogo RPC.")
+        print(f"       📂 {r['folio']} -> Operador SATyS: '{nombre_op}'")
+        print(f"          id_solicitante={id_sol} no encontrado en catálogo RPC.")
         print(f"          👉 ACCIÓN: Mueve los archivos desde '{sin_op}' a la carpeta del operador correcto.")
 
     print(f"\n  🔴 ERRORES ({len(errores)} folios):")
@@ -659,6 +645,12 @@ def imprimir_reporte(resultados: list):
         print(f"       ✗ {r['folio']} -> No se encontró nombre de operador en ninguna fuente. Revisa el portal SATyS.")
 
     print("\n" + "═" * 70 + "\n")
+
+    return {
+        "exitosos": len(exitosos),
+        "sin_operador": len(sin_operador),
+        "errores": len(errores),
+    }
 
 
 
@@ -844,16 +836,25 @@ Ejemplos:
         # Guardar log de resultados
         log_path_r = DESCARGA_BASE / "procesamiento_log_registros.json"
         try:
+            conteos_r = {
+                "exitosos":     sum(1 for r in resultados_r if r.get('rpc_ok') and r.get('organizado_ok') and r.get('excel_ok')),
+                "sin_operador": sum(1 for r in resultados_r if not (r.get('rpc_ok') and r.get('organizado_ok') and r.get('excel_ok')) and r.get('nombre_operador')),
+                "errores":      sum(1 for r in resultados_r if not (r.get('rpc_ok') and r.get('organizado_ok') and r.get('excel_ok')) and not r.get('nombre_operador')),
+            }
             log_data_r = {
-                "fecha_ejecucion": datetime.now().isoformat(),
-                "modo": "registro",
-                "total_registros": len(resultados_r),
-                "total_exitosos": sum(1 for r in resultados_r if r["excel_ok"]),
+                "fecha_ejecucion":  datetime.now().isoformat(),
+                "modo":             "registro",
+                "total_registros":  len(resultados_r),
+                "total_exitosos":   conteos_r["exitosos"],
+                "total_sin_operador": conteos_r["sin_operador"],
+                "total_errores":    conteos_r["errores"],
                 "resultados": resultados_r,
             }
             with open(log_path_r, "w", encoding="utf-8") as f_log_r:
                 json.dump(log_data_r, f_log_r, ensure_ascii=False, indent=2, default=str)
             log.info("📄 Log de registros guardado en: %s", log_path_r)
+            log.info("📊 Resumen: %d exitosos | %d sin operador en catálogo | %d errores",
+                     conteos_r["exitosos"], conteos_r["sin_operador"], conteos_r["errores"])
         except Exception:
             pass
 
@@ -1054,16 +1055,25 @@ Ejemplos:
     # Guardar log de resultados
     log_path = DESCARGA_BASE / "procesamiento_log.json"
     try:
+        conteos = {
+            "exitosos":     sum(1 for r in resultados if r.get('rpc_ok') and r.get('organizado_ok') and r.get('excel_ok')),
+            "sin_operador": sum(1 for r in resultados if not (r.get('rpc_ok') and r.get('organizado_ok') and r.get('excel_ok')) and r.get('nombre_operador')),
+            "errores":      sum(1 for r in resultados if not (r.get('rpc_ok') and r.get('organizado_ok') and r.get('excel_ok')) and not r.get('nombre_operador')),
+        }
         log_data = {
-            "fecha_ejecucion": datetime.now().isoformat(),
-            "modo_extraccion": MODO_EXTRACCION,
-            "total_folios": len(resultados),
-            "total_exitosos": sum(1 for r in resultados if r["excel_ok"]),
+            "fecha_ejecucion":    datetime.now().isoformat(),
+            "modo_extraccion":    MODO_EXTRACCION,
+            "total_folios":       len(resultados),
+            "total_exitosos":     conteos["exitosos"],
+            "total_sin_operador": conteos["sin_operador"],
+            "total_errores":      conteos["errores"],
             "resultados": resultados,
         }
         with open(log_path, "w", encoding="utf-8") as f:
             json.dump(log_data, f, ensure_ascii=False, indent=2, default=str)
         log.info("📄 Log guardado en: %s", log_path)
+        log.info("📊 Resumen: %d exitosos | %d sin operador en catálogo | %d errores",
+                 conteos["exitosos"], conteos["sin_operador"], conteos["errores"])
     except Exception:
         pass
 
