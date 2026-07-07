@@ -83,6 +83,7 @@ ORGANIZAR_DESCARGAS = True  # True = mover archivos a carpetas RPC
 # ──── Imports de los módulos ────
 from Parte3_rpc import buscar_en_rpc, cargar_catalogo
 from Parte4_excel import actualizar_excel, organizar_archivos, obtener_nota_victor
+from proceso_lock import ProcesoLock, LockOcupadoError
 
 logging.basicConfig(
     level=logging.INFO,
@@ -693,6 +694,18 @@ Ejemplos:
                         help="Ruta a un archivo .txt con la lista de números de Registro a procesar "
                              "(uno por línea o separados por espacios/comas, ej. CRT26-002483). Activa el modo de búsqueda por Registro.")
     args = parser.parse_args()
+
+    # ──── Bloqueo compartido: evita que 2+ laptops corran el proceso a la vez ────
+    # Si otro equipo (u otra ejecución en esta misma laptop) ya está corriendo
+    # main_procesar.py, se cancela aquí con un mensaje claro en vez de arriesgar
+    # colisiones en SATyS, en TrámitesCRT.xlsx o en /output y /descargas.
+    _lock = ProcesoLock(proceso="main_procesar.py")
+    try:
+        _lock.adquirir()
+    except LockOcupadoError as e:
+        log.error("🔒 %s", e)
+        log.error("   Esta laptop no iniciará el proceso. Intenta de nuevo más tarde.")
+        return
 
     # Configuración local
     global ORGANIZAR_DESCARGAS

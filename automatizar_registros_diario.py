@@ -34,6 +34,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
+from proceso_lock import ProcesoLock, LockOcupadoError
+
 REGISTRO_RE = re.compile(r"\b[A-Z]{2,8}\d{2}-\d{3,}\b", re.IGNORECASE)
 
 PROJECT_DIR = Path(__file__).resolve().parent
@@ -324,6 +326,33 @@ def main() -> int:
         "ok": False,
         "errores": [],
     }
+
+    # ──── Bloqueo compartido: evita que 2+ laptops corran el monitor a la vez ────
+    # Cubre también a extraer_registros_documentos.py y main_procesar.py, que se
+    # lanzan como subprocesos y heredan este mismo bloqueo automáticamente.
+    lock = ProcesoLock(proceso="automatizar_registros_diario.py")
+    try:
+        lock.adquirir()
+    except LockOcupadoError as exc:
+        # No es un error real del monitor: simplemente otra laptop ya está
+        # trabajando. Se omite esta corrida sin marcarla como fallo.
+        resumen["ok"] = True
+        resumen["omitido_por_bloqueo"] = True
+        resumen["mensaje"] = f"Se omitió esta corrida: {exc}"
+        resumen["fecha_fin"] = datetime.now().isoformat()
+        print(f"🔒 {exc}")
+        print("   Se omite esta corrida del monitor diario en esta laptop.")
+        try:
+            resumen_json.write_text(json.dumps(resumen, ensure_ascii=False, indent=2), encoding="utf-8")
+            resumen_latest.write_text(json.dumps(resumen, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+        notificar_windows(
+            "SATyS CRT — corrida diaria omitida",
+            str(exc),
+            habilitado=not args.sin_notificacion,
+        )
+        return 0
 
     try:
         if not args.python_exe.exists():

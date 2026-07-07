@@ -5,8 +5,8 @@
   "headless": true,
   "python_path": "python-3.11.9-embed-amd64\\python.exe",
   "script_path": "main_procesar.py",
-  "input_kind": "folios",
-  "txt_path": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\folios.txt",
+  "input_kind": "registros",
+  "txt_path": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\reg.txt",
   "historial": [
     {
       "when": "2026-07-01 10:36:14",
@@ -231,6 +231,14 @@
       "kind": "Folios SATyS",
       "txt": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\folios.txt",
       "count": 5
+    },
+    {
+      "when": "2026-07-06 10:44:09",
+      "return_code": 0,
+      "kind": "Números de registro CRT",
+      "txt": "C:\\Users\\gustavo.garcia\\Documents\\GitHub\\Automatizacion-SATyS\\registros.txt",
+      "count": 1
     }
-  ]
+  ],
+  "hora_tarea_diaria": "10:00"
 }

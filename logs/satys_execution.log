@@ -17651,3 +17651,10 @@ Call log:
 13:23:19  INFO      [CONC] [5/5] ✓ Folio 1660 completado: 6 OK / 10 total
 13:23:19  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
 13:23:19  INFO      [RESUMEN] resumen_global.json: 5 folios | 4 Exitosos | 1 Incompletos | 0 No encontrados
+10:43:51  INFO      [MAIN] ── MODO REGISTRO: FASE 1: Validación de sesión ──
+10:43:54  INFO      [SESION] Sesion expirada, requiere nuevo login.
+10:43:54  INFO      [LOGIN] Iniciando sesion...
+10:43:54  INFO      [NET] Cargando pagina login...
+10:43:54  INFO      [LOGIN] Llenando credenciales...
+10:44:05  ERROR     [ERROR] Credenciales invalidas o error en el portal
+10:44:05  CRITICAL  [ABORT] No se pudo iniciar sesion.

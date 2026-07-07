@@ -42,6 +42,8 @@ from pathlib import Path
 
 import flet as ft
 
+from proceso_lock import consultar_estado_lock, forzar_liberar_lock, ruta_carpeta_lock_actual
+
 # ════════════════════════════════════════════════════════
 #  PALETA VISUAL CRT / SATyS
 # ════════════════════════════════════════════════════════
@@ -104,7 +106,7 @@ NAV_ITEMS = [
 ]
 
 # ──── Automatización diaria (monitor de registros nuevos) ────
-TASK_NAME_DIARIA        = "SATyS CRT Registros Nuevos 9am"
+TASK_NAME_DIARIA        = "SATyS CRT Registros Nuevos 10am"
 MONITOR_SCRIPT          = Path("automatizar_registros_diario.py")
 BAT_INSTALAR_TAREA      = Path("instalar_tarea_diaria_satys.bat")
 BAT_DESINSTALAR_TAREA   = Path("desinstalar_tarea_diaria_satys.bat")
@@ -373,6 +375,23 @@ def _abrir_dialogo_archivo_al_frente(
     return ""
 
 
+
+def _chip_metrica(label: str, valor: str, icono, color: str) -> "ft.Control":
+    """Mini-chip de métrica con ícono, etiqueta y valor numérico. Usado en la pantalla de Automatización."""
+    return ft.Container(
+        bgcolor=f"{color}18",
+        border_radius=ft.BorderRadius.all(8),
+        padding=ft.Padding.symmetric(horizontal=12, vertical=8),
+        content=ft.Row(spacing=8, tight=True, vertical_alignment=ft.CrossAxisAlignment.CENTER, controls=[
+            ft.Icon(icono, size=16, color=color),
+            ft.Column(spacing=1, controls=[
+                ft.Text(valor, size=15, weight=ft.FontWeight.W_700, color=color),
+                ft.Text(label, size=10, color=color),
+            ]),
+        ]),
+    )
+
+
 # ════════════════════════════════════════════════════════
 #  APLICACIÓN PRINCIPAL
 # ════════════════════════════════════════════════════════
@@ -403,14 +422,30 @@ class SATySApp:
         self._run_input_items: list[str] = []
         self._summary_refresh_thread_active = False
 
+        cfg = _load_config()
+        self._cfg = cfg
+
+        # Hora de la tarea diaria (se carga desde config; default 10:00)
+        _hora_default = cfg.get("hora_tarea_diaria", "10:00")
+        self.tf_hora_tarea = ft.TextField(
+            value=_hora_default,
+            hint_text="HH:MM",
+            text_size=14,
+            width=90,
+            height=42,
+            color=TEXT_DARK,
+            border_color=BORDER_COLOR,
+            focused_border_color=TEAL_PRIMARY,
+            border_radius=ft.BorderRadius.all(9),
+            content_padding=ft.Padding.symmetric(vertical=4, horizontal=10),
+            text_align=ft.TextAlign.CENTER,
+        )
+
         # Controles persistentes para no reconstruir la pantalla Procesar durante
         # la actualización automática de Resultados. Esto evita que el scroll
         # regrese arriba mientras el usuario está revisando el log/resultados.
         self._procesar_screen: ft.Control | None = None
         self._procesar_summary_slot = ft.Container()
-
-        cfg = _load_config()
-        self._cfg = cfg
 
         default_txt = cfg.get("txt_path", "")
         if not default_txt:
@@ -560,7 +595,7 @@ class SATySApp:
         self.counter_label = ft.Text("0 elementos detectados", size=12, color=TEXT_MUTED)
         self.progress = ft.ProgressBar(value=0, visible=False, color=TEAL_PROGRESS, bgcolor=DIVIDER_COLOR)
 
-        self.btn_iniciar = ft.ElevatedButton(
+        self.btn_iniciar = ft.Button(
             "Iniciar procesamiento",
             icon=ft.Icons.PLAY_ARROW,
             height=44,
@@ -937,7 +972,7 @@ class SATySApp:
                         controls=[
                             self.dd_tipo_txt,
                             self.txt_archivo,
-                            ft.ElevatedButton(
+                            ft.Button(
                                 "Examinar",
                                 icon=ft.Icons.UPLOAD_FILE,
                                 height=48,
@@ -1881,7 +1916,7 @@ class SATySApp:
                             controls=[
                                 ft.Text(msg, size=13, color=TEXT_GRAY),
                                 ft.Row(spacing=8, controls=[
-                                    ft.ElevatedButton(
+                                    ft.Button(
                                         "Actualizar",
                                         icon=ft.Icons.REFRESH,
                                         style=ft.ButtonStyle(bgcolor=TEAL_PRIMARY, color="white", shape=ft.RoundedRectangleBorder(radius=9)),
@@ -1938,7 +1973,7 @@ class SATySApp:
                     spacing=10,
                     controls=[
                         ft.Row(spacing=8, controls=[
-                            ft.ElevatedButton(
+                            ft.Button(
                                 "Actualizar resultados",
                                 icon=ft.Icons.REFRESH,
                                 style=ft.ButtonStyle(bgcolor=TEAL_PRIMARY, color="white", shape=ft.RoundedRectangleBorder(radius=9)),
@@ -2057,7 +2092,7 @@ class SATySApp:
                     "Verifica y abre los archivos/carpeta que entrega la automatización.",
                     ft.Column(spacing=12, controls=[
                         ft.Row(spacing=8, controls=[
-                            ft.ElevatedButton(
+                            ft.Button(
                                 "Actualizar estado",
                                 icon=ft.Icons.REFRESH,
                                 style=ft.ButtonStyle(bgcolor=TEAL_PRIMARY, color="white", shape=ft.RoundedRectangleBorder(radius=9)),
@@ -2123,6 +2158,8 @@ class SATySApp:
         instalada = _consultar_tarea_diaria_instalada()
         resumen = _leer_ultimo_resumen_monitor()
 
+        hora_cfg = self._cfg.get("hora_tarea_diaria", "10:00")
+
         estado_badge = ft.Row(spacing=8, controls=[
             ft.Icon(
                 ft.Icons.CHECK_CIRCLE if instalada else ft.Icons.CANCEL_OUTLINED,
@@ -2130,7 +2167,7 @@ class SATySApp:
                 size=18,
             ),
             ft.Text(
-                f"Tarea instalada en Windows ({TASK_NAME_DIARIA}) — corre todos los días a las 9:00"
+                f"Tarea instalada en Windows ({TASK_NAME_DIARIA}) — corre todos los días a las {hora_cfg}"
                 if instalada else
                 "Tarea no instalada todavía en este equipo",
                 size=13, color=TEXT_DARK,
@@ -2142,8 +2179,28 @@ class SATySApp:
             "Detecta registros nuevos en SATyS y los procesa automáticamente cada mañana, sin intervención.",
             ft.Column(spacing=14, controls=[
                 estado_badge,
+                # ── Selector de hora ──────────────────────────────
+                ft.Row(spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER, controls=[
+                    ft.Icon(ft.Icons.ACCESS_TIME, color=TEAL_PRIMARY, size=20),
+                    ft.Text("Hora de ejecución diaria:", size=13, color=TEXT_DARK),
+                    self.tf_hora_tarea,
+                    ft.Button(
+                        "Guardar hora",
+                        icon=ft.Icons.SAVE_OUTLINED,
+                        style=ft.ButtonStyle(
+                            bgcolor=TEAL_DARK, color="white",
+                            shape=ft.RoundedRectangleBorder(radius=9),
+                        ),
+                        on_click=self._guardar_hora_tarea,
+                    ),
+                ]),
+                ft.Text(
+                    "Formato 24 h (ej. 08:30, 14:00). Guarda la hora y luego vuelve a instalar la tarea para aplicarla.",
+                    size=11, color=TEXT_MUTED,
+                ),
+                ft.Divider(height=1, color=BORDER_COLOR),
                 ft.Row(spacing=10, wrap=True, controls=[
-                    ft.ElevatedButton(
+                    ft.Button(
                         "Instalar tarea diaria", icon=ft.Icons.ADD_TASK,
                         style=ft.ButtonStyle(bgcolor=TEAL_PRIMARY, color="white", shape=ft.RoundedRectangleBorder(radius=9)),
                         on_click=self._instalar_tarea_diaria,
@@ -2161,68 +2218,41 @@ class SATySApp:
             icon=ft.Icons.SCHEDULE,
         )
 
-        if resumen is None:
-            contenido_resultado: ft.Control = ft.Text(
-                "Todavía no se ha ejecutado el monitor diario en este equipo.", size=13, color=TEXT_MUTED,
-            )
-        else:
-            ok = bool(resumen.get("ok"))
-            nuevos = resumen.get("nuevos") or []
-            lanzo = resumen.get("se_lanzo_procesamiento")
-            codigo = resumen.get("codigo_retorno_main_procesar")
-
-            filas = [
-                ft.Row(spacing=8, controls=[
-                    ft.Icon(ft.Icons.CHECK_CIRCLE if ok else ft.Icons.ERROR_OUTLINE,
-                            color=GREEN_OK if ok else RED_ERR, size=16),
-                    ft.Text(f"Última corrida: {resumen.get('timestamp', '—')}",
-                            size=13, weight=ft.FontWeight.W_700, color=TEXT_DARK),
-                ]),
-                ft.Text(
-                    f"Encontrados en SATyS: {resumen.get('total_extraidos', 0)}   ·   "
-                    f"Ya en Excel: {resumen.get('total_ya_en_excel', 0)}   ·   "
-                    f"Nuevos: {resumen.get('total_nuevos', 0)}",
-                    size=13, color=TEXT_GRAY,
-                ),
-                ft.Text(
-                    "Procesamiento automático: " + (
-                        f"lanzado (código de salida {codigo})" if lanzo else "no se lanzó (sin novedades)"
-                    ),
-                    size=13, color=GREEN_OK if (not lanzo or codigo == 0) else RED_ERR,
-                ),
-                ft.Text(f"Duración total: {resumen.get('duracion_seg', 0)} s", size=13, color=TEXT_GRAY),
-            ]
-            if resumen.get("error"):
-                filas.append(ft.Text(f"Error: {resumen['error']}", size=13, color=RED_ERR))
-            if nuevos:
-                muestra = ", ".join(nuevos[:30])
-                if len(nuevos) > 30:
-                    muestra += f", ... (+{len(nuevos) - 30} más)"
-                filas.append(ft.Text("Registros nuevos detectados hoy:", size=13, weight=ft.FontWeight.W_600, color=TEXT_DARK))
-                filas.append(ft.Text(muestra, size=12, color=TEXT_GRAY))
-
-            contenido_resultado = ft.Column(spacing=8, controls=filas)
-
-        tarjeta_resultado = self._card(
-            "Último resultado",
-            "Se actualiza cada vez que corre la tarea diaria, o al presionar Actualizar.",
-            contenido_resultado,
-            icon=ft.Icons.FACT_CHECK_OUTLINED,
-        )
+        tarjeta_resultado  = self._build_resumen_bajo_log()
+        tarjeta_historial   = self._build_tarjeta_historial_monitor()
 
         return ft.Column(
             expand=True, scroll=ft.ScrollMode.AUTO, spacing=16,
-            controls=[tarjeta_estado, tarjeta_resultado],
+            controls=[tarjeta_estado, tarjeta_resultado, tarjeta_historial],
         )
+
+    def _guardar_hora_tarea(self, e=None) -> None:
+        """Valida y persiste la hora configurada en config_satys_ui.json."""
+        import re
+        hora = (self.tf_hora_tarea.value or "").strip()
+        if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", hora):
+            self._show_toast("Hora inválida. Usa formato HH:MM en 24 h (ej. 08:30)", seconds=3)
+            return
+        self._cfg["hora_tarea_diaria"] = hora
+        _save_config(self._cfg)
+        self._show_toast(f"Hora guardada: {hora}. Reinstala la tarea para aplicarla.", seconds=4)
+        self._rebuild()
 
     def _instalar_tarea_diaria(self, e=None) -> None:
         if not BAT_INSTALAR_TAREA.exists():
             self._show_toast(f"No encontré {BAT_INSTALAR_TAREA.name}", seconds=3)
             return
+        hora = self._cfg.get("hora_tarea_diaria", "10:00")
         try:
-            r = subprocess.run(["cmd", "/c", str(BAT_INSTALAR_TAREA)], capture_output=True, text=True, timeout=25)
+            r = subprocess.run(
+                ["cmd", "/c", str(BAT_INSTALAR_TAREA), hora],
+                capture_output=True, text=True, timeout=25,
+            )
             ok = r.returncode == 0
-            self._show_toast("Tarea instalada" if ok else "No se pudo instalar (¿permisos de Administrador?)", seconds=3)
+            self._show_toast(
+                f"Tarea instalada a las {hora}" if ok else "No se pudo instalar (¿permisos de Administrador?)",
+                seconds=3,
+            )
         except Exception as exc:
             self._show_toast(f"Error al instalar: {exc}", seconds=3)
         self._rebuild()
@@ -2249,6 +2279,269 @@ class SATySApp:
             self._show_toast(f"Error al lanzar: {exc}", seconds=3)
 
     # ════════════════════════════════════════════════════
+    #  HELPERS: TARJETAS DE RESULTADOS DEL MONITOR DIARIO
+    # ════════════════════════════════════════════════════
+
+    def _build_tarjeta_resultado_monitor(self) -> ft.Control:
+        """Tarjeta detallada de la última corrida del monitor diario, estilo Resultados de Procesar."""
+        resumen = _leer_ultimo_resumen_monitor()
+
+        def _fmt_ts(iso: str | None) -> str:
+            if not iso:
+                return "—"
+            try:
+                dt = datetime.fromisoformat(iso)
+                return dt.strftime("%d/%m/%Y  %H:%M:%S")
+            except Exception:
+                return iso
+
+        def _duracion(r: dict) -> str:
+            try:
+                t0 = datetime.fromisoformat(r.get("fecha_ejecucion", ""))
+                t1 = datetime.fromisoformat(r.get("fecha_fin", ""))
+                secs = int((t1 - t0).total_seconds())
+                m, s = divmod(secs, 60)
+                return f"{m} min {s} s" if m else f"{s} s"
+            except Exception:
+                return "—"
+
+        if resumen is None:
+            contenido: ft.Control = ft.Column(spacing=8, controls=[
+                ft.Row(spacing=8, controls=[
+                    ft.Icon(ft.Icons.INFO_OUTLINE, color=TEXT_MUTED, size=18),
+                    ft.Text(
+                        "Todavía no se ha ejecutado el monitor diario en este equipo.",
+                        size=13, color=TEXT_MUTED,
+                    ),
+                ]),
+                ft.Text(
+                    "Presiona «Ejecutar ahora» o espera a que corra la tarea programada.",
+                    size=12, color=TEXT_MUTED,
+                ),
+            ])
+        else:
+            ok         = bool(resumen.get("ok"))
+            omitido    = bool(resumen.get("omitido_por_bloqueo"))
+            nuevos     = resumen.get("registros_nuevos") or resumen.get("nuevos") or []
+            total_sat  = resumen.get("total_registros_satys") or resumen.get("total_extraidos") or 0
+            total_exc  = resumen.get("total_procesados_excel") or resumen.get("total_ya_en_excel") or 0
+            total_new  = resumen.get("total_nuevos") or len(nuevos)
+            rc_main    = resumen.get("return_code_main")
+            rc_extr    = resumen.get("return_code_extraer")
+            mensaje    = resumen.get("mensaje") or ""
+            errores    = resumen.get("errores") or []
+            log_path   = (resumen.get("paths") or {}).get("log", "")
+            ts_inicio  = _fmt_ts(resumen.get("fecha_ejecucion"))
+            ts_fin     = _fmt_ts(resumen.get("fecha_fin"))
+            dur        = _duracion(resumen)
+
+            # ── Encabezado de estado ──────────────────────────────────
+            if omitido:
+                icono_est  = ft.Icons.LOCK_OUTLINE
+                color_est  = ORANGE_WARN
+                label_est  = "Corrida omitida (otra laptop ya estaba procesando)"
+            elif ok:
+                icono_est  = ft.Icons.CHECK_CIRCLE
+                color_est  = GREEN_OK
+                label_est  = "Corrida completada con éxito"
+            else:
+                icono_est  = ft.Icons.ERROR
+                color_est  = RED_ERR
+                label_est  = "Corrida terminó con errores"
+
+            filas: list[ft.Control] = [
+                # Estado general
+                ft.Container(
+                    bgcolor=f"{color_est}18",
+                    border_radius=ft.BorderRadius.all(8),
+                    padding=ft.Padding.symmetric(horizontal=14, vertical=10),
+                    content=ft.Row(spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER, controls=[
+                        ft.Icon(icono_est, color=color_est, size=22),
+                        ft.Column(spacing=2, controls=[
+                            ft.Text(label_est, size=13, weight=ft.FontWeight.W_700, color=color_est),
+                            ft.Text(f"Inicio: {ts_inicio}   ·   Fin: {ts_fin}   ·   Duración: {dur}",
+                                    size=11, color=TEXT_GRAY),
+                        ]),
+                    ]),
+                ),
+
+                # Métricas en chips
+                ft.Row(spacing=8, wrap=True, controls=[
+                    _chip_metrica("En SATyS",     str(total_sat),  ft.Icons.CLOUD_DOWNLOAD, BLUE_INFO),
+                    _chip_metrica("Ya en Excel",  str(total_exc),  ft.Icons.TABLE_CHART,    TEXT_GRAY),
+                    _chip_metrica("Nuevos",        str(total_new),  ft.Icons.NEW_RELEASES_OUTLINED,
+                                  GREEN_OK if total_new == 0 else ORANGE_WARN),
+                ]),
+            ]
+
+            # Mensaje resumen
+            if mensaje:
+                filas.append(ft.Text(mensaje, size=12, color=TEXT_GRAY))
+
+            # ── Sección: Registros nuevos detectados ─────────────────
+            if nuevos:
+                chips_reg = [
+                    ft.Container(
+                        bgcolor=f"{ORANGE_WARN}18",
+                        border_radius=ft.BorderRadius.all(6),
+                        padding=ft.Padding.symmetric(horizontal=8, vertical=4),
+                        content=ft.Text(reg, size=11, color=ORANGE_WARN, weight=ft.FontWeight.W_600),
+                    )
+                    for reg in nuevos[:60]
+                ]
+                if len(nuevos) > 60:
+                    chips_reg.append(ft.Text(f"… +{len(nuevos) - 60} más", size=11, color=TEXT_MUTED))
+                filas += [
+                    ft.Divider(height=1, color=BORDER_COLOR),
+                    ft.Text("🟡  Registros nuevos detectados", size=13,
+                            weight=ft.FontWeight.W_700, color=ORANGE_WARN),
+                    ft.Row(wrap=True, spacing=6, controls=chips_reg),
+                ]
+
+            # ── Sección: Resultado de main_procesar.py ───────────────
+            if rc_main is not None:
+                rc_color = GREEN_OK if rc_main == 0 else RED_ERR
+                filas += [
+                    ft.Divider(height=1, color=BORDER_COLOR),
+                    ft.Row(spacing=8, controls=[
+                        ft.Icon(ft.Icons.CODE, color=rc_color, size=16),
+                        ft.Text(
+                            f"main_procesar.py  →  código de salida {rc_main}",
+                            size=13, color=rc_color, weight=ft.FontWeight.W_600,
+                        ),
+                    ]),
+                ]
+            if rc_extr is not None and rc_extr != 0:
+                filas.append(ft.Text(
+                    f"extraer_registros_documentos.py  →  código {rc_extr}",
+                    size=12, color=RED_ERR,
+                ))
+
+            # ── Sección: Errores ─────────────────────────────────────
+            if errores:
+                filas += [
+                    ft.Divider(height=1, color=BORDER_COLOR),
+                    ft.Text("🔴  Errores", size=13, weight=ft.FontWeight.W_700, color=RED_ERR),
+                ]
+                for err in errores:
+                    filas.append(ft.Text(str(err), size=12, color=RED_ERR))
+
+            # ── Log completo ─────────────────────────────────────────
+            if log_path:
+                filas += [
+                    ft.Divider(height=1, color=BORDER_COLOR),
+                    ft.TextButton(
+                        content=ft.Row(spacing=6, controls=[
+                            ft.Icon(ft.Icons.OPEN_IN_NEW, size=14, color=TEAL_PRIMARY),
+                            ft.Text(f"Abrir log: {Path(log_path).name}", size=12, color=TEAL_PRIMARY),
+                        ]),
+                        on_click=lambda e, p=log_path: _abrir_ruta_al_frente(Path(p)),
+                    ),
+                ]
+
+            contenido = ft.Column(spacing=10, controls=filas)
+
+        return self._card(
+            "Resultados de la corrida diaria",
+            "Datos de la última ejecución del monitor. Presiona Actualizar para refrescar.",
+            ft.Column(spacing=10, controls=[
+                ft.Row(spacing=8, controls=[
+                    self._small_button("Actualizar", ft.Icons.REFRESH, lambda e: self._rebuild()),
+                    self._small_button("Abrir logs/", ft.Icons.FOLDER,
+                                       lambda e: _abrir_ruta_al_frente(LOGS_DIR)),
+                ]),
+                contenido,
+            ]),
+            icon=ft.Icons.FACT_CHECK_OUTLINED,
+        )
+
+    def _build_tarjeta_historial_monitor(self) -> ft.Control:
+        """Lee todos los monitor_registros_*.json del directorio logs/ y muestra una fila por corrida."""
+        archivos = sorted(
+            LOGS_DIR.glob("monitor_registros_*.json"),
+            key=lambda p: p.stat().st_mtime if p.exists() else 0,
+            reverse=True,
+        ) if LOGS_DIR.exists() else []
+
+        # Excluir el archivo "ultimo" de la lista histórica
+        archivos = [p for p in archivos if p.name != "monitor_registros_ultimo.json"]
+
+        if not archivos:
+            contenido: ft.Control = ft.Text(
+                "Todavía no hay corridas guardadas en logs/. Aparecerán aquí después de la primera ejecución.",
+                size=13, color=TEXT_MUTED,
+            )
+        else:
+            filas: list[ft.Control] = []
+            for path in archivos[:30]:          # máximo 30 entradas
+                try:
+                    data = json.loads(path.read_text(encoding="utf-8"))
+                except Exception:
+                    continue
+
+                ok       = bool(data.get("ok"))
+                omitido  = bool(data.get("omitido_por_bloqueo"))
+                total_n  = data.get("total_nuevos") or len(data.get("registros_nuevos") or [])
+                total_s  = data.get("total_registros_satys") or 0
+                rc_main  = data.get("return_code_main")
+                ts_raw   = data.get("fecha_ejecucion") or ""
+                try:
+                    ts = datetime.fromisoformat(ts_raw).strftime("%d/%m/%Y  %H:%M")
+                except Exception:
+                    ts = path.stem.replace("monitor_registros_", "").replace("_", " ")
+
+                if omitido:
+                    icono = ft.Icons.LOCK_OUTLINE; color = ORANGE_WARN; etiq = "Omitida"
+                elif ok:
+                    icono = ft.Icons.CHECK_CIRCLE; color = GREEN_OK;  etiq = "OK"
+                else:
+                    icono = ft.Icons.ERROR;        color = RED_ERR;   etiq = "Error"
+
+                rc_txt = f"  ·  main={rc_main}" if rc_main is not None else ""
+                nuevos_txt = f"  ·  {total_n} nuevo(s)" if total_n else "  ·  sin nuevos"
+                satys_txt  = f"  ·  {total_s} en SATyS" if total_s else ""
+
+                filas.append(
+                    ft.Container(
+                        border=ft.Border(bottom=ft.BorderSide(1, BORDER_COLOR)),
+                        padding=ft.Padding.symmetric(vertical=8),
+                        content=ft.Row(
+                            spacing=10,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            controls=[
+                                ft.Icon(icono, color=color, size=16),
+                                ft.Column(spacing=2, expand=True, controls=[
+                                    ft.Text(ts, size=13, weight=ft.FontWeight.W_600, color=TEXT_DARK),
+                                    ft.Text(
+                                        etiq + satys_txt + nuevos_txt + rc_txt,
+                                        size=11, color=TEXT_GRAY,
+                                    ),
+                                ]),
+                                ft.TextButton(
+                                    content=ft.Row(spacing=4, controls=[
+                                        ft.Icon(ft.Icons.OPEN_IN_NEW, size=12, color=TEAL_PRIMARY),
+                                        ft.Text("Ver", size=12, color=TEAL_PRIMARY),
+                                    ]),
+                                    on_click=lambda e, p=path: _abrir_ruta_al_frente(p),
+                                ),
+                            ],
+                        ),
+                    )
+                )
+
+            if len(archivos) > 30:
+                filas.append(ft.Text(f"… +{len(archivos) - 30} corridas más en logs/",
+                                     size=12, color=TEXT_MUTED))
+            contenido = ft.Column(spacing=0, controls=filas)
+
+        return self._card(
+            "Historial de corridas diarias",
+            f"Corridas guardadas en logs/  ({len(archivos)} en total)",
+            contenido,
+            icon=ft.Icons.HISTORY,
+        )
+
+    # ════════════════════════════════════════════════════
     #  PANTALLA: CONFIGURACIÓN
     # ════════════════════════════════════════════════════
 
@@ -2272,7 +2565,7 @@ class SATySApp:
                                 self._small_button("Examinar", ft.Icons.SEARCH, lambda e: self._choose_script()),
                             ]),
                             ft.Row(spacing=10, controls=[
-                                ft.ElevatedButton(
+                                ft.Button(
                                     "Guardar configuración",
                                     icon=ft.Icons.SAVE,
                                     style=ft.ButtonStyle(bgcolor=TEAL_PRIMARY, color="white", shape=ft.RoundedRectangleBorder(radius=9)),
@@ -2284,6 +2577,7 @@ class SATySApp:
                     ),
                     icon=ft.Icons.SETTINGS,
                 ),
+                self._build_card_bloqueo_compartido(),
                 self._card(
                     "Recomendación de uso",
                     None,
@@ -2298,6 +2592,67 @@ class SATySApp:
                 ),
             ],
         )
+
+    def _build_card_bloqueo_compartido(self) -> ft.Control:
+        """
+        Muestra si otra laptop del equipo está corriendo el proceso ahora mismo
+        (bloqueo compartido) y permite forzar su liberación si quedó atorado
+        tras un cierre anormal (apagón, Ctrl+C, cierre forzado de Windows).
+        """
+        estado = consultar_estado_lock()
+        carpeta_lock = ruta_carpeta_lock_actual()
+
+        if estado and estado.get("_vigente"):
+            edad_min = int((estado.get("_edad_latido_seg") or 0) / 60)
+            fila_estado = ft.Row(spacing=8, controls=[
+                ft.Icon(ft.Icons.LOCK, color=ORANGE_WARN, size=18),
+                ft.Text(
+                    f"Ocupado: {estado.get('usuario', '?')} en {estado.get('laptop', '?')} "
+                    f"· proceso {estado.get('proceso', '?')} · último latido hace {edad_min} min",
+                    size=13, color=TEXT_DARK,
+                ),
+            ])
+        elif estado:
+            # Existe un archivo de lock pero su latido ya venció (abandonado).
+            fila_estado = ft.Row(spacing=8, controls=[
+                ft.Icon(ft.Icons.WARNING_AMBER, color=ORANGE_WARN, size=18),
+                ft.Text(
+                    f"Bloqueo abandonado detectado (de {estado.get('usuario', '?')}, "
+                    f"{estado.get('laptop', '?')}). Se liberará solo al iniciar un nuevo proceso.",
+                    size=13, color=TEXT_DARK,
+                ),
+            ])
+        else:
+            fila_estado = ft.Row(spacing=8, controls=[
+                ft.Icon(ft.Icons.LOCK_OPEN, color=GREEN_OK, size=18),
+                ft.Text("Libre — ninguna laptop está corriendo el proceso ahora mismo.",
+                        size=13, color=TEXT_DARK),
+            ])
+
+        return self._card(
+            "Bloqueo compartido (evita ejecuciones simultáneas)",
+            "Impide que 2 o más laptops del equipo corran el proceso SATyS al mismo tiempo.",
+            ft.Column(spacing=12, controls=[
+                fila_estado,
+                ft.Text(f"Carpeta usada para el bloqueo: {carpeta_lock}", size=11, color=TEXT_MUTED),
+                ft.Row(spacing=10, wrap=True, controls=[
+                    self._small_button("Actualizar estado", ft.Icons.REFRESH, lambda e: self._rebuild()),
+                    self._small_button("Forzar liberar bloqueo", ft.Icons.LOCK_OPEN, self._forzar_liberar_bloqueo),
+                ]),
+                ft.Text(
+                    "Usa \"Forzar liberar\" SOLO si estás seguro de que ninguna laptop está "
+                    "trabajando de verdad (por ejemplo, si el proceso quedó marcado como "
+                    "'Ocupado' después de un apagón o un cierre forzado de Windows).",
+                    size=11, color=TEXT_MUTED,
+                ),
+            ]),
+            icon=ft.Icons.SHIELD_OUTLINED,
+        )
+
+    def _forzar_liberar_bloqueo(self, e=None) -> None:
+        ok = forzar_liberar_lock()
+        self._show_toast("Bloqueo liberado" if ok else "No se pudo liberar el bloqueo", seconds=3)
+        self._rebuild()
 
     # ════════════════════════════════════════════════════
     #  EVENTOS DE NAVEGACIÓN / FORMULARIO
@@ -2472,6 +2827,16 @@ class SATySApp:
             self.command_preview.value = f"No se pudo preparar el comando: {ex}"
 
     def _validate_before_run(self) -> tuple[bool, str]:
+        estado_lock = consultar_estado_lock()
+        if estado_lock and estado_lock.get("_vigente"):
+            edad_min = int((estado_lock.get("_edad_latido_seg") or 0) / 60)
+            return False, (
+                f"Ya hay un proceso corriendo en la laptop de {estado_lock.get('usuario', '?')} "
+                f"({estado_lock.get('laptop', '?')}), iniciado el {estado_lock.get('inicio', '?')} "
+                f"(último latido hace {edad_min} min). Espera a que termine, o revisa "
+                "'Configuración' si crees que quedó atorado."
+            )
+
         python_path = Path((self.txt_python.value or "").strip().strip('"'))
         script_path = Path((self.txt_script.value or "").strip().strip('"'))
         txt_path = Path((self.txt_archivo.value or "").strip().strip('"'))
@@ -2736,6 +3101,13 @@ class SATySApp:
 
 def main(page: ft.Page):
     page.title = "SATyS — Gestor CRT"
+    
+    # Set the custom logo (desktop and web)
+    try:
+        page.window.icon = "logo_satys_crt.png"
+    except Exception:
+        pass
+    
     page.bgcolor = PAGE_BG
     page.padding = 0
 

@@ -1,0 +1,20 @@
+# ─────────────────────────────────────────────────────────────
+# Ruta de la carpeta COMPARTIDA en red donde se guarda el archivo
+# de bloqueo (mutex) que evita que 2 o más laptops del equipo
+# corran el proceso SATyS al mismo tiempo.
+#
+# Instrucciones:
+#   1. Quita el "#" del inicio de la línea de abajo (o escribe la
+#      ruta que corresponda) y guarda el archivo.
+#   2. Debe ser una carpeta a la que las 4 laptops tengan acceso
+#      de lectura/escritura. Se recomienda usar la MISMA carpeta
+#      de red donde ya se comparten /output, /descargas y
+#      TrámitesCRT.xlsx (CRT_Recurso_DEPI).
+#
+# Ejemplo (ruta real del equipo):
+Z:\DEI_DATOS\SATyS\.lock
+
+# Si dejas este archivo tal cual (todo comentado), el bloqueo solo
+# protege ESTA laptop — no protege contra las otras 3. Esto es útil
+# para probar en un solo equipo antes de activarlo para todo el
+# equipo.
