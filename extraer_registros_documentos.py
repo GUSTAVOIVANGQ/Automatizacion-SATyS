@@ -296,33 +296,167 @@ def seleccionar_todos_los_anios(page) -> None:
         log.warning("[CFG] No se pudo cambiar el selector de Año: %s", exc)
 
 
+def parsear_numero(texto: str | None) -> int | None:
+    if not texto:
+        return None
+    limpio = re.sub(r"[^\d]", "", str(texto))
+    return int(limpio) if limpio else None
+
+
+def parsear_info_paginacion(info: str | None) -> dict:
+    """Convierte 'Mostrando 1 a 100 de 1,332 tramites' en numeros auditables."""
+    texto = (info or "").replace("\xa0", " ").strip()
+    resultado = {"desde": None, "hasta": None, "total": None}
+    m = re.search(
+        r"(?:Mostrando|Showing)\s+([\d,\.]+)\s+(?:a|to)\s+([\d,\.]+)\s+(?:de|of)\s+([\d,\.]+)",
+        texto,
+        re.I,
+    )
+    if not m:
+        m = re.search(r"([\d,\.]+)\s+a\s+([\d,\.]+)\s+de\s+([\d,\.]+)", texto, re.I)
+    if m:
+        resultado["desde"] = parsear_numero(m.group(1))
+        resultado["hasta"] = parsear_numero(m.group(2))
+        resultado["total"] = parsear_numero(m.group(3))
+    return resultado
+
+
+def descubrir_anios_disponibles(page) -> list[dict]:
+    """Detecta las opciones reales del selector Año visible en SATyS."""
+    opciones = page.evaluate(
+        """
+        () => {
+          const visible = el => {
+            if (!el) return false;
+            const style = window.getComputedStyle(el);
+            const rect = el.getBoundingClientRect();
+            return style.display !== 'none' && style.visibility !== 'hidden'
+              && rect.width > 0 && rect.height > 0;
+          };
+          const norm = txt => (txt || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim();
+          const selects = Array.from(document.querySelectorAll('select')).filter(visible);
+          const candidatos = [];
+          for (const select of selects) {
+            const options = Array.from(select.options || []);
+            const years = options
+              .map((opt, idx) => {
+                const text = norm(opt.textContent || opt.value || '');
+                const value = opt.value || text;
+                const match = `${text} ${value}`.match(/\\b(20\\d{2})\\b/);
+                return match ? {
+                  year: Number(match[1]),
+                  value,
+                  text: text || value,
+                  selected: select.value === value,
+                  index: idx
+                } : null;
+              })
+              .filter(Boolean);
+            if (!years.length) continue;
+            const ctx = norm([
+              select.labels ? Array.from(select.labels).map(l => l.textContent).join(' ') : '',
+              select.closest('.form-group, .row, div')?.textContent || '',
+              select.parentElement?.textContent || ''
+            ].join(' '));
+            const score = (/\\bAno\\b|\\bAnio\\b|\\bAño\\b/i.test(ctx) ? 100 : 0) + years.length;
+            candidatos.push({score, years});
+          }
+          candidatos.sort((a, b) => b.score - a.score);
+          return candidatos.length ? candidatos[0].years : [];
+        }
+        """
+    ) or []
+
+    unicos: dict[int, dict] = {}
+    for opcion in opciones:
+        year = opcion.get("year")
+        if isinstance(year, int) and year not in unicos:
+            unicos[year] = opcion
+    return [unicos[year] for year in sorted(unicos.keys(), reverse=True)]
+
+
+def seleccionar_anio(page, opcion: dict) -> None:
+    year = int(opcion["year"])
+    value = str(opcion.get("value") or year)
+    resultado = page.evaluate(
+        """
+        ({year, value}) => {
+          const visible = el => {
+            if (!el) return false;
+            const style = window.getComputedStyle(el);
+            const rect = el.getBoundingClientRect();
+            return style.display !== 'none' && style.visibility !== 'hidden'
+              && rect.width > 0 && rect.height > 0;
+          };
+          const selects = Array.from(document.querySelectorAll('select')).filter(visible);
+          for (const select of selects) {
+            const options = Array.from(select.options || []);
+            const hasYears = options.some(opt => /\\b20\\d{2}\\b/.test(`${opt.textContent || ''} ${opt.value || ''}`));
+            if (!hasYears) continue;
+            const option = options.find(opt => opt.value === value)
+              || options.find(opt => new RegExp(`\\\\b${year}\\\\b`).test(`${opt.textContent || ''} ${opt.value || ''}`));
+            if (!option) continue;
+            const changed = select.value !== option.value;
+            select.value = option.value;
+            select.dispatchEvent(new Event('input', { bubbles: true }));
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            return {ok: true, changed, text: (option.textContent || option.value || '').trim()};
+          }
+          return {ok: false};
+        }
+        """,
+        {"year": year, "value": value},
+    ) or {"ok": False}
+    if not resultado.get("ok"):
+        raise RuntimeError(f"No pude seleccionar el Año {year} en SATyS.")
+    log.info("[CFG] Año seleccionado: %s", resultado.get("text") or year)
+    esperar_datatables(page, timeout_ms=25_000)
+
+
 def cambiar_mostrar_a_100(page) -> bool:
     try:
         resultado = page.evaluate(
             """
             () => {
               const visible = el => {
+                if (!el) return false;
                 const style = window.getComputedStyle(el);
-                return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null;
+                const rect = el.getBoundingClientRect();
+                return style.display !== 'none' && style.visibility !== 'hidden'
+                  && rect.width > 0 && rect.height > 0;
               };
-              const selects = Array.from(
-                document.querySelectorAll('.dataTables_length select, select[name*="_length"]')
-              ).filter(visible);
+              const norm = txt => (txt || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim();
+              const selects = Array.from(document.querySelectorAll('select')).filter(visible);
+              const candidatos = [];
               for (const select of selects) {
-                const opt100 = Array.from(select.options).find(opt => opt.value === '100');
-                if (opt100) {
-                  if (select.value !== '100') {
-                    select.value = '100';
-                    select.dispatchEvent(new Event('change', { bubbles: true }));
-                  }
-                  return true;
-                }
+                const options = Array.from(select.options || []);
+                const values = options.map(opt => norm(opt.value || opt.textContent || ''));
+                const hasLengthOptions = ['10', '25', '50', '100'].every(v => values.includes(v));
+                const hasYears = options.some(opt => /\\b20\\d{2}\\b/.test(`${opt.textContent || ''} ${opt.value || ''}`));
+                const opt100 = options.find(opt => norm(opt.value || opt.textContent || '') === '100');
+                if (!opt100 || hasYears) continue;
+                const ctx = norm([
+                  select.closest('.dataTables_length')?.textContent || '',
+                  select.closest('.row, .form-group, div')?.textContent || '',
+                  select.parentElement?.textContent || ''
+                ].join(' '));
+                const score = (hasLengthOptions ? 100 : 0)
+                  + (/Mostrar/i.test(ctx) ? 50 : 0)
+                  + (/tramites|trámites/i.test(ctx) ? 25 : 0);
+                candidatos.push({select, opt100, score});
               }
-              return false;
+              candidatos.sort((a, b) => b.score - a.score);
+              if (!candidatos.length) return {ok: false};
+              const {select, opt100} = candidatos[0];
+              const changed = select.value !== opt100.value;
+              select.value = opt100.value;
+              select.dispatchEvent(new Event('input', { bubbles: true }));
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              return {ok: true, changed, value: select.value};
             }
             """
         )
-        if not resultado:
+        if not resultado or not resultado.get("ok"):
             log.warning("[CFG] No encontre el selector 'Mostrar 100 tramites'.")
             return False
         esperar_datatables(page, timeout_ms=20_000)

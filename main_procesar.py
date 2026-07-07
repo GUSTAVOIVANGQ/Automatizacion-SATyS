@@ -58,7 +58,7 @@ FOLIOS_DEFAULT = ["6407", "6801", "6802"]
 # ──── PARTE 1: Descarga (Playwright) ────
 # Solo se ejecuta si pasas --descarga
 SATYS_USUARIO = os.getenv("SATYS_USER", "david.palestina@ift.org.mx")
-SATYS_PASSWORD = os.getenv("SATYS_PASS", "Crt20261234*")
+SATYS_PASSWORD = os.getenv("SATYS_PASS", "Crt20261234**")
 HEADLESS = False  # False = ver navegador | True = sin ventana
 
 # ──── PARTE 2: Extracción de PDFs ────
@@ -77,6 +77,11 @@ AZURE_KEY = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_KEY", "")
 
 # ──── PARTE 4: Excel y archivos ────
 ORGANIZAR_DESCARGAS = True  # True = mover archivos a carpetas RPC
+
+# ──── PARTE 5: Carpeta compartida de red ────
+# Directorio destino donde se copian output/ y TrámitesCRT.xlsx al finalizar.
+# Pon None para deshabilitar la sincronización.
+CARPETA_COMPARTIDA = Path(r"Z:\DEI_DATOS\SATyS")
 # ════════════════════════════════════════════════════════════════
 
 
@@ -351,6 +356,8 @@ def procesar_folio(
     fecha_registro = ""
     registro_val = ""
     id_solicitante = ""  # Campo clave para búsqueda exacta en RPC
+    tipo_tramite = ""
+    fecha_limite = ""  # Plazo de atención (solo existe en metadata_tramite_nuevo.json)
 
     if meta_path.exists():
         try:
@@ -362,8 +369,33 @@ def procesar_folio(
                 fecha_registro = meta.get("fecha_registro", "")
                 registro_val = meta.get("registro", "")
                 id_solicitante = meta.get("id_solicitante", "")  # ID para lookup exacto
+                tipo_tramite = meta.get("tipo_tramite", "")
         except Exception as e:
             log.warning("⚠️  No se pudo leer metadatos de %s: %s", meta_path, e)
+
+    # Leer plazo_atencion de metadata_tramite_nuevo.json (solo generado en Trámites Nuevos)
+    meta_tramite_nuevo_path = carpeta / "metadata_tramite_nuevo.json"
+    if meta_tramite_nuevo_path.exists():
+        try:
+            with open(meta_tramite_nuevo_path, "r", encoding="utf-8") as f:
+                meta_tn = json.load(f)
+                plazo_raw = meta_tn.get("plazo_atencion", "")
+                if plazo_raw:
+                    fecha_limite = str(plazo_raw).strip()
+                    log.info("📅 plazo_atencion encontrado en metadata_tramite_nuevo.json: %s", fecha_limite)
+                # También completar campos vacíos desde metadata_tramite_nuevo si no vinieron de metadata_satys
+                if not nombre_operador:
+                    nombre_operador = meta_tn.get("nombre_operador", "")
+                if not representante_legal:
+                    representante_legal = meta_tn.get("representante_legal", "")
+                if not asunto:
+                    asunto = meta_tn.get("asunto", "")
+                if not tipo_tramite:
+                    tipo_tramite = meta_tn.get("tipo_tramite", "")
+                if not fecha_registro:
+                    fecha_registro = meta_tn.get("fecha_registro", "")
+        except Exception as e:
+            log.warning("⚠️  No se pudo leer metadatos de %s: %s", meta_tramite_nuevo_path, e)
 
     if not pdf_nombre and not nombre_operador:
         log.warning("⚠️  No se encontró PDF ni nombre de operador en %s", carpeta)
@@ -542,6 +574,9 @@ def procesar_folio(
         imagen_sello=datos_pdf.get("imagen_sello"),
         fecha_sello=datos_pdf.get("fecha_sello", ""),
         excel_path=EXCEL_PATH,
+        asunto=asunto,
+        tipo_tramite=tipo_tramite,
+        fecha_limite=fecha_limite,
     )
     resultado["excel_ok"] = excel_ok
 
@@ -825,8 +860,17 @@ Ejemplos:
                     try:
                         with open(meta_path_r, "r", encoding="utf-8") as f_meta:
                             meta_r = json.load(f_meta)
+                            # Primero intentar el campo "folio" (ya derivado por Parte1)
+                            folio_directo = meta_r.get("folio")
+                            # Fallback: derivar desde folio_opc si folio no está
+                            if not folio_directo:
+                                folio_opc_r = meta_r.get("folio_opc", "") or ""
+                                if folio_opc_r:
+                                    import re as _re
+                                    numeros_r = _re.sub(r"[^0-9]", "", folio_opc_r)
+                                    folio_directo = numeros_r if numeros_r else None
                             folio_para_excel = (
-                                meta_r.get("folio")
+                                folio_directo
                                 or meta_r.get("memo_folio_opc")
                                 or registro
                             )
@@ -1097,6 +1141,91 @@ Ejemplos:
     except Exception as e:
         log.error("❌ Error al generar el Excel de folios procesados: %s", e)
 
+    # -- Sincronizar con carpeta compartida de red --
+    sincronizar_carpeta_compartida()
+
+
+def sincronizar_carpeta_compartida() -> None:
+    """
+    Copia la carpeta 'output/' y el archivo 'TrámitesCRT.xlsx' al directorio
+    de red CARPETA_COMPARTIDA (Z:\DEI_DATOS\SATyS).
+
+    Si ya existen archivos en el destino, los mueve primero a una subcarpeta
+    backup/<YYYYMMDD_HHMMSS>/ antes de copiar los nuevos, para no perder nada.
+    """
+    if CARPETA_COMPARTIDA is None:
+        return
+
+    print()
+    print("─" * 70)
+    print("  SINCRONIZACIÓN CON CARPETA COMPARTIDA")
+    print("─" * 70)
+
+    destino = Path(CARPETA_COMPARTIDA)
+    backup_raiz = destino / "backup"
+
+    # Verificar accesibilidad de la unidad de red
+    try:
+        destino.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        log.error("❌ No se puede acceder a la carpeta compartida %s: %s", destino, e)
+        log.error("   Verifica que la unidad Z: esté montada y tengas permisos de escritura.")
+        return
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    carpeta_backup = backup_raiz / timestamp
+    hay_backup = False
+
+    # ── Backup de la carpeta output existente ──
+    destino_output = destino / "output"
+    if destino_output.exists():
+        try:
+            carpeta_backup.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(destino_output), str(carpeta_backup / "output"))
+            log.info("📦 output/ existente respaldado en: %s", carpeta_backup)
+            hay_backup = True
+        except Exception as e:
+            log.error("❌ Error al respaldar output/ existente: %s", e)
+            return
+
+    # ── Backup del Excel existente ──
+    destino_excel = destino / EXCEL_PATH.name
+    if destino_excel.exists():
+        try:
+            carpeta_backup.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(destino_excel), str(carpeta_backup / EXCEL_PATH.name))
+            log.info("📦 %s existente respaldado en: %s", EXCEL_PATH.name, carpeta_backup)
+            hay_backup = True
+        except Exception as e:
+            log.error("❌ Error al respaldar %s existente: %s", EXCEL_PATH.name, e)
+            return
+
+    if hay_backup:
+        log.info("🗂️  Archivos anteriores guardados en: %s", carpeta_backup)
+
+    # ── Copiar carpeta output al destino ──
+    if OUTPUT_BASE.exists():
+        try:
+            shutil.copytree(str(OUTPUT_BASE), str(destino_output))
+            log.info("✅ output/ copiado a: %s", destino_output)
+        except Exception as e:
+            log.error("❌ Error al copiar output/: %s", e)
+    else:
+        log.warning("⚠️  La carpeta output/ no existe localmente; nada que copiar.")
+
+    # ── Copiar el Excel al destino ──
+    if EXCEL_PATH.exists():
+        try:
+            shutil.copy2(str(EXCEL_PATH), str(destino_excel))
+            log.info("✅ %s copiado a: %s", EXCEL_PATH.name, destino_excel)
+        except Exception as e:
+            log.error("❌ Error al copiar %s: %s", EXCEL_PATH.name, e)
+    else:
+        log.warning("⚠️  El archivo %s no existe localmente; nada que copiar.", EXCEL_PATH.name)
+
+    print("─" * 70)
+    print(f"  ✅ Sincronización completada → {destino}")
+    print("─" * 70)
 
 
 if __name__ == "__main__":

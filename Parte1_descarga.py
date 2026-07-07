@@ -1454,6 +1454,17 @@ def _extraer_metadatos_satys_una_vez(page, folio: str, carpeta: Path, registro_e
         if metadatos["asunto"] and metadatos["asunto"].startswith(":"):
             metadatos["asunto"] = metadatos["asunto"][1:].strip()
 
+        # Derivar "folio" desde "folio_opc" si aún no está asignado
+        # Ejemplo: folio_opc="VE-184698" → folio="184698"
+        #          folio_opc="CORREO-2014" → folio="2014"
+        folio_opc_val = metadatos.get("folio_opc", "") or ""
+        if folio_opc_val and not metadatos.get("folio"):
+            numeros = re.sub(r"[^0-9]", "", folio_opc_val)
+            if numeros:
+                metadatos["folio"] = numeros
+                log.info("[WEB] folio derivado de folio_opc='%s' → folio='%s'",
+                         folio_opc_val, numeros)
+
         # V-11: Convertir strings vacios a None y loguear campos faltantes
         for campo in ("representante_legal", "nombre_operador", "asunto"):
             if not metadatos.get(campo):
@@ -1463,6 +1474,7 @@ def _extraer_metadatos_satys_una_vez(page, folio: str, carpeta: Path, registro_e
         if not metadatos.get("registro"):
             metadatos["registro"] = None
             log.warning("[V11-META-FALTANTE] folio=%s campo=registro es nulo/vacio", folio)
+
 
         # Guardar en archivo
         out_path = carpeta / "metadata_satys.json"
@@ -3217,7 +3229,10 @@ def extraer_metadatos_tramite_nuevo(page, folio: str, carpeta: Path) -> dict:
     log.info("[ALT-META] Extrayendo metadatos de DATOS DEL TRAMITE para folio %s", folio)
     meta = {
         "tipo_tramite": "",
+        "folio": "",
         "fecha_registro": "",
+        "plazo_atencion": "",
+        "origen": "",
         "solicitante": "",
         "nombre_operador": "",
         "representante_legal": "",
@@ -3227,7 +3242,59 @@ def extraer_metadatos_tramite_nuevo(page, folio: str, carpeta: Path) -> dict:
     }
     try:
         page.evaluate("window.scrollTo(0, 0)")
-        page.wait_for_timeout(1_000)
+
+        # ── Esperar a que el campo 'Folio:' tenga valor (hasta 120 s) ──────────
+        # La vista 'DATOS DEL TRÁMITE' carga asincrónicamente después de abrir
+        # el detalle del trámite. Sondear cada segundo evita capturas en blanco.
+        _MAX_ESPERA_FOLIO_S = 120
+        _folio_detectado = False
+        log.info("[ALT-META] Esperando campo 'Folio:' (máx. %ds)...", _MAX_ESPERA_FOLIO_S)
+        for _intento in range(_MAX_ESPERA_FOLIO_S):
+            try:
+                _val_folio = page.evaluate("""
+                () => {
+                    // Buscar un input/textarea cuyo contenedor mencione 'Folio'
+                    const candidates = Array.from(
+                        document.querySelectorAll('input:not([type="hidden"]), textarea')
+                    );
+                    for (const inp of candidates) {
+                        const row = inp.closest(
+                            'tr, .row, .form-group, li, .col-md-12'
+                        ) || inp.parentElement;
+                        if (row && (row.textContent || '').includes('Folio')) {
+                            return (inp.value || '').trim();
+                        }
+                    }
+                    // Fallback: buscar span/div con texto que parezca un folio numérico
+                    const spans = Array.from(document.querySelectorAll('span, td, div'));
+                    for (const el of spans) {
+                        const txt = (el.textContent || '').trim();
+                        if (/^\\d{4,}$/.test(txt)) {
+                            const parent = el.parentElement;
+                            if (parent && (parent.textContent || '').includes('Folio')) {
+                                return txt;
+                            }
+                        }
+                    }
+                    return '';
+                }
+                """)
+                if _val_folio:
+                    log.info("[ALT-META] Campo 'Folio:' detectado con valor '%s' (intento %d)",
+                             _val_folio, _intento + 1)
+                    _folio_detectado = True
+                    break
+            except Exception as _e_poll:
+                log.debug("[ALT-META] Error en polling Folio (intento %d): %s", _intento + 1, _e_poll)
+            page.wait_for_timeout(1_000)
+
+        if not _folio_detectado:
+            log.warning(
+                "[ALT-META] Timeout: 'Folio:' no apareció en %ds. "
+                "Se intentará extraer de todos modos.",
+                _MAX_ESPERA_FOLIO_S
+            )
+        # ── Fin del ciclo de espera ────────────────────────────────────────────
 
         # Intentar expandir DATOS DEL TRAMITE si esta colapsado
         for sel in [
@@ -3259,7 +3326,9 @@ def extraer_metadatos_tramite_nuevo(page, folio: str, carpeta: Path) -> dict:
                 "Info. adicional": "asunto",
                 "Descripci": "descripcion",
                 "Fecha de recepción": "fecha_registro",
-                "Fecha de folio OPC": "fecha_ejecucion"
+                "Fecha de folio OPC": "fecha_ejecucion",
+                "Plazo de atención": "plazo_atencion",   # Plazo de atención al trámite
+                "Origen": "origen",
             }
             
             # 1) Buscar valores dentro del mismo texto del label (ej. <label>Concesionario: <span>PANAMSAT...</span></label>)

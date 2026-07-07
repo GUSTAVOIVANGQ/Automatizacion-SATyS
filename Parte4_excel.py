@@ -78,7 +78,7 @@ def obtener_nota_victor(carpeta: Path) -> str:
       ""  (si solo hay PDF/CSV o la carpeta está vacía)
     """
     # Extensiones de archivo que son "solo infraestructura" del pipeline
-    _EXCLUIR = {".pdf", ".csv", ".png", ".jpg", ".jpeg", ".tmp"}
+    _EXCLUIR = {".pdf", ".csv", ".png", ".jpg", ".jpeg", ".tmp", ".json"}
 
     exts_relevantes = set()
     for archivo in carpeta.glob("*"):
@@ -231,6 +231,9 @@ def actualizar_excel(
     fecha_sello: str = "",
     excel_path: Path = None,
     sheet_name: str = None,
+    asunto: str = "",
+    tipo_tramite: str = "",
+    fecha_limite: str = "",
 ) -> bool:
     """
     Actualiza la fila correspondiente al folio en el Excel.
@@ -259,6 +262,9 @@ def actualizar_excel(
         col_fecha       = encabezados.get("Fecha de creación", 10)
         col_ruta        = encabezados.get("Ruta", 13)
         col_notas       = encabezados.get("NOTAS_VICTOR", 42)
+        col_asunto      = encabezados.get("Asunto", None)
+        col_tipo        = encabezados.get("Tipo Trámite", None)
+        col_fecha_limite = encabezados.get("FECHA LÍMITE", None)
 
         # Insertar siempre en la última fila, sin importar si ya existe
         fila = ws.max_row + 1
@@ -279,6 +285,23 @@ def actualizar_excel(
         if rpc_resultado and rpc_resultado.get("ok"):
             ws.cell(row=fila, column=col_ruta, value=rpc_resultado["ruta"])
 
+        # Asunto
+        if asunto and col_asunto:
+            ws.cell(row=fila, column=col_asunto, value=asunto)
+            log.info("   📝 Asunto → col %s", get_column_letter(col_asunto))
+
+        # Tipo Trámite
+        if tipo_tramite and col_tipo:
+            ws.cell(row=fila, column=col_tipo, value=tipo_tramite)
+            log.info("   📋 Tipo Trámite → col %s", get_column_letter(col_tipo))
+
+        # FECHA LÍMITE: solo si viene plazo_atencion de metadata_tramite_nuevo.json
+        if fecha_limite and col_fecha_limite:
+            ws.cell(row=fila, column=col_fecha_limite, value=fecha_limite)
+            log.info("   🗓️ FECHA LÍMITE → col %s: %s", get_column_letter(col_fecha_limite), fecha_limite)
+        elif fecha_limite and not col_fecha_limite:
+            log.warning("⚠️  Se tiene plazo_atencion (%s) pero no se encontró columna 'FECHA LÍMITE' en el Excel.", fecha_limite)
+
         # Formatos R001–R027
         for fmt, presente in formatos.items():
             if presente and fmt in encabezados:
@@ -286,7 +309,7 @@ def actualizar_excel(
                 ws.cell(row=fila, column=col, value=1)
                 log.info("   ✅ Marcado %s en columna %s", fmt, get_column_letter(col))
 
-        # NOTAS_VICTOR: solo formato entregado (nunca score RPC)
+        # NOTAS_VICTOR: solo formato entregado (nunca score RPC, nunca .json)
         if nota_victor:
             valor_actual = ws.cell(row=fila, column=col_notas).value
             if valor_actual and nota_victor not in str(valor_actual):

@@ -17658,3 +17658,1289 @@ Call log:
 10:43:54  INFO      [LOGIN] Llenando credenciales...
 10:44:05  ERROR     [ERROR] Credenciales invalidas o error en el portal
 10:44:05  CRITICAL  [ABORT] No se pudo iniciar sesion.
+12:07:30  INFO      [MAIN] ── MODO REGISTRO: FASE 1: Validación de sesión ──
+12:07:32  INFO      [OK] Sesion activa recuperada con exito.
+12:07:32  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:07:33  INFO      [OK] Tablero de Control cargado
+12:07:34  INFO      [MAIN] Sesión validada para modo registro.
+12:07:34  INFO      [LIST] Registros a procesar (3): CRT26-027462, CRT26-011878, CRT26-025610
+12:07:34  INFO      [MAIN] 3 registro(s) pendientes | 0 ya completados (SKIP)
+12:07:34  INFO      [MAIN] ── FASE 2 REGISTRO: Lanzando 3 worker(s) para 3 registro(s) ──
+12:07:34  INFO      [WR:SATyS-Reg_0] ── Iniciando registro CRT26-027462 ──
+12:07:34  INFO      [WR:SATyS-Reg_1] ── Iniciando registro CRT26-011878 ──
+12:07:34  INFO      [WR:SATyS-Reg_2] ── Iniciando registro CRT26-025610 ──
+12:07:35  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:07:35  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:07:35  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:07:36  INFO      [WR:SATyS-Reg_2] Sesión activa (registro CRT26-025610)
+12:07:36  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:07:36  INFO      [WR:SATyS-Reg_1] Sesión activa (registro CRT26-011878)
+12:07:36  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:07:36  INFO      [WR:SATyS-Reg_0] Sesión activa (registro CRT26-027462)
+12:07:36  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:07:37  INFO      [OK] Tablero de Control cargado
+12:07:37  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:07:37  INFO      [OK] Tablero de Control cargado
+12:07:37  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:07:37  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:07:37  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:07:37  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:07:37  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:07:38  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:07:38  INFO      [REG-BUSCAR] Buscando registro CRT26-025610 en tabla (intento 1)...
+12:07:38  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:07:38  INFO      [REG-BUSCAR] Buscando registro CRT26-011878 en tabla (intento 1)...
+12:07:39  INFO      [WR:SATyS-Reg_2] ── Registro CRT26-025610: 0/1 OK | 0 error(es) servidor | 0 error(es) red ──
+12:07:39  INFO      [CONC-REG] [1/3] ✓ Registro CRT26-025610 completado: 0 OK / 1 total
+12:07:39  INFO      [OK] Tablero de Control cargado
+12:07:39  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:07:39  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:07:40  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:07:40  INFO      [WR:SATyS-Reg_1] ── Registro CRT26-011878: 0/1 OK | 0 error(es) servidor | 0 error(es) red ──
+12:07:40  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:07:40  INFO      [REG-BUSCAR] Buscando registro CRT26-027462 en tabla (intento 1)...
+12:07:41  INFO      [CONC-REG] [2/3] ✓ Registro CRT26-011878 completado: 0 OK / 1 total
+12:07:41  INFO      [WR:SATyS-Reg_0] ── Registro CRT26-027462: 0/1 OK | 0 error(es) servidor | 0 error(es) red ──
+12:07:42  INFO      [CONC-REG] [3/3] ✓ Registro CRT26-027462 completado: 0 OK / 1 total
+12:07:42  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+12:07:42  INFO      [RESUMEN] resumen_global.json: 3 folios | 0 Exitosos | 3 Incompletos | 0 No encontrados
+12:08:10  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+12:08:10  INFO      [MAIN] ── MODO REGISTRO: FASE 1: Validación de sesión ──
+12:08:13  INFO      [OK] Sesion activa recuperada con exito.
+12:08:13  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:08:14  INFO      [OK] Tablero de Control cargado
+12:08:15  INFO      [MAIN] Sesión validada para modo registro.
+12:08:15  INFO      [LIST] Registros a procesar (3): CRT26-027462, CRT26-011878, CRT26-025610
+12:08:15  INFO      [MAIN] 3 registro(s) pendientes | 0 ya completados (SKIP)
+12:08:15  INFO      [MAIN] ── FASE 2 REGISTRO: Lanzando 3 worker(s) para 3 registro(s) ──
+12:08:15  INFO      [WR:SATyS-Reg_0] ── Iniciando registro CRT26-027462 ──
+12:08:15  INFO      [WR:SATyS-Reg_1] ── Iniciando registro CRT26-011878 ──
+12:08:15  INFO      [WR:SATyS-Reg_2] ── Iniciando registro CRT26-025610 ──
+12:08:16  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:08:16  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:08:16  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:08:18  INFO      [WR:SATyS-Reg_0] Sesión activa (registro CRT26-027462)
+12:08:18  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:08:18  INFO      [WR:SATyS-Reg_2] Sesión activa (registro CRT26-025610)
+12:08:18  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:08:18  INFO      [WR:SATyS-Reg_1] Sesión activa (registro CRT26-011878)
+12:08:18  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:08:19  INFO      [OK] Tablero de Control cargado
+12:08:19  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:08:20  INFO      [OK] Tablero de Control cargado
+12:08:20  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:08:20  INFO      [OK] Tablero de Control cargado
+12:08:20  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:08:20  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:08:20  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:08:20  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:08:20  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:08:20  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:08:20  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:08:21  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:08:21  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:08:21  INFO      [REG-BUSCAR] Buscando registro CRT26-027462 en tabla (intento 1)...
+12:08:21  INFO      [REG-BUSCAR] Buscando registro CRT26-011878 en tabla (intento 1)...
+12:08:21  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:08:21  INFO      [REG-BUSCAR] Buscando registro CRT26-025610 en tabla (intento 1)...
+12:08:22  INFO      [WR:SATyS-Reg_2] ── Registro CRT26-025610: 0/1 OK | 0 error(es) servidor | 0 error(es) red ──
+12:08:23  INFO      [CONC-REG] [1/3] ✓ Registro CRT26-025610 completado: 0 OK / 1 total
+12:08:23  INFO      [WR:SATyS-Reg_1] ── Registro CRT26-011878: 0/1 OK | 0 error(es) servidor | 0 error(es) red ──
+12:08:23  INFO      [WR:SATyS-Reg_0] ── Registro CRT26-027462: 0/1 OK | 0 error(es) servidor | 0 error(es) red ──
+12:08:24  INFO      [CONC-REG] [2/3] ✓ Registro CRT26-011878 completado: 0 OK / 1 total
+12:08:24  INFO      [CONC-REG] [3/3] ✓ Registro CRT26-027462 completado: 0 OK / 1 total
+12:08:24  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+12:08:24  INFO      [RESUMEN] resumen_global.json: 3 folios | 0 Exitosos | 3 Incompletos | 0 No encontrados
+12:09:32  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+12:09:32  INFO      [MAIN] ── MODO REGISTRO: FASE 1: Validación de sesión ──
+12:09:35  INFO      [OK] Sesion activa recuperada con exito.
+12:09:35  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:09:35  INFO      [OK] Tablero de Control cargado
+12:09:36  INFO      [MAIN] Sesión validada para modo registro.
+12:09:36  INFO      [LIST] Registros a procesar (3): CRT26-027462, CRT26-011878, CRT26-025610
+12:09:36  INFO      [MAIN] 3 registro(s) pendientes | 0 ya completados (SKIP)
+12:09:36  INFO      [MAIN] ── FASE 2 REGISTRO: Lanzando 3 worker(s) para 3 registro(s) ──
+12:09:36  INFO      [WR:SATyS-Reg_0] ── Iniciando registro CRT26-027462 ──
+12:09:36  INFO      [WR:SATyS-Reg_1] ── Iniciando registro CRT26-011878 ──
+12:09:36  INFO      [WR:SATyS-Reg_2] ── Iniciando registro CRT26-025610 ──
+12:09:37  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:09:37  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:09:37  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:09:39  INFO      [WR:SATyS-Reg_2] Sesión activa (registro CRT26-025610)
+12:09:39  INFO      [WR:SATyS-Reg_0] Sesión activa (registro CRT26-027462)
+12:09:39  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:09:39  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:09:39  INFO      [WR:SATyS-Reg_1] Sesión activa (registro CRT26-011878)
+12:09:39  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:09:40  INFO      [OK] Tablero de Control cargado
+12:09:40  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:09:40  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:09:40  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:09:40  INFO      [OK] Tablero de Control cargado
+12:09:40  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:09:40  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:09:40  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:09:41  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:09:41  INFO      [REG-BUSCAR] Buscando registro CRT26-025610 en tabla (intento 1)...
+12:09:41  INFO      [OK] Tablero de Control cargado
+12:09:41  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:09:41  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:09:41  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:09:41  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:09:41  INFO      [REG-BUSCAR] Buscando registro CRT26-027462 en tabla (intento 1)...
+12:09:42  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:09:42  INFO      [REG-BUSCAR] Buscando registro CRT26-011878 en tabla (intento 1)...
+12:09:42  INFO      [WR:SATyS-Reg_2] ── Registro CRT26-025610: 0/1 OK | 0 error(es) servidor | 0 error(es) red ──
+12:09:42  INFO      [WR:SATyS-Reg_0] ── Registro CRT26-027462: 0/1 OK | 0 error(es) servidor | 0 error(es) red ──
+12:09:43  INFO      [CONC-REG] [1/3] ✓ Registro CRT26-025610 completado: 0 OK / 1 total
+12:09:43  INFO      [CONC-REG] [2/3] ✓ Registro CRT26-027462 completado: 0 OK / 1 total
+12:09:44  INFO      [WR:SATyS-Reg_1] ── Registro CRT26-011878: 0/1 OK | 0 error(es) servidor | 0 error(es) red ──
+12:09:45  INFO      [CONC-REG] [3/3] ✓ Registro CRT26-011878 completado: 0 OK / 1 total
+12:09:45  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+12:09:45  INFO      [RESUMEN] resumen_global.json: 3 folios | 0 Exitosos | 3 Incompletos | 0 No encontrados
+12:11:32  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+12:11:32  INFO      [MAIN] ── MODO REGISTRO: FASE 1: Validación de sesión ──
+12:11:34  INFO      [OK] Sesion activa recuperada con exito.
+12:11:34  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:11:35  INFO      [OK] Tablero de Control cargado
+12:11:36  INFO      [MAIN] Sesión validada para modo registro.
+12:11:36  INFO      [LIST] Registros a procesar (3): CRT26-027462, CRT26-011878, CRT26-025610
+12:11:36  INFO      [MAIN] 3 registro(s) pendientes | 0 ya completados (SKIP)
+12:11:36  INFO      [MAIN] ── FASE 2 REGISTRO: Lanzando 3 worker(s) para 3 registro(s) ──
+12:11:36  INFO      [WR:SATyS-Reg_0] ── Iniciando registro CRT26-027462 ──
+12:11:36  INFO      [WR:SATyS-Reg_1] ── Iniciando registro CRT26-011878 ──
+12:11:36  INFO      [WR:SATyS-Reg_2] ── Iniciando registro CRT26-025610 ──
+12:11:37  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:11:37  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:11:37  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:11:39  INFO      [WR:SATyS-Reg_2] Sesión activa (registro CRT26-025610)
+12:11:39  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:11:39  INFO      [WR:SATyS-Reg_1] Sesión activa (registro CRT26-011878)
+12:11:39  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:11:39  INFO      [WR:SATyS-Reg_0] Sesión activa (registro CRT26-027462)
+12:11:39  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:11:40  INFO      [OK] Tablero de Control cargado
+12:11:40  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:11:40  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:11:40  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:11:40  INFO      [OK] Tablero de Control cargado
+12:11:40  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:11:41  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:11:41  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:11:41  INFO      [REG-BUSCAR] Buscando registro CRT26-025610 en tabla (intento 1)...
+12:11:41  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:11:41  INFO      [OK] Tablero de Control cargado
+12:11:41  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:11:41  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:11:41  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:11:41  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:11:41  INFO      [REG-BUSCAR] Buscando registro CRT26-011878 en tabla (intento 1)...
+12:11:42  INFO      [WR:SATyS-Reg_2] ── Registro CRT26-025610: 0/1 OK | 0 error(es) servidor | 0 error(es) red ──
+12:11:42  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:11:42  INFO      [REG-BUSCAR] Buscando registro CRT26-027462 en tabla (intento 1)...
+12:11:43  INFO      [WR:SATyS-Reg_1] ── Registro CRT26-011878: 0/1 OK | 0 error(es) servidor | 0 error(es) red ──
+12:11:43  INFO      [CONC-REG] [1/3] ✓ Registro CRT26-025610 completado: 0 OK / 1 total
+12:11:43  INFO      [WR:SATyS-Reg_0] ── Registro CRT26-027462: 0/1 OK | 0 error(es) servidor | 0 error(es) red ──
+12:11:44  INFO      [CONC-REG] [2/3] ✓ Registro CRT26-011878 completado: 0 OK / 1 total
+12:11:44  INFO      [CONC-REG] [3/3] ✓ Registro CRT26-027462 completado: 0 OK / 1 total
+12:11:44  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+12:11:44  INFO      [RESUMEN] resumen_global.json: 3 folios | 0 Exitosos | 3 Incompletos | 0 No encontrados
+12:22:24  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+12:22:24  INFO      [MAIN] ── MODO REGISTRO: FASE 1: Validación de sesión ──
+12:22:28  INFO      [OK] Sesion activa recuperada con exito.
+12:22:28  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:22:28  INFO      [OK] Tablero de Control cargado
+12:22:29  INFO      [MAIN] Sesión validada para modo registro.
+12:22:29  INFO      [LIST] Registros a procesar (3): CRT26-027462, CRT26-011878, CRT26-025610
+12:22:29  INFO      [MAIN] 3 registro(s) pendientes | 0 ya completados (SKIP)
+12:22:29  INFO      [MAIN] ── FASE 2 REGISTRO: Lanzando 3 worker(s) para 3 registro(s) ──
+12:22:29  INFO      [WR:SATyS-Reg_0] ── Iniciando registro CRT26-027462 ──
+12:22:29  INFO      [WR:SATyS-Reg_1] ── Iniciando registro CRT26-011878 ──
+12:22:29  INFO      [WR:SATyS-Reg_2] ── Iniciando registro CRT26-025610 ──
+12:22:30  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:22:30  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:22:30  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:22:32  INFO      [WR:SATyS-Reg_2] Sesión activa (registro CRT26-025610)
+12:22:32  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:22:32  INFO      [WR:SATyS-Reg_1] Sesión activa (registro CRT26-011878)
+12:22:32  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:22:32  INFO      [WR:SATyS-Reg_0] Sesión activa (registro CRT26-027462)
+12:22:32  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:22:33  INFO      [OK] Tablero de Control cargado
+12:22:33  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:22:33  INFO      [OK] Tablero de Control cargado
+12:22:33  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:22:33  INFO      [OK] Tablero de Control cargado
+12:22:33  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:22:33  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:22:33  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:22:33  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:22:33  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:22:33  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:22:33  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:22:34  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:22:34  INFO      [REG-BUSCAR] Buscando registro CRT26-011878 en tabla (intento 1)...
+12:22:34  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:22:34  INFO      [REG-BUSCAR] Buscando registro CRT26-025610 en tabla (intento 1)...
+12:22:34  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:22:34  INFO      [REG-BUSCAR] Buscando registro CRT26-027462 en tabla (intento 1)...
+12:22:35  INFO      [WR:SATyS-Reg_1] ── Registro CRT26-011878: 0/1 OK | 0 error(es) servidor | 0 error(es) red ──
+12:22:35  INFO      [WR:SATyS-Reg_2] ── Registro CRT26-025610: 0/1 OK | 0 error(es) servidor | 0 error(es) red ──
+12:22:36  INFO      [CONC-REG] [1/3] ✓ Registro CRT26-011878 completado: 0 OK / 1 total
+12:22:36  INFO      [WR:SATyS-Reg_0] ── Registro CRT26-027462: 0/1 OK | 0 error(es) servidor | 0 error(es) red ──
+12:22:36  INFO      [CONC-REG] [2/3] ✓ Registro CRT26-025610 completado: 0 OK / 1 total
+12:22:37  INFO      [CONC-REG] [3/3] ✓ Registro CRT26-027462 completado: 0 OK / 1 total
+12:22:37  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+12:22:37  INFO      [RESUMEN] resumen_global.json: 3 folios | 0 Exitosos | 3 Incompletos | 0 No encontrados
+12:25:09  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+12:25:09  INFO      [MAIN] ── MODO REGISTRO: FASE 1: Validación de sesión ──
+12:25:11  INFO      [OK] Sesion activa recuperada con exito.
+12:25:11  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:25:12  INFO      [OK] Tablero de Control cargado
+12:25:12  INFO      [MAIN] Sesión validada para modo registro.
+12:25:12  INFO      [LIST] Registros a procesar (3): CRT26-027462, CRT26-011878, CRT26-025610
+12:25:12  INFO      [MAIN] 3 registro(s) pendientes | 0 ya completados (SKIP)
+12:25:12  INFO      [MAIN] ── FASE 2 REGISTRO: Lanzando 3 worker(s) para 3 registro(s) ──
+12:25:12  INFO      [WR:SATyS-Reg_0] ── Iniciando registro CRT26-027462 ──
+12:25:12  INFO      [WR:SATyS-Reg_1] ── Iniciando registro CRT26-011878 ──
+12:25:12  INFO      [WR:SATyS-Reg_2] ── Iniciando registro CRT26-025610 ──
+12:25:13  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:25:13  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:25:14  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:25:15  INFO      [WR:SATyS-Reg_1] Sesión activa (registro CRT26-011878)
+12:25:15  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:25:15  INFO      [WR:SATyS-Reg_2] Sesión activa (registro CRT26-025610)
+12:25:15  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:25:16  INFO      [WR:SATyS-Reg_0] Sesión activa (registro CRT26-027462)
+12:25:16  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:25:16  INFO      [OK] Tablero de Control cargado
+12:25:16  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:25:16  INFO      [OK] Tablero de Control cargado
+12:25:16  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:25:16  INFO      [OK] Tablero de Control cargado
+12:25:16  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:25:17  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:25:17  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:25:17  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:25:17  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:25:17  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:25:17  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:25:18  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:25:18  INFO      [REG-BUSCAR] Buscando registro CRT26-011878 en tabla (intento 1)...
+12:25:18  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:25:18  INFO      [REG-BUSCAR] Buscando registro CRT26-025610 en tabla (intento 1)...
+12:25:18  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:25:18  INFO      [REG-BUSCAR] Buscando registro CRT26-027462 en tabla (intento 1)...
+12:25:19  INFO      [WR:SATyS-Reg_1] ── Registro CRT26-011878: 0/1 OK | 0 error(es) servidor | 0 error(es) red ──
+12:25:19  INFO      [CONC-REG] [1/3] ✓ Registro CRT26-011878 completado: 0 OK / 1 total
+12:25:20  INFO      [WR:SATyS-Reg_0] ── Registro CRT26-027462: 0/1 OK | 0 error(es) servidor | 0 error(es) red ──
+12:25:21  INFO      [CONC-REG] [2/3] ✓ Registro CRT26-027462 completado: 0 OK / 1 total
+12:25:21  INFO      [WR:SATyS-Reg_2] ── Registro CRT26-025610: 0/1 OK | 0 error(es) servidor | 0 error(es) red ──
+12:25:22  INFO      [CONC-REG] [3/3] ✓ Registro CRT26-025610 completado: 0 OK / 1 total
+12:25:22  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+12:25:22  INFO      [RESUMEN] resumen_global.json: 3 folios | 0 Exitosos | 3 Incompletos | 0 No encontrados
+12:29:02  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+12:29:02  INFO      [MAIN] ── MODO REGISTRO: FASE 1: Validación de sesión ──
+12:29:04  INFO      [OK] Sesion activa recuperada con exito.
+12:29:04  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:29:04  INFO      [OK] Tablero de Control cargado
+12:29:05  INFO      [MAIN] Sesión validada para modo registro.
+12:29:05  INFO      [LIST] Registros a procesar (3): CRT26-027462, CRT26-011878, CRT26-025610
+12:29:05  INFO      [MAIN] 3 registro(s) pendientes | 0 ya completados (SKIP)
+12:29:05  INFO      [MAIN] ── FASE 2 REGISTRO: Lanzando 3 worker(s) para 3 registro(s) ──
+12:29:05  INFO      [WR:SATyS-Reg_0] ── Iniciando registro CRT26-027462 ──
+12:29:05  INFO      [WR:SATyS-Reg_1] ── Iniciando registro CRT26-011878 ──
+12:29:05  INFO      [WR:SATyS-Reg_2] ── Iniciando registro CRT26-025610 ──
+12:29:06  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:29:06  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:29:06  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:29:07  INFO      [WR:SATyS-Reg_0] Sesión activa (registro CRT26-027462)
+12:29:07  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:29:07  INFO      [WR:SATyS-Reg_1] Sesión activa (registro CRT26-011878)
+12:29:07  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:29:07  INFO      [WR:SATyS-Reg_2] Sesión activa (registro CRT26-025610)
+12:29:07  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:29:08  INFO      [OK] Tablero de Control cargado
+12:29:08  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:29:08  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:29:08  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:29:08  INFO      [OK] Tablero de Control cargado
+12:29:08  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:29:08  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:29:08  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:29:09  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:29:09  INFO      [REG-BUSCAR] Buscando registro CRT26-027462 en tabla (intento 1)...
+12:29:09  INFO      [OK] Tablero de Control cargado
+12:29:09  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:29:09  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:29:09  INFO      [REG-BUSCAR] Buscando registro CRT26-025610 en tabla (intento 1)...
+12:29:09  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:29:09  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:29:10  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:29:10  INFO      [REG-BUSCAR] Buscando registro CRT26-011878 en tabla (intento 1)...
+12:29:12  INFO      [WR:SATyS-Reg_1] ── Registro CRT26-011878: 0/1 OK | 0 error(es) servidor | 0 error(es) red ──
+12:29:12  INFO      [CONC-REG] [1/3] ✓ Registro CRT26-011878 completado: 0 OK / 1 total
+12:29:12  INFO      [WR:SATyS-Reg_2] ── Registro CRT26-025610: 0/1 OK | 0 error(es) servidor | 0 error(es) red ──
+12:29:13  INFO      [WR:SATyS-Reg_0] ── Registro CRT26-027462: 0/1 OK | 0 error(es) servidor | 0 error(es) red ──
+12:29:13  INFO      [CONC-REG] [2/3] ✓ Registro CRT26-025610 completado: 0 OK / 1 total
+12:29:13  INFO      [CONC-REG] [3/3] ✓ Registro CRT26-027462 completado: 0 OK / 1 total
+12:29:13  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+12:29:13  INFO      [RESUMEN] resumen_global.json: 3 folios | 0 Exitosos | 3 Incompletos | 0 No encontrados
+12:31:40  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+12:31:40  INFO      [LIST] Folios a procesar (5): 2014, 178113, 178112, 178065, 1660
+12:31:40  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+12:31:42  INFO      [SESION] Probando sesion guardada...
+12:31:43  INFO      [SESION] Sesion expirada, requiere nuevo login.
+12:31:43  INFO      [LOGIN] Iniciando sesion...
+12:31:43  INFO      [NET] Cargando pagina login...
+12:31:43  INFO      [LOGIN] Llenando credenciales...
+12:31:48  ERROR     [ERROR] Fallo critico en login: Page.wait_for_selector: Target page, context or browser has been closed
+Call log:
+  - waiting for locator("text=Tablero de Control") to be visible
+
+12:31:48  WARNING   Retrying Parte1_descarga.login in 3 seconds as it raised TargetClosedError: Page.wait_for_selector: Target page, context or browser has been closed
+Call log:
+  - waiting for locator("text=Tablero de Control") to be visible
+.
+12:33:45  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+12:33:45  INFO      [LIST] Folios a procesar (5): 2014, 178113, 178112, 178065, 1660
+12:33:45  INFO      [MAIN] ── FASE 1: Validación de sesión ──
+12:33:46  INFO      [SESION] Probando sesion guardada...
+12:33:48  INFO      [SESION] Sesion expirada, requiere nuevo login.
+12:33:48  INFO      [LOGIN] Iniciando sesion...
+12:33:48  INFO      [NET] Cargando pagina login...
+12:33:48  INFO      [LOGIN] Llenando credenciales...
+12:33:59  WARNING   [WARN] Tablero no encontrado tras login, asumiendo exito...
+12:33:59  INFO      [SESION] Sesion guardada correctamente.
+12:33:59  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:34:00  INFO      [OK] Tablero de Control cargado
+12:34:01  INFO      [MAIN] Sesión validada. Navegador principal cerrado.
+12:34:01  INFO      [MAIN] 5 folio(s) pendientes | 0 ya completados (SKIP)
+12:34:01  INFO      [MAIN] ── FASE 2: Lanzando 5 worker(s) para 5 folio(s) ──
+12:34:01  INFO      [W:SATyS_0] ── Iniciando folio 2014 ──
+12:34:01  INFO      [W:SATyS_1] ── Iniciando folio 178113 ──
+12:34:01  INFO      [W:SATyS_2] ── Iniciando folio 178112 ──
+12:34:01  INFO      [W:SATyS_3] ── Iniciando folio 178065 ──
+12:34:01  INFO      [W:SATyS_4] ── Iniciando folio 1660 ──
+12:34:02  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:34:02  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:34:02  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:34:03  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:34:03  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:34:12  INFO      [W:SATyS_3] Sesión activa (folio 178065)
+12:34:12  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:34:12  INFO      [W:SATyS_2] Sesión activa (folio 178112)
+12:34:12  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:34:12  INFO      [W:SATyS_4] Sesión activa (folio 1660)
+12:34:12  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:34:14  INFO      [OK] Tablero de Control cargado
+12:34:14  INFO      [OK] Tablero de Control cargado
+12:34:14  INFO      [FOLIO-BUSCAR] Buscando folio 178065 en tabla (intento 1)...
+12:34:14  INFO      [FOLIO-BUSCAR] Buscando folio 178112 en tabla (intento 1)...
+12:34:14  INFO      [OK] Tablero de Control cargado
+12:34:14  INFO      [FOLIO-BUSCAR] Buscando folio 1660 en tabla (intento 1)...
+12:34:14  INFO      [W:SATyS_1] Sesión activa (folio 178113)
+12:34:14  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:34:14  INFO      [W:SATyS_0] Sesión activa (folio 2014)
+12:34:14  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:34:16  INFO      [PAGE] Resultados busqueda: mostrando 10 de 27 tramites
+12:34:17  INFO      [VIEW] Abriendo detalle: registro=CRT26-020606, folio=1660
+12:34:27  INFO      [OK] Tablero de Control cargado
+12:34:27  INFO      [FOLIO-BUSCAR] Buscando folio 2014 en tabla (intento 1)...
+12:34:30  INFO      [PAGE] Resultados busqueda: mostrando 3 de 3 tramites
+12:34:30  INFO      [VIEW] Abriendo detalle: registro=CRT26-021815, folio=178112
+12:34:45  INFO      [OK] Tablero de Control cargado
+12:34:45  INFO      [FOLIO-BUSCAR] Buscando folio 178113 en tabla (intento 1)...
+12:34:45  INFO      [OK] Detalle cargado: registro=CRT26-021815
+12:34:45  INFO      [WEB] Extrayendo metadatos web (intento 1) para folio 178112
+12:34:45  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio 178112
+12:34:46  INFO      [PAGE] Resultados busqueda: mostrando 2 de 2 tramites
+12:34:46  INFO      [VIEW] Abriendo detalle: registro=CRT26-025610, folio=2014
+12:34:48  INFO      [WEB] Registro encontrado: CRT26-021815
+12:34:48  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+12:34:49  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='' | no_doc=''
+12:34:49  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='None' | no_doc='None'
+12:34:49  WARNING   [V11-META-FALTANTE] folio=178112 campo=representante_legal es nulo/vacio
+12:34:49  WARNING   [V11-META-FALTANTE] folio=178112 campo=nombre_operador es nulo/vacio
+12:34:49  WARNING   [V11-META-FALTANTE] folio=178112 campo=asunto es nulo/vacio
+12:34:49  INFO      [WEB] Metadatos guardados OK: Rep='None', Ope='None', Asunto='None', Registro='CRT26-021815'
+12:34:49  WARNING   [META-RETRY] Campos faltantes: ['nombre_operador', 'representante_legal']
+12:34:49  WARNING   [META-RETRY] Intento 1 fallido para folio 178112. Reintentando en 3s...
+12:34:52  INFO      [WEB] Extrayendo metadatos web (intento 2) para folio 178112
+12:34:52  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio 178112
+12:34:55  INFO      [WEB] Registro encontrado: CRT26-021815
+12:34:55  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+12:34:55  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='' | no_doc=''
+12:34:55  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='None' | no_doc='None'
+12:34:55  WARNING   [V11-META-FALTANTE] folio=178112 campo=representante_legal es nulo/vacio
+12:34:55  WARNING   [V11-META-FALTANTE] folio=178112 campo=nombre_operador es nulo/vacio
+12:34:55  WARNING   [V11-META-FALTANTE] folio=178112 campo=asunto es nulo/vacio
+12:34:55  INFO      [WEB] Metadatos guardados OK: Rep='None', Ope='None', Asunto='None', Registro='CRT26-021815'
+12:34:55  WARNING   [META-RETRY] Campos faltantes: ['nombre_operador', 'representante_legal']
+12:34:55  WARNING   [META-RETRY] Intento 2 fallido para folio 178112. Reintentando en 3s...
+12:34:58  INFO      [WEB] Extrayendo metadatos web (intento 3) para folio 178112
+12:34:58  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio 178112
+12:35:01  INFO      [WEB] Registro encontrado: CRT26-021815
+12:35:01  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+12:35:02  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='' | no_doc=''
+12:35:02  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='None' | no_doc='None'
+12:35:02  WARNING   [V11-META-FALTANTE] folio=178112 campo=representante_legal es nulo/vacio
+12:35:02  WARNING   [V11-META-FALTANTE] folio=178112 campo=nombre_operador es nulo/vacio
+12:35:02  WARNING   [V11-META-FALTANTE] folio=178112 campo=asunto es nulo/vacio
+12:35:02  INFO      [WEB] Metadatos guardados OK: Rep='None', Ope='None', Asunto='None', Registro='CRT26-021815'
+12:35:02  WARNING   [META-RETRY] Campos faltantes: ['nombre_operador', 'representante_legal']
+12:35:02  WARNING   [META-RETRY] Intento 3 fallido para folio 178112. Reintentando en 3s...
+12:35:05  INFO      [WEB] Extrayendo metadatos web (intento 4) para folio 178112
+12:35:05  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio 178112
+12:35:07  INFO      [PAGE] Resultados busqueda: mostrando 4 de 4 tramites
+12:35:07  INFO      [VIEW] Abriendo detalle: registro=CRT26-021820, folio=178113
+12:35:08  INFO      [WEB] Registro encontrado: CRT26-021815
+12:35:08  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+12:35:08  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='' | no_doc=''
+12:35:08  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='None' | no_doc='None'
+12:35:09  INFO      [OK] Detalle cargado: registro=CRT26-020606
+12:35:09  INFO      [WEB] Extrayendo metadatos web (intento 1) para folio 1660
+12:35:09  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio 1660
+12:35:09  INFO      [OK] Detalle cargado: registro=CRT26-025610
+12:35:09  INFO      [WEB] Extrayendo metadatos web (intento 1) para folio 2014
+12:35:09  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio 2014
+12:35:09  WARNING   [V11-META-FALTANTE] folio=178112 campo=representante_legal es nulo/vacio
+12:35:09  WARNING   [V11-META-FALTANTE] folio=178112 campo=nombre_operador es nulo/vacio
+12:35:09  WARNING   [V11-META-FALTANTE] folio=178112 campo=asunto es nulo/vacio
+12:35:09  INFO      [WEB] Metadatos guardados OK: Rep='None', Ope='None', Asunto='None', Registro='CRT26-021815'
+12:35:09  WARNING   [META-RETRY] Campos faltantes: ['nombre_operador', 'representante_legal']
+12:35:09  WARNING   [META-RETRY] Intento 4 fallido para folio 178112. Reintentando en 3s...
+12:35:09  INFO      [OK] Detalle cargado: registro=CRT26-021820
+12:35:09  INFO      [WEB] Extrayendo metadatos web (intento 1) para folio 178113
+12:35:09  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio 178113
+12:35:10  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+12:35:10  INFO      [VIEW] Abriendo detalle: registro=CRT26-021732, folio=178065
+12:35:12  INFO      [WEB] Registro encontrado: CRT26-020606
+12:35:12  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+12:35:12  INFO      [WEB] Registro encontrado: CRT26-025610
+12:35:12  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+12:35:12  INFO      [WEB] Extrayendo metadatos web (intento 5) para folio 178112
+12:35:12  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio 178112
+12:35:12  INFO      [OK] Detalle cargado: registro=CRT26-021732
+12:35:12  INFO      [WEB] Extrayendo metadatos web (intento 1) para folio 178065
+12:35:12  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio 178065
+12:35:12  INFO      [WEB] Registro encontrado: CRT26-021820
+12:35:12  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+12:35:12  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='CORREO-1660' | no_doc='TEM/REG/067/2026'
+12:35:12  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='CORREO-1660' | no_doc='TEM/REG/067/2026'
+12:35:12  INFO      [WEB] Fecha de folio OPC: 15-05-2026 00:00:00
+12:35:12  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='CORREO-2014' | no_doc=''
+12:35:12  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='CORREO-2014' | no_doc='None'
+12:35:12  INFO      [WEB] Fecha de folio OPC: 18-06-2026 00:00:00
+12:35:13  INFO      [WEB] Metadatos guardados OK: Rep='ANGELA NATALIA ANDREA FEDERICA GUERRA CAICEDO', Ope='PEGASO PCS', Asunto='FORMATO R001, R004, R009, R013, R015, R016, R017, R019, R022 (Se recibió vía correo electrónico oficialiadepartes@crt.gob.mx) (09:04 p. m.)', Registro='CRT26-020606'
+12:35:13  INFO      [META-RETRY] Todos los campos criticos capturados en intento 1 para folio 1660
+12:35:13  INFO      [FILES] Descargando archivos del folio 1660...
+12:35:13  INFO      [WEB] Metadatos guardados OK: Rep='JUANA RAMOS MONTIEL', Ope='JUANA RAMOS MONTIEL', Asunto='PRESENTA QUEJA POR LA VINCULACION DE SU LINEA TELEFONICA POR PARTE DE LA EMPRESA AT&T. (Se recibió vía correo electrónico oficialiadepartes@crt.gob.mx) (04:43 p. m.) (AC)', Registro='CRT26-025610'
+12:35:13  INFO      [META-RETRY] Todos los campos criticos capturados en intento 1 para folio 2014
+12:35:13  INFO      [FILES] Descargando archivos del folio 2014...
+12:35:13  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='VE-178113' | no_doc=''
+12:35:13  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='VE-178113' | no_doc='None'
+12:35:13  INFO      [WEB] Fecha de folio OPC: 22-05-2026 18:52:01
+12:35:13  INFO      [WEB] Metadatos guardados OK: Rep='BLANCA ESTELA CABALLERO BOLAÑOS', Ope='CMC SERVICE NETWORK', Asunto='Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios', Registro='CRT26-021820'
+12:35:13  INFO      [META-RETRY] Todos los campos criticos capturados en intento 1 para folio 178113
+12:35:13  INFO      [FILES] Descargando archivos del folio 178113...
+12:35:15  INFO      [WEB] Registro encontrado: CRT26-021815
+12:35:15  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+12:35:15  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='VE-178112' | no_doc=''
+12:35:15  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='VE-178112' | no_doc='None'
+12:35:15  INFO      [WEB] Fecha de folio OPC: 22-05-2026 18:43:32
+12:35:15  INFO      [WEB] Registro encontrado: CRT26-021732
+12:35:15  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+12:35:15  INFO      [WEB] Metadatos guardados OK: Rep='JOSÉ LUIS CARRILLO SALAS', Ope='COMUNÍCALO DE MÉXICO', Asunto='Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios', Registro='CRT26-021815'
+12:35:15  INFO      [META-RETRY] Todos los campos criticos capturados en intento 5 para folio 178112
+12:35:15  INFO      [FILES] Descargando archivos del folio 178112...
+12:35:16  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='VE-178065' | no_doc=''
+12:35:16  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='VE-178065' | no_doc='None'
+12:35:16  INFO      [WEB] Fecha de folio OPC: 22-05-2026 15:57:00
+12:35:16  INFO      [WEB] Metadatos guardados OK: Rep='MARIA ALEJANDRA AGUIRRE BARRAGAN', Ope='TELEVERA RED', Asunto='Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios', Registro='CRT26-021732'
+12:35:16  INFO      [META-RETRY] Todos los campos criticos capturados en intento 1 para folio 178065
+12:35:16  INFO      [FILES] Descargando archivos del folio 178065...
+12:35:26  INFO      [INFO] Seccion 'ARCHIVOS ASOCIADOS' no existe en folio 178113 -- activar fallback
+12:35:26  INFO      [FUENTE] Sin ARCHIVOS ASOCIADOS -- activando flujo DOCUMENTOS ANEXOS para folio 178113
+12:35:26  INFO      [ALT] Iniciando flujo DOCUMENTOS ANEXOS para folio 178113 (raw=178113)
+12:35:26  INFO      [ALT-NAV] Navegando a Tramites Nuevos...
+12:35:28  INFO      [INFO] Seccion 'ARCHIVOS ASOCIADOS' no existe en folio 178112 -- activar fallback
+12:35:28  INFO      [FUENTE] Sin ARCHIVOS ASOCIADOS -- activando flujo DOCUMENTOS ANEXOS para folio 178112
+12:35:28  INFO      [ALT] Iniciando flujo DOCUMENTOS ANEXOS para folio 178112 (raw=178112)
+12:35:28  INFO      [ALT-NAV] Navegando a Tramites Nuevos...
+12:35:28  INFO      [INFO] Seccion 'ARCHIVOS ASOCIADOS' no existe en folio 178065 -- activar fallback
+12:35:29  INFO      [FUENTE] Sin ARCHIVOS ASOCIADOS -- activando flujo DOCUMENTOS ANEXOS para folio 178065
+12:35:29  INFO      [ALT] Iniciando flujo DOCUMENTOS ANEXOS para folio 178065 (raw=178065)
+12:35:29  INFO      [ALT-NAV] Navegando a Tramites Nuevos...
+12:35:30  INFO      [ALT-NAV] Tramites Nuevos cargado OK
+12:35:30  INFO      [ALT-SEARCH] Buscando folio 178113 en Tramites Nuevos...
+12:35:32  INFO      [ALT-NAV] Tramites Nuevos cargado OK
+12:35:32  INFO      [ALT-SEARCH] Buscando folio 178112 en Tramites Nuevos...
+12:35:35  INFO      [ALT-NAV] Tramites Nuevos cargado OK
+12:35:35  INFO      [ALT-SEARCH] Buscando folio 178065 en Tramites Nuevos...
+12:35:37  INFO      [ALT-SEARCH] Folio 178113 encontrado en Tramites Nuevos
+12:35:37  INFO      [ALT-REVISAR] Abriendo detalle del tramite 178113...
+12:35:39  INFO      [ALT-SEARCH] Folio 178112 encontrado en Tramites Nuevos
+12:35:39  INFO      [ALT-REVISAR] Abriendo detalle del tramite 178112...
+12:35:41  INFO      [ALT-REVISAR] Detalle del tramite cargado OK
+12:35:41  INFO      [ALT-META] Extrayendo metadatos de DATOS DEL TRAMITE para folio 178112
+12:35:42  INFO      [ALT-REVISAR] Detalle del tramite cargado OK
+12:35:42  INFO      [ALT-META] Extrayendo metadatos de DATOS DEL TRAMITE para folio 178113
+12:35:42  INFO      [ALT-SEARCH] Folio 178065 encontrado en Tramites Nuevos
+12:35:42  INFO      [ALT-REVISAR] Abriendo detalle del tramite 178065...
+12:35:42  INFO      [INFO] Cambiando paginacion ARCHIVOS ASOCIADOS a '100' elementos
+12:35:42  INFO      [INFO] Cambiando paginacion ARCHIVOS ASOCIADOS a '100' elementos
+12:35:44  INFO      [ALT-REVISAR] Detalle del tramite cargado OK
+12:35:44  INFO      [ALT-META] Extrayendo metadatos de DATOS DEL TRAMITE para folio 178065
+12:36:18  INFO      [ALT-META] Metadatos guardados: {'tipo_tramite': 'CGPE-01-008: Entrega periódica de Información General Estadística para efectos del Acervo Estadístico del Instituto Federal de Telecomunicaciones.', 'fecha_registro': '22/05/2026', 'solicitante': '', 'nombre_operador': 'COMUNÍCALO DE MÉXICO, S.A. DE C.V.', 'representante_legal': 'JOSÉ LUIS CARRILLO SALAS', 'asunto': 'INFORMES ESTADISTICOS 2026', 'descripcion': '', 'registro': '', 'folio': '178112'}
+12:36:18  INFO      [ALT-DL] Descargando DOCUMENTOS ANEXOS para folio 178112
+12:36:18  INFO      [ALT-META] Metadatos guardados: {'tipo_tramite': 'CGPE-01-008: Entrega periódica de Información General Estadística para efectos del Acervo Estadístico del Instituto Federal de Telecomunicaciones.', 'fecha_registro': '22/05/2026', 'solicitante': '', 'nombre_operador': 'CMC SERVICE NETWORK, S.A. DE C.V.', 'representante_legal': 'BLANCA ESTELA CABALLERO BOLAÑOS', 'asunto': '1° TRIMESTRE 2026', 'descripcion': '', 'registro': '', 'folio': '178113'}
+12:36:18  INFO      [ALT-DL] Descargando DOCUMENTOS ANEXOS para folio 178113
+12:36:21  INFO      [ALT-DL] Seccion DOCUMENTOS ANEXOS localizada: text=DOCUMENTOS ANEXOS
+12:36:21  INFO      [ALT-DL] Seccion DOCUMENTOS ANEXOS localizada: text=DOCUMENTOS ANEXOS
+12:36:22  INFO      [ALT-DL] DOCUMENTOS ANEXOS: Mostrando 1 a 10 de 15
+12:36:22  INFO      [ALT-DL] Selector DOCUMENTOS ANEXOS cambiado a: 100
+12:36:22  INFO      [ALT-DL] DOCUMENTOS ANEXOS: Mostrando 1 a 10 de 13
+12:36:22  INFO      [ALT-DL] Selector DOCUMENTOS ANEXOS cambiado a: 100
+12:36:23  INFO      [ALT-DL] DOCUMENTOS ANEXOS (post-100): Mostrando 1 a 15 de 15
+12:36:23  INFO      [ALT-META] Metadatos guardados: {'tipo_tramite': 'CGPE-01-008: Entrega periódica de Información General Estadística para efectos del Acervo Estadístico del Instituto Federal de Telecomunicaciones.', 'fecha_registro': '22/05/2026', 'solicitante': '', 'nombre_operador': 'TELEVERA RED, S.A.P.I. DE C.V.', 'representante_legal': 'MARIA ALEJANDRA AGUIRRE BARRAGAN', 'asunto': 'DEBIDO A QUE LOS LINEAMIENTOS VIGENTES NO PREVÉN LA POSIBILIDAD DE REMITIR ALCANCES PARA CORREGIR LOS EFORMATOS PREVIAMENTE ENTREGADOS, Y TODA VEZ QUE NO NOS ENCONTRAMOS DENTRO DEL PLAZO APLICABLE PARA PRESENTAR UNA RECTIFICACIÓN, SE REMITEN NUEVAMENTE LOS ANEXOS R001, R011 Y R015 CORRESPONDIENTES AL PERIODO 1T 2026, INCLUYENDO TODOS SUS ARCHIVOS DE PRESENTACIÓN (EFORMATOS). EN VIRTUD DE LO ANTERIOR, NOS DESISTIMOS DE LA INFORMACIÓN PRESENTADA EL 14 DE MAYO DE 2026, A LA CUAL SE LE ASIGNÓ EL FOLIO 176652.', 'descripcion': '', 'registro': '', 'folio': '178065'}
+12:36:23  INFO      [ALT-DL] Descargando DOCUMENTOS ANEXOS para folio 178065
+12:36:23  WARNING   [ALT-DL] 18 botones > 15 esperados -- usando solo los primeros 15
+12:36:23  INFO      [ALT-DL] Pagina 1: 15 botones VER DOCUMENTO
+12:36:23  INFO      [ALT-DL] DOCUMENTOS ANEXOS (post-100): Mostrando 1 a 13 de 13
+12:36:24  WARNING   [ALT-DL] 16 botones > 13 esperados -- usando solo los primeros 13
+12:36:24  INFO      [ALT-DL] Pagina 1: 13 botones VER DOCUMENTO
+12:36:24  INFO        [1] nombre=documento_178112_1  tipo=  fecha=
+12:36:24  INFO        [1] nombre=documento_178113_1  tipo=  fecha=
+12:36:25  INFO        [OK] 17794969812298r020-01-com_1t_2026_vf.csv  (0.0 KB)
+12:36:25  INFO        [OK] 177949748899r015_02_2026_vf.csv  (0.1 KB)
+12:36:25  INFO        [2] nombre=documento_178112_2  tipo=  fecha=
+12:36:25  INFO        [2] nombre=documento_178113_2  tipo=  fecha=
+12:36:26  INFO        [OK] 17794969602139r015-02-com_1t_2026_vf.csv  (0.1 KB)
+12:36:26  INFO        [OK] 17794974809176r015_01_2026_vf.csv  (0.1 KB)
+12:36:26  INFO        [3] nombre=documento_178112_3  tipo=  fecha=
+12:36:26  INFO      [ALT-DL] Seccion DOCUMENTOS ANEXOS localizada: text=DOCUMENTOS ANEXOS
+12:36:26  INFO        [3] nombre=documento_178113_3  tipo=  fecha=
+12:36:27  INFO        [OK] 17794969436690r015-01-com_1t_2026_vf.csv  (0.1 KB)
+12:36:27  INFO        [OK] 17794974622212r008_05_2026_vf.csv  (0.1 KB)
+12:36:27  INFO        [4] nombre=documento_178112_4  tipo=  fecha=
+12:36:27  INFO      [ALT-DL] DOCUMENTOS ANEXOS: Mostrando 1 a 10 de 14
+12:36:27  INFO        [4] nombre=documento_178113_4  tipo=  fecha=
+12:36:27  INFO      [ALT-DL] Selector DOCUMENTOS ANEXOS cambiado a: 100
+12:36:28  INFO        [OK] 17794969273179r012-01-com_1t-2026_vf.csv  (0.1 KB)
+12:36:28  INFO      [ALT-DL] DOCUMENTOS ANEXOS (post-100): Mostrando 1 a 14 de 14
+12:36:28  INFO        [OK] 17794974558377r008_04_2026_vf.csv  (0.1 KB)
+12:36:29  WARNING   [ALT-DL] 17 botones > 14 esperados -- usando solo los primeros 14
+12:36:29  INFO      [ALT-DL] Pagina 1: 14 botones VER DOCUMENTO
+12:36:29  INFO        [5] nombre=documento_178112_5  tipo=  fecha=
+12:36:29  INFO        [5] nombre=documento_178113_5  tipo=  fecha=
+12:36:29  INFO        [1] nombre=documento_178065_1  tipo=  fecha=
+12:36:30  INFO        [OK] 17794968993983r008-05-com_1t-2026_vf.csv  (0.1 KB)
+12:36:30  INFO        [OK] 17794973996891r008_03_2026_vf.csv  (15.6 KB)
+12:36:30  INFO        [6] nombre=documento_178112_6  tipo=  fecha=
+12:36:30  INFO        [OK] 1779486952562822.05.2026tr_r015-021t2026.csv  (0.1 KB)
+12:36:30  INFO        [6] nombre=documento_178113_6  tipo=  fecha=
+12:36:31  INFO        [2] nombre=documento_178065_2  tipo=  fecha=
+12:36:31  INFO        [OK] 17794968922471r008-04-com_1t-2026_vf.csv  (0.1 KB)
+12:36:31  INFO        [OK] 17794973912724r008_02_2026_vf.csv  (16.5 KB)
+12:36:31  INFO        [7] nombre=documento_178112_7  tipo=  fecha=
+12:36:32  INFO        [7] nombre=documento_178113_7  tipo=  fecha=
+12:36:32  INFO        [OK] 1779486935727822.05.2026tr_r015-011t2026.csv  (0.1 KB)
+12:36:32  INFO        [3] nombre=documento_178065_3  tipo=  fecha=
+12:36:32  INFO        [OK] 17794973621923r008_01_2026_vf.csv  (0.2 KB)
+12:36:32  INFO        [OK] 1779496884232r008-03-com_1t-2026_vf.csv  (3.2 KB)
+12:36:33  INFO        [OK] 1779486915652522.05.2026tr_r011-051t2026.xlsx  (11.0 KB)
+12:36:33  INFO        [8] nombre=documento_178113_8  tipo=  fecha=
+12:36:33  INFO        [8] nombre=documento_178112_8  tipo=  fecha=
+12:36:33  INFO        [4] nombre=documento_178065_4  tipo=  fecha=
+12:36:34  INFO        [OK] 17794972718626r003_05_2026_vf.csv  (0.1 KB)
+12:36:34  INFO        [OK] 17794968468296r008-02-com_1t-2026_vf.csv  (2.8 KB)
+12:36:34  INFO        [9] nombre=documento_178113_9  tipo=  fecha=
+12:36:34  INFO        [9] nombre=documento_178112_9  tipo=  fecha=
+12:36:34  INFO        [OK] 1779486898562622.05.2026tr_r011-041t2026.csv  (0.2 KB)
+12:36:35  INFO        [5] nombre=documento_178065_5  tipo=  fecha=
+12:36:35  INFO        [OK] 17794968252734r008-01-com_1t-2026_vf.csv  (0.1 KB)
+12:36:35  INFO        [OK] 17794972634517r003_04_2026_vf.csv  (1.8 KB)
+12:36:35  INFO        [10] nombre=documento_178112_10  tipo=  fecha=
+12:36:35  INFO        [10] nombre=documento_178113_10  tipo=  fecha=
+12:36:35  INFO        [OK] 1779486887928622.05.2026tr_r011-031t2026.csv  (0.1 KB)
+12:36:36  INFO        [6] nombre=documento_178065_6  tipo=  fecha=
+12:36:36  INFO        [OK] 17794967852831r003-05-com_1t-2026_vf.csv  (0.1 KB)
+12:36:36  INFO        [OK] 1779497254663r003_03_2026_vf.csv  (0.7 KB)
+12:36:36  INFO        [11] nombre=documento_178112_11  tipo=  fecha=
+12:36:37  INFO        [11] nombre=documento_178113_11  tipo=  fecha=
+12:36:37  INFO        [OK] 1779486875335422.05.2026tr_r011-021t2026.csv  (0.1 KB)
+12:36:37  INFO        [7] nombre=documento_178065_7  tipo=  fecha=
+12:36:37  INFO        [OK] 17794967774839r003-04-com_1t-2026_vf.csv  (43.8 KB)
+12:36:37  INFO        [OK] 1779497244188r003_02_2026_vf.csv  (0.6 KB)
+12:36:38  INFO        [12] nombre=documento_178112_12  tipo=  fecha=
+12:36:38  INFO        [OK] 1779486862231622.05.2026tr_r011-011t2026.csv  (0.1 KB)
+12:36:38  INFO        [12] nombre=documento_178113_12  tipo=  fecha=
+12:36:38  INFO        [8] nombre=documento_178065_8  tipo=  fecha=
+12:36:38  INFO        [OK] 17794967652201r003-03-com_1t-2026_vf.csv  (0.2 KB)
+12:36:38  INFO        [OK] 1779497225738r003-01_2026_vf.csv  (0.8 KB)
+12:36:39  INFO        [13] nombre=documento_178112_13  tipo=  fecha=
+12:36:39  INFO        [OK] 1779486836209822.05.2026tr_r001-061t2026.csv  (0.0 KB)
+12:36:39  INFO        [13] nombre=documento_178113_13  tipo=  fecha=
+12:36:39  INFO        [9] nombre=documento_178065_9  tipo=  fecha=
+12:36:39  INFO        [POPUP] Nueva pestana capturada al instante (PDF)
+12:36:39  INFO        [POPUP] Nueva pestana URL: https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/178113/solicitud178113.pdf
+12:36:40  INFO        [OK] 17794967511424r003-02-com_1t-2026_vf.csv  (0.4 KB)
+12:36:40  INFO        [14] nombre=documento_178112_14  tipo=  fecha=
+12:36:40  INFO        [OK] 17794868248022.05.2026tr_r001-051t2026.csv  (0.1 KB)
+12:36:40  INFO        [OK-POPUP] solicitud178113.pdf (3405.0 KB)
+12:36:40  INFO        [OK] solicitud178113.pdf  (3405.0 KB)
+12:36:40  INFO      [ALT-DL] Paginacion: mostrando 1 a 13 de 13
+12:36:40  INFO      [ALT-DL] VALIDACION OK: 13/13 documentos descargados
+12:36:40  INFO      [META] metadata_satys.json actualizado con datos de tramite nuevo para folio 178113
+12:36:40  INFO      [META] metadata_completo.json: fuente=DOCUMENTOS_ANEXOS  ok=13/13  estado=OK
+12:36:40  INFO      [BACK] Regresando al tablero...
+12:36:41  INFO        [10] nombre=documento_178065_10  tipo=  fecha=
+12:36:41  INFO        [OK] 17794967395297r003-01-com_1t-2026_vf.csv  (0.5 KB)
+12:36:41  INFO        [15] nombre=documento_178112_15  tipo=  fecha=
+12:36:41  INFO        [OK] 1779486811639422.05.2026tr_r001-041t2026.csv  (0.2 KB)
+12:36:42  INFO        [POPUP] Nueva pestana capturada al instante (PDF)
+12:36:42  INFO        [POPUP] Nueva pestana URL: https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/178112/solicitud178112.pdf
+12:36:42  INFO        [11] nombre=documento_178065_11  tipo=  fecha=
+12:36:42  INFO      [INFO] Pagina 1: 1 archivo(s) encontrado(s)
+12:36:42  INFO        [1] Descargando: CRT26-025610.zip
+12:36:42  INFO      [INFO] Pagina 1: 4 archivo(s) encontrado(s)
+12:36:42  INFO        [1] Descargando: 2. eFormatos Pegaso PCS.zip
+12:36:43  INFO        [OK] 177948679977622.05.2026tr_r001-031t2026.csv  (49.1 KB)
+12:36:43  INFO        [12] nombre=documento_178065_12  tipo=  fecha=
+12:36:43  INFO      [BACK] Re-navegando al tablero...
+12:36:43  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:36:44  INFO        [OK-POPUP] solicitud178112.pdf (5469.6 KB)
+12:36:44  INFO        [OK] solicitud178112.pdf  (5469.6 KB)
+12:36:44  INFO      [ALT-DL] Paginacion: mostrando 1 a 15 de 15
+12:36:44  INFO      [ALT-DL] VALIDACION OK: 15/15 documentos descargados
+12:36:44  INFO      [META] metadata_satys.json actualizado con datos de tramite nuevo para folio 178112
+12:36:44  INFO      [META] metadata_completo.json: fuente=DOCUMENTOS_ANEXOS  ok=15/15  estado=OK
+12:36:44  INFO      [BACK] Regresando al tablero...
+12:36:45  INFO        [OK] 1779486782329222.05.2026tr_r001-021t2026.csv  (0.1 KB)
+12:36:45  INFO      [ZIP] Archivo ZIP detectado, descomprimiendo: CRT26-025610.zip
+12:36:45  INFO      [ZIP] Descomprimido correctamente: CRT26-025610.zip. Eliminando ZIP original.
+12:36:45  INFO           [OK] Descarga directa (ZIP extraído): CRT26-025610.zip (15 archivos)
+12:36:45  INFO      [INFO] Folio 2014: 15/15 descargados en 1 pagina(s)
+12:36:45  INFO        [13] nombre=documento_178065_13  tipo=  fecha=
+12:36:45  INFO      [FUENTE] ARCHIVOS ASOCIADOS encontrado para folio 2014
+12:36:45  INFO      [META] metadata_completo.json: fuente=ARCHIVOS_ASOCIADOS  ok=15/15  estado=OK
+12:36:45  INFO      [BACK] Regresando al tablero...
+12:36:46  INFO      [OK] De vuelta en el tablero
+12:36:46  INFO      [OK] Tablero de Control cargado
+12:36:46  INFO        [OK] 1779486761714422.05.2026tr_r001-011t2026.csv  (0.1 KB)
+12:36:47  INFO        [14] nombre=documento_178065_14  tipo=  fecha=
+12:36:47  INFO      [BACK] Re-navegando al tablero...
+12:36:47  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:36:47  WARNING        [REINTENTO 1/3] Error en clic: 2. eFormatos Pegaso PCS.zip — Download.save_as: canceled
+12:36:47  INFO        [POPUP] Nueva pestana capturada al instante (PDF)
+12:36:47  INFO        [POPUP] Nueva pestana URL: https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/178065/solicitud178065.pdf
+12:36:47  INFO        [OK-POPUP] solicitud178065.pdf (811.2 KB)
+12:36:47  INFO        [OK] solicitud178065.pdf  (811.2 KB)
+12:36:47  INFO      [ALT-DL] Paginacion: mostrando 1 a 14 de 14
+12:36:47  INFO      [ALT-DL] VALIDACION OK: 14/14 documentos descargados
+12:36:47  INFO      [META] metadata_satys.json actualizado con datos de tramite nuevo para folio 178065
+12:36:47  INFO      [META] metadata_completo.json: fuente=DOCUMENTOS_ANEXOS  ok=14/14  estado=OK
+12:36:47  INFO      [BACK] Regresando al tablero...
+12:36:50  INFO      [BACK] Re-navegando al tablero...
+12:36:50  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:36:54  WARNING        [REINTENTO 2/3] Error en clic: 2. eFormatos Pegaso PCS.zip — Download.save_as: canceled
+12:36:55  INFO      [PAGE] Resultados busqueda: mostrando 2 de 2 tramites
+12:36:55  INFO      [OK] Folio 2014: 1 tramite(s) procesado(s), registros: CRT26-025610
+12:36:55  INFO      [W:SATyS_0] ── Folio 2014: 15/15 OK | 0 error(es) servidor | 0 error(es) red ──
+12:36:56  INFO      [CONC] [1/5] ✓ Folio 2014 completado: 15 OK / 15 total
+12:37:01  INFO      [OK] Tablero de Control cargado
+12:37:02  WARNING        [REINTENTO 3/3] Error en clic: 2. eFormatos Pegaso PCS.zip — Download.save_as: canceled
+12:37:02  ERROR          [ERROR_SERVIDOR] 2. eFormatos Pegaso PCS.zip — no disponible tras 3 intentos (problema externo)
+12:37:02  INFO        [2] Descargando: 3. Archivos de Presentación Pegaso PCS.zip
+12:37:04  INFO      [PAGE] Resultados busqueda: mostrando 4 de 4 tramites
+12:37:04  INFO      [OK] Folio 178113: 1 tramite(s) procesado(s), registros: CRT26-021820
+12:37:04  INFO      [W:SATyS_1] ── Folio 178113: 13/13 OK | 0 error(es) servidor | 0 error(es) red ──
+12:37:05  INFO      [CONC] [2/5] ✓ Folio 178113 completado: 13 OK / 13 total
+12:37:06  WARNING        [REINTENTO 1/3] Error en clic: 3. Archivos de Presentación Pegaso PCS.zip — Download.save_as: canceled
+12:37:13  WARNING        [REINTENTO 2/3] Error en clic: 3. Archivos de Presentación Pegaso PCS.zip — Download.save_as: canceled
+12:37:20  WARNING        [REINTENTO 3/3] Error en clic: 3. Archivos de Presentación Pegaso PCS.zip — Download.save_as: canceled
+12:37:20  ERROR          [ERROR_SERVIDOR] 3. Archivos de Presentación Pegaso PCS.zip — no disponible tras 3 intentos (problema externo)
+12:37:20  INFO        [3] Descargando: Escrito Entrega Acervo 1T-26 Pegaso PCS (firmado).pdf
+12:37:25  WARNING        [REINTENTO 1/3] Error en clic: Escrito Entrega Acervo 1T-26 Pegaso PCS (firmado).pdf — Download.save_as: canceled
+12:37:31  INFO      [OK] Tablero de Control cargado
+12:37:32  WARNING        [REINTENTO 2/3] Error en clic: Escrito Entrega Acervo 1T-26 Pegaso PCS (firmado).pdf — Download.save_as: canceled
+12:37:39  WARNING        [REINTENTO 3/3] Error en clic: Escrito Entrega Acervo 1T-26 Pegaso PCS (firmado).pdf — Download.save_as: canceled
+12:37:39  ERROR          [ERROR_SERVIDOR] Escrito Entrega Acervo 1T-26 Pegaso PCS (firmado).pdf — no disponible tras 3 intentos (problema externo)
+12:37:39  INFO        [4] Descargando: MEMORANDUM.pdf
+12:37:41  INFO      [PAGE] Resultados busqueda: mostrando 3 de 3 tramites
+12:37:41  INFO      [OK] Folio 178112: 1 tramite(s) procesado(s), registros: CRT26-021815
+12:37:41  INFO      [W:SATyS_2] ── Folio 178112: 15/15 OK | 0 error(es) servidor | 0 error(es) red ──
+12:37:42  INFO      [CONC] [3/5] ✓ Folio 178112 completado: 15 OK / 15 total
+12:37:43  WARNING        [REINTENTO 1/3] Error en clic: MEMORANDUM.pdf — Download.save_as: canceled
+12:37:49  INFO      [PAGE] Resultados busqueda: mostrando 1 de 1 tramites
+12:37:49  INFO      [OK] Folio 178065: 1 tramite(s) procesado(s), registros: CRT26-021732
+12:37:49  INFO      [W:SATyS_3] ── Folio 178065: 14/14 OK | 0 error(es) servidor | 0 error(es) red ──
+12:37:50  INFO      [CONC] [4/5] ✓ Folio 178065 completado: 14 OK / 14 total
+12:37:51  WARNING        [REINTENTO 2/3] Error en clic: MEMORANDUM.pdf — Download.save_as: canceled
+12:37:58  WARNING        [REINTENTO 3/3] Error en clic: MEMORANDUM.pdf — Download.save_as: canceled
+12:37:58  ERROR          [ERROR_SERVIDOR] MEMORANDUM.pdf — no disponible tras 3 intentos (problema externo)
+12:37:58  INFO      [INFO] Folio 1660: 0/4 descargados en 1 pagina(s)
+12:37:58  INFO      [FUENTE] ARCHIVOS ASOCIADOS encontrado para folio 1660
+12:37:58  INFO      [META] metadata_completo.json: fuente=ARCHIVOS_ASOCIADOS  ok=0/4  estado=SIN_ARCHIVOS
+12:37:58  INFO      [BACK] Regresando al tablero...
+12:37:58  INFO      [OK] De vuelta en el tablero
+12:38:01  INFO      [PAGE] Resultados busqueda: mostrando 10 de 27 tramites
+12:38:01  INFO      [PAGE] Avanzando pagina de busqueda (10/27)...
+12:38:02  INFO      [PAGE] Avanzando pagina de busqueda (20/27)...
+12:38:03  INFO      [VIEW] Abriendo detalle: registro=CRT26-002483, folio=1660
+12:38:03  WARNING   [MULTI-REGISTRO] Folio 1660 tiene mas de un tramite -- registro CRT26-002483 usara una carpeta separada: descargas\1660_1\CRT26-002483
+12:38:11  INFO      [OK] Detalle cargado: registro=CRT26-002483
+12:38:11  INFO      [WEB] Extrayendo metadatos web (intento 1) para folio 1660
+12:38:11  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio 1660
+12:38:14  INFO      [WEB] Registro encontrado: CRT26-002483
+12:38:14  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+12:38:14  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='1660' | no_doc=''
+12:38:14  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='1660' | no_doc='None'
+12:38:14  INFO      [WEB] Fecha de folio OPC: 21-01-2026 00:00:00
+12:38:14  INFO      [WEB] Representante legal obtenido de panel MIGRADO (sin ID, folio 1660): DANIELA GARCIA NOCETTI
+12:38:14  INFO      [WEB] Operador/solicitante obtenido de panel MIGRADO (sin ID, folio 1660): CABLE RED ACUÑA, S.A. DE C.V.
+12:38:14  INFO      [WEB] Metadatos guardados OK: Rep='DANIELA GARCIA NOCETTI', Ope='CABLE RED ACUÑA, S.A. DE C.V.', Asunto='FORMATO R008', Registro='CRT26-002483'
+12:38:14  INFO      [META-RETRY] Todos los campos criticos capturados en intento 1 para folio 1660
+12:38:14  INFO      [FILES] Descargando archivos del folio 1660...
+12:38:44  INFO      [INFO] Cambiando paginacion ARCHIVOS ASOCIADOS a '100' elementos
+12:39:44  INFO      [INFO] Pagina 1: 6 archivo(s) encontrado(s)
+12:39:44  INFO        [1] Descargando: CRT26-002483.pdf
+12:39:45  INFO           [OK] Descarga directa: CRT26-002483.pdf  (1463.7 KB)
+12:39:45  INFO        [2] Descargando: R008-01.csv
+12:39:45  INFO           [OK] Descarga directa: R008-01.csv  (0.1 KB)
+12:39:45  INFO        [3] Descargando: R008-02.csv
+12:39:45  INFO           [OK] Descarga directa: R008-02.csv  (0.2 KB)
+12:39:45  INFO        [4] Descargando: R008-03.csv
+12:39:45  INFO           [OK] Descarga directa: R008-03.csv  (0.1 KB)
+12:39:45  INFO        [5] Descargando: R008-04.csv
+12:39:45  INFO           [OK] Descarga directa: R008-04.csv  (0.1 KB)
+12:39:45  INFO        [6] Descargando: R008-05.csv
+12:39:45  INFO           [OK] Descarga directa: R008-05.csv  (0.1 KB)
+12:39:45  INFO      [INFO] Folio 1660: 6/6 descargados en 1 pagina(s)
+12:39:45  INFO      [FUENTE] ARCHIVOS ASOCIADOS encontrado para folio 1660
+12:39:45  INFO      [META] metadata_completo.json: fuente=ARCHIVOS_ASOCIADOS  ok=6/6  estado=OK
+12:39:45  INFO      [BACK] Regresando al tablero...
+12:39:46  INFO      [OK] De vuelta en el tablero
+12:39:52  INFO      [PAGE] Resultados busqueda: mostrando 10 de 27 tramites
+12:39:53  INFO      [PAGE] Avanzando pagina de busqueda (10/27)...
+12:39:55  INFO      [PAGE] Avanzando pagina de busqueda (20/27)...
+12:39:57  INFO      [OK] Folio 1660: 2 tramite(s) procesado(s), registros: CRT26-020606, CRT26-002483
+12:39:57  INFO      [W:SATyS_4] ── Folio 1660: 6/10 OK | 4 error(es) servidor | 0 error(es) red ──
+12:39:58  INFO      [CONC] [5/5] ✓ Folio 1660 completado: 6 OK / 10 total
+12:39:58  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+12:39:58  INFO      [RESUMEN] resumen_global.json: 5 folios | 4 Exitosos | 1 Incompletos | 0 No encontrados
+12:41:55  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+12:41:55  INFO      [MAIN] ── MODO REGISTRO: FASE 1: Validación de sesión ──
+12:41:57  INFO      [OK] Sesion activa recuperada con exito.
+12:41:57  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:41:58  INFO      [OK] Tablero de Control cargado
+12:41:58  INFO      [MAIN] Sesión validada para modo registro.
+12:41:58  INFO      [LIST] Registros a procesar (3): CRT26-027462, CRT26-011878, CRT26-025610
+12:41:58  INFO      [MAIN] 3 registro(s) pendientes | 0 ya completados (SKIP)
+12:41:58  INFO      [MAIN] ── FASE 2 REGISTRO: Lanzando 3 worker(s) para 3 registro(s) ──
+12:41:58  INFO      [WR:SATyS-Reg_0] ── Iniciando registro CRT26-027462 ──
+12:41:58  INFO      [WR:SATyS-Reg_1] ── Iniciando registro CRT26-011878 ──
+12:41:58  INFO      [WR:SATyS-Reg_2] ── Iniciando registro CRT26-025610 ──
+12:41:59  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:41:59  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:41:59  INFO      [API] Discovery activo: debug\api_log.jsonl
+12:42:00  INFO      [WR:SATyS-Reg_1] Sesión activa (registro CRT26-011878)
+12:42:00  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:42:00  INFO      [WR:SATyS-Reg_2] Sesión activa (registro CRT26-025610)
+12:42:00  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:42:00  INFO      [WR:SATyS-Reg_0] Sesión activa (registro CRT26-027462)
+12:42:00  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:42:01  INFO      [OK] Tablero de Control cargado
+12:42:01  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:42:01  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:42:01  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:42:01  INFO      [OK] Tablero de Control cargado
+12:42:01  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:42:01  INFO      [OK] Tablero de Control cargado
+12:42:01  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+12:42:02  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:42:02  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+12:42:02  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:42:02  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+12:42:02  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:42:02  INFO      [REG-BUSCAR] Buscando registro CRT26-027462 en tabla (intento 1)...
+12:42:02  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:42:02  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+12:42:02  INFO      [REG-BUSCAR] Buscando registro CRT26-025610 en tabla (intento 1)...
+12:42:02  INFO      [REG-BUSCAR] Buscando registro CRT26-011878 en tabla (intento 1)...
+12:42:18  INFO      [REG-PAGE] Resultados búsqueda: mostrando 1 de 1 trámites
+12:42:18  INFO      [REG-VIEW] Abriendo detalle: registro=CRT26-027462, folio=VE-184698
+12:42:19  INFO      [REG-PAGE] Resultados búsqueda: mostrando 2 de 2 trámites
+12:42:19  INFO      [REG-VIEW] Abriendo detalle: registro=CRT26-025610, folio=CORREO-2014
+12:42:28  INFO      [REG-OK] Detalle cargado: registro=CRT26-025610
+12:42:28  INFO      [WEB] Extrayendo metadatos web (intento 1) para folio CRT26-025610
+12:42:28  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio CRT26-025610
+12:42:29  INFO      [REG-OK] Detalle cargado: registro=CRT26-027462
+12:42:29  INFO      [WEB] Extrayendo metadatos web (intento 1) para folio CRT26-027462
+12:42:29  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio CRT26-027462
+12:42:31  INFO      [REG-PAGE] Resultados búsqueda: mostrando 1 de 1 trámites
+12:42:31  INFO      [REG-VIEW] Abriendo detalle: registro=CRT26-011878, folio=8529
+12:42:31  INFO      [WEB] Registro encontrado: CRT26-025610
+12:42:31  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+12:42:31  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='CORREO-2014' | no_doc=''
+12:42:31  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='CORREO-2014' | no_doc='None'
+12:42:31  INFO      [WEB] Fecha de folio OPC: 18-06-2026 00:00:00
+12:42:31  INFO      [WEB] Metadatos guardados OK: Rep='JUANA RAMOS MONTIEL', Ope='JUANA RAMOS MONTIEL', Asunto='PRESENTA QUEJA POR LA VINCULACION DE SU LINEA TELEFONICA POR PARTE DE LA EMPRESA AT&T. (Se recibió vía correo electrónico oficialiadepartes@crt.gob.mx) (04:43 p. m.) (AC)', Registro='CRT26-025610'
+12:42:31  INFO      [META-RETRY] Todos los campos criticos capturados en intento 1 para folio CRT26-025610
+12:42:31  INFO      [FILES] Descargando archivos del folio CRT26-025610...
+12:42:32  INFO      [WEB] Registro encontrado: CRT26-027462
+12:42:32  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+12:42:33  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='' | no_doc=''
+12:42:33  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='None' | no_doc='None'
+12:42:33  WARNING   [V11-META-FALTANTE] folio=CRT26-027462 campo=representante_legal es nulo/vacio
+12:42:33  WARNING   [V11-META-FALTANTE] folio=CRT26-027462 campo=nombre_operador es nulo/vacio
+12:42:33  WARNING   [V11-META-FALTANTE] folio=CRT26-027462 campo=asunto es nulo/vacio
+12:42:33  INFO      [WEB] Metadatos guardados OK: Rep='None', Ope='None', Asunto='None', Registro='CRT26-027462'
+12:42:33  WARNING   [META-RETRY] Campos faltantes: ['nombre_operador', 'representante_legal']
+12:42:33  WARNING   [META-RETRY] Intento 1 fallido para folio CRT26-027462. Reintentando en 3s...
+12:42:36  INFO      [WEB] Extrayendo metadatos web (intento 2) para folio CRT26-027462
+12:42:36  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio CRT26-027462
+12:42:37  INFO      [REG-OK] Detalle cargado: registro=CRT26-011878
+12:42:37  INFO      [WEB] Extrayendo metadatos web (intento 1) para folio CRT26-011878
+12:42:37  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio CRT26-011878
+12:42:39  INFO      [WEB] Registro encontrado: CRT26-027462
+12:42:39  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+12:42:39  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='VE-184698' | no_doc=''
+12:42:39  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='VE-184698' | no_doc='None'
+12:42:39  INFO      [WEB] Fecha de folio OPC: 30-06-2026 12:28:11
+12:42:39  INFO      [WEB] Metadatos guardados OK: Rep='FERNANDO ALBERTO SÁNCHEZ ASSAD', Ope='IENTC', Asunto='Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios', Registro='CRT26-027462'
+12:42:39  INFO      [META-RETRY] Todos los campos criticos capturados en intento 2 para folio CRT26-027462
+12:42:39  INFO      [FILES] Descargando archivos del folio CRT26-027462...
+12:42:40  INFO      [WEB] Registro encontrado: CRT26-011878
+12:42:40  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+12:42:40  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='8529' | no_doc=''
+12:42:40  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='8529' | no_doc='None'
+12:42:40  INFO      [WEB] Fecha de folio OPC: 27-03-2026 00:00:00
+12:42:41  INFO      [WEB] Metadatos guardados OK: Rep='SERGIO ALLARD GAXIOLA', Ope='ALLCER INNOVACIÓN Y TECNOLOGÍA', Asunto='FORMATO R025', Registro='CRT26-011878'
+12:42:41  INFO      [META-RETRY] Todos los campos criticos capturados en intento 1 para folio CRT26-011878
+12:42:41  INFO      [FILES] Descargando archivos del folio CRT26-011878...
+12:42:52  INFO      [INFO] Seccion 'ARCHIVOS ASOCIADOS' no existe en folio CRT26-027462 -- activar fallback
+12:42:52  INFO      [REG-FUENTE] Sin ARCHIVOS ASOCIADOS -- activando flujo DOCUMENTOS ANEXOS para registro CRT26-027462 (folio=VE-184698)
+12:42:52  INFO      [ALT] Iniciando flujo DOCUMENTOS ANEXOS para folio VE-184698 (raw=VE-184698)
+12:42:52  INFO      [ALT-NAV] Navegando a Tramites Nuevos...
+12:42:57  INFO      [ALT-NAV] Tramites Nuevos cargado OK
+12:42:57  INFO      [ALT-SEARCH] Folio normalizado para busqueda: 'VE-184698' -> '184698'
+12:42:57  INFO      [ALT-SEARCH] Buscando folio 184698 en Tramites Nuevos...
+12:43:01  INFO      [INFO] Cambiando paginacion ARCHIVOS ASOCIADOS a '100' elementos
+12:43:04  INFO      [ALT-SEARCH] Folio VE-184698 encontrado en Tramites Nuevos
+12:43:04  INFO      [ALT-REVISAR] Abriendo detalle del tramite VE-184698...
+12:43:07  INFO      [ALT-REVISAR] Detalle del tramite cargado OK
+12:43:07  INFO      [ALT-META] Extrayendo metadatos de DATOS DEL TRAMITE para folio VE-184698
+12:43:10  INFO      [INFO] Cambiando paginacion ARCHIVOS ASOCIADOS a '100' elementos
+12:43:27  INFO      [ALT-META] Metadatos guardados: {'tipo_tramite': 'CGPE-01-003-L: Entrega periódica de Información General Estadística L. Sobre el Servicio Minorista Móvil de Acceso a Internet bajo esquema OMV', 'fecha_registro': '30/06/2026', 'solicitante': '', 'nombre_operador': 'IENTC, S. DE R.L. DE C.V.', 'representante_legal': 'FERNANDO ALBERTO SÁNCHEZ ASSAD', 'asunto': 'LA PRESENTE ENTREGA SE REALIZA DE FORMA EXTEMPORANEA Y VOLUNTARIA SIN QUE MEDIE REQUERIMIENTO DE AUTORIDAD.', 'descripcion': '', 'registro': '', 'folio': '184698'}
+12:43:27  INFO      [ALT-DL] Descargando DOCUMENTOS ANEXOS para folio VE-184698
+12:43:30  INFO      [ALT-DL] Seccion DOCUMENTOS ANEXOS localizada: text=DOCUMENTOS ANEXOS
+12:43:31  INFO      [ALT-DL] DOCUMENTOS ANEXOS: Mostrando 1 a 6 de 6
+12:43:31  INFO      [ALT-DL] Selector DOCUMENTOS ANEXOS cambiado a: 100
+12:43:32  INFO      [ALT-DL] DOCUMENTOS ANEXOS (post-100): Mostrando 1 a 6 de 6
+12:43:32  WARNING   [ALT-DL] 9 botones > 6 esperados -- usando solo los primeros 6
+12:43:32  INFO      [ALT-DL] Pagina 1: 6 botones VER DOCUMENTO
+12:43:32  INFO        [1] nombre=documento_VE-184698_1  tipo=  fecha=
+12:43:33  INFO        [OK] 17828440387266r010-05_3t2025_ientc.xlsx  (73.1 KB)
+12:43:33  INFO        [2] nombre=documento_VE-184698_2  tipo=  fecha=
+12:43:34  INFO        [OK] 17828440185082r010-04_3t2025_ientc.csv  (0.1 KB)
+12:43:34  INFO        [3] nombre=documento_VE-184698_3  tipo=  fecha=
+12:43:34  INFO        [OK] 17828439976091r010-03_3t2025_ientc.csv  (0.1 KB)
+12:43:35  INFO        [4] nombre=documento_VE-184698_4  tipo=  fecha=
+12:43:35  INFO        [OK] 17828439841941r010-02_3t2025_ientc.csv  (0.0 KB)
+12:43:35  INFO        [5] nombre=documento_VE-184698_5  tipo=  fecha=
+12:43:36  INFO        [OK] 17828439613825r010-01_3t2025_ientc.csv  (0.0 KB)
+12:43:36  INFO        [6] nombre=documento_VE-184698_6  tipo=  fecha=
+12:43:36  INFO        [POPUP] Nueva pestana capturada al instante (PDF)
+12:43:36  INFO        [POPUP] Nueva pestana URL: https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/184698/solicitud184698.pdf
+12:43:37  INFO        [OK-POPUP] solicitud184698.pdf (312.1 KB)
+12:43:37  INFO        [OK] solicitud184698.pdf  (312.1 KB)
+12:43:37  INFO      [ALT-DL] Paginacion: mostrando 1 a 6 de 6
+12:43:37  INFO      [ALT-DL] VALIDACION OK: 6/6 documentos descargados
+12:43:37  INFO      [REG-META] metadata_satys.json actualizado para registro CRT26-027462
+12:43:37  INFO      [BACK] Regresando al tablero...
+12:43:40  INFO      [BACK] Re-navegando al tablero...
+12:43:40  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+12:43:41  INFO      [OK] Tablero de Control cargado
+12:43:49  INFO      [REG-PAGE] Resultados búsqueda: mostrando 1 de 1 trámites
+12:43:49  INFO      [WR:SATyS-Reg_0] ── Registro CRT26-027462: 6/6 OK | 0 error(es) servidor | 0 error(es) red ──
+12:43:50  INFO      [CONC-REG] [1/3] ✓ Registro CRT26-027462 completado: 6 OK / 6 total
+12:44:01  INFO      [INFO] Pagina 1: 1 archivo(s) encontrado(s)
+12:44:01  INFO        [1] Descargando: CRT26-025610.zip
+12:44:03  INFO      [ZIP] Archivo ZIP detectado, descomprimiendo: CRT26-025610.zip
+12:44:03  INFO      [ZIP] Descomprimido correctamente: CRT26-025610.zip. Eliminando ZIP original.
+12:44:03  INFO           [OK] Descarga directa (ZIP extraído): CRT26-025610.zip (15 archivos)
+12:44:03  INFO      [INFO] Folio CRT26-025610: 15/15 descargados en 1 pagina(s)
+12:44:03  INFO      [REG-FUENTE] ARCHIVOS ASOCIADOS encontrado para registro CRT26-025610
+12:44:03  INFO      [BACK] Regresando al tablero...
+12:44:03  INFO      [OK] De vuelta en el tablero
+12:44:08  INFO      [REG-PAGE] Resultados búsqueda: mostrando 2 de 2 trámites
+12:44:08  INFO      [WR:SATyS-Reg_2] ── Registro CRT26-025610: 15/15 OK | 0 error(es) servidor | 0 error(es) red ──
+12:44:08  INFO      [CONC-REG] [2/3] ✓ Registro CRT26-025610 completado: 15 OK / 15 total
+12:44:10  INFO      [INFO] Pagina 1: 2 archivo(s) encontrado(s)
+12:44:10  INFO        [1] Descargando: CRT26-011878.pdf
+12:44:11  INFO           [OK] Descarga directa: CRT26-011878.pdf  (3131.2 KB)
+12:44:11  INFO        [2] Descargando: R025-01 Allcer 2025.csv
+12:44:11  INFO           [OK] Descarga directa: R025-01 Allcer 2025.csv  (11.4 KB)
+12:44:11  INFO      [INFO] Folio CRT26-011878: 2/2 descargados en 1 pagina(s)
+12:44:11  INFO      [REG-FUENTE] ARCHIVOS ASOCIADOS encontrado para registro CRT26-011878
+12:44:11  INFO      [BACK] Regresando al tablero...
+12:44:14  INFO      [OK] De vuelta en el tablero
+12:44:27  INFO      [REG-PAGE] Resultados búsqueda: mostrando 1 de 1 trámites
+12:44:27  INFO      [WR:SATyS-Reg_1] ── Registro CRT26-011878: 2/2 OK | 0 error(es) servidor | 0 error(es) red ──
+12:44:28  INFO      [CONC-REG] [3/3] ✓ Registro CRT26-011878 completado: 2 OK / 2 total
+12:44:28  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+12:44:28  INFO      [RESUMEN] resumen_global.json: 3 folios | 3 Exitosos | 0 Incompletos | 0 No encontrados
+13:39:24  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+13:39:24  INFO      [MAIN] ── MODO REGISTRO: FASE 1: Validación de sesión ──
+13:39:26  INFO      [OK] Sesion activa recuperada con exito.
+13:39:26  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+13:39:27  INFO      [OK] Tablero de Control cargado
+13:39:27  INFO      [MAIN] Sesión validada para modo registro.
+13:39:27  INFO      [LIST] Registros a procesar (3): CRT26-027462, CRT26-011878, CRT26-025610
+13:39:27  INFO      [MAIN] 3 registro(s) pendientes | 0 ya completados (SKIP)
+13:39:27  INFO      [MAIN] ── FASE 2 REGISTRO: Lanzando 3 worker(s) para 3 registro(s) ──
+13:39:27  INFO      [WR:SATyS-Reg_0] ── Iniciando registro CRT26-027462 ──
+13:39:27  INFO      [WR:SATyS-Reg_1] ── Iniciando registro CRT26-011878 ──
+13:39:27  INFO      [WR:SATyS-Reg_2] ── Iniciando registro CRT26-025610 ──
+13:39:28  INFO      [API] Discovery activo: debug\api_log.jsonl
+13:39:28  INFO      [API] Discovery activo: debug\api_log.jsonl
+13:39:28  INFO      [API] Discovery activo: debug\api_log.jsonl
+13:39:29  INFO      [WR:SATyS-Reg_2] Sesión activa (registro CRT26-025610)
+13:39:29  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+13:39:30  INFO      [WR:SATyS-Reg_0] Sesión activa (registro CRT26-027462)
+13:39:30  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+13:39:30  INFO      [WR:SATyS-Reg_1] Sesión activa (registro CRT26-011878)
+13:39:30  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+13:39:30  INFO      [OK] Tablero de Control cargado
+13:39:30  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+13:39:30  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+13:39:30  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+13:39:31  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+13:39:31  INFO      [REG-BUSCAR] Buscando registro CRT26-025610 en tabla (intento 1)...
+13:39:34  INFO      [REG-PAGE] Resultados búsqueda: mostrando 2 de 2 trámites
+13:39:34  INFO      [REG-VIEW] Abriendo detalle: registro=CRT26-025610, folio=CORREO-2014
+13:39:43  INFO      [OK] Tablero de Control cargado
+13:39:43  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+13:39:43  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+13:39:44  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+13:39:44  INFO      [OK] Tablero de Control cargado
+13:39:44  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+13:39:44  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+13:39:44  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+13:39:44  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+13:39:44  INFO      [REG-BUSCAR] Buscando registro CRT26-011878 en tabla (intento 1)...
+13:39:45  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+13:39:45  INFO      [REG-BUSCAR] Buscando registro CRT26-027462 en tabla (intento 1)...
+13:39:55  INFO      [REG-OK] Detalle cargado: registro=CRT26-025610
+13:39:55  INFO      [WEB] Extrayendo metadatos web (intento 1) para folio CRT26-025610
+13:39:55  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio CRT26-025610
+13:39:55  INFO      [REG-PAGE] Resultados búsqueda: mostrando 1 de 1 trámites
+13:39:55  INFO      [REG-VIEW] Abriendo detalle: registro=CRT26-027462, folio=VE-184698
+13:39:58  INFO      [WEB] Registro encontrado: CRT26-025610
+13:39:58  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+13:39:59  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='' | no_doc=''
+13:39:59  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='None' | no_doc='None'
+13:39:59  WARNING   [V11-META-FALTANTE] folio=CRT26-025610 campo=representante_legal es nulo/vacio
+13:39:59  WARNING   [V11-META-FALTANTE] folio=CRT26-025610 campo=nombre_operador es nulo/vacio
+13:39:59  WARNING   [V11-META-FALTANTE] folio=CRT26-025610 campo=asunto es nulo/vacio
+13:39:59  INFO      [WEB] Metadatos guardados OK: Rep='None', Ope='None', Asunto='None', Registro='CRT26-025610'
+13:39:59  WARNING   [META-RETRY] Campos faltantes: ['nombre_operador', 'representante_legal']
+13:39:59  WARNING   [META-RETRY] Intento 1 fallido para folio CRT26-025610. Reintentando en 3s...
+13:40:00  INFO      [REG-PAGE] Resultados búsqueda: mostrando 1 de 1 trámites
+13:40:00  INFO      [REG-VIEW] Abriendo detalle: registro=CRT26-011878, folio=8529
+13:40:02  INFO      [WEB] Extrayendo metadatos web (intento 2) para folio CRT26-025610
+13:40:02  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio CRT26-025610
+13:40:05  INFO      [WEB] Registro encontrado: CRT26-025610
+13:40:05  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+13:40:05  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='CORREO-2014' | no_doc=''
+13:40:05  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='CORREO-2014' | no_doc='None'
+13:40:05  INFO      [WEB] Fecha de folio OPC: 18-06-2026 00:00:00
+13:40:05  INFO      [WEB] folio derivado de folio_opc='CORREO-2014' → folio='2014'
+13:40:05  INFO      [WEB] Metadatos guardados OK: Rep='JUANA RAMOS MONTIEL', Ope='JUANA RAMOS MONTIEL', Asunto='PRESENTA QUEJA POR LA VINCULACION DE SU LINEA TELEFONICA POR PARTE DE LA EMPRESA AT&T. (Se recibió vía correo electrónico oficialiadepartes@crt.gob.mx) (04:43 p. m.) (AC)', Registro='CRT26-025610'
+13:40:05  INFO      [META-RETRY] Todos los campos criticos capturados en intento 2 para folio CRT26-025610
+13:40:05  INFO      [FILES] Descargando archivos del folio CRT26-025610...
+13:40:13  INFO      [REG-OK] Detalle cargado: registro=CRT26-011878
+13:40:13  INFO      [WEB] Extrayendo metadatos web (intento 1) para folio CRT26-011878
+13:40:13  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio CRT26-011878
+13:40:14  INFO      [REG-OK] Detalle cargado: registro=CRT26-027462
+13:40:14  INFO      [WEB] Extrayendo metadatos web (intento 1) para folio CRT26-027462
+13:40:14  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio CRT26-027462
+13:40:16  INFO      [WEB] Registro encontrado: CRT26-011878
+13:40:16  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+13:40:17  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='8529' | no_doc=''
+13:40:17  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='8529' | no_doc='None'
+13:40:17  INFO      [WEB] Fecha de folio OPC: 27-03-2026 00:00:00
+13:40:17  INFO      [WEB] folio derivado de folio_opc='8529' → folio='8529'
+13:40:17  INFO      [WEB] Metadatos guardados OK: Rep='SERGIO ALLARD GAXIOLA', Ope='ALLCER INNOVACIÓN Y TECNOLOGÍA', Asunto='FORMATO R025', Registro='CRT26-011878'
+13:40:17  INFO      [META-RETRY] Todos los campos criticos capturados en intento 1 para folio CRT26-011878
+13:40:17  INFO      [FILES] Descargando archivos del folio CRT26-011878...
+13:40:17  INFO      [WEB] Registro encontrado: CRT26-027462
+13:40:17  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+13:40:18  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='VE-184698' | no_doc=''
+13:40:18  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='VE-184698' | no_doc='None'
+13:40:18  INFO      [WEB] Fecha de folio OPC: 30-06-2026 12:28:11
+13:40:18  INFO      [WEB] folio derivado de folio_opc='VE-184698' → folio='184698'
+13:40:18  INFO      [WEB] Metadatos guardados OK: Rep='FERNANDO ALBERTO SÁNCHEZ ASSAD', Ope='IENTC', Asunto='Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios', Registro='CRT26-027462'
+13:40:18  INFO      [META-RETRY] Todos los campos criticos capturados en intento 1 para folio CRT26-027462
+13:40:18  INFO      [FILES] Descargando archivos del folio CRT26-027462...
+13:40:31  INFO      [INFO] Seccion 'ARCHIVOS ASOCIADOS' no existe en folio CRT26-027462 -- activar fallback
+13:40:31  INFO      [REG-FUENTE] Sin ARCHIVOS ASOCIADOS -- activando flujo DOCUMENTOS ANEXOS para registro CRT26-027462 (folio=VE-184698)
+13:40:31  INFO      [ALT] Iniciando flujo DOCUMENTOS ANEXOS para folio VE-184698 (raw=VE-184698)
+13:40:31  INFO      [ALT-NAV] Navegando a Tramites Nuevos...
+13:40:35  INFO      [INFO] Cambiando paginacion ARCHIVOS ASOCIADOS a '100' elementos
+13:40:36  INFO      [ALT-NAV] Tramites Nuevos cargado OK
+13:40:36  INFO      [ALT-SEARCH] Folio normalizado para busqueda: 'VE-184698' -> '184698'
+13:40:36  INFO      [ALT-SEARCH] Buscando folio 184698 en Tramites Nuevos...
+13:40:44  INFO      [ALT-SEARCH] Folio VE-184698 encontrado en Tramites Nuevos
+13:40:44  INFO      [ALT-REVISAR] Abriendo detalle del tramite VE-184698...
+13:40:47  INFO      [INFO] Cambiando paginacion ARCHIVOS ASOCIADOS a '100' elementos
+13:40:50  INFO      [ALT-REVISAR] Detalle del tramite cargado OK
+13:40:50  INFO      [ALT-META] Extrayendo metadatos de DATOS DEL TRAMITE para folio VE-184698
+13:40:50  INFO      [ALT-META] Esperando campo 'Folio:' (máx. 120s)...
+13:41:35  INFO      [INFO] Pagina 1: 1 archivo(s) encontrado(s)
+13:41:35  INFO        [1] Descargando: CRT26-025610.zip
+13:41:37  INFO      [ZIP] Archivo ZIP detectado, descomprimiendo: CRT26-025610.zip
+13:41:37  INFO      [ZIP] Descomprimido correctamente: CRT26-025610.zip. Eliminando ZIP original.
+13:41:37  INFO           [OK] Descarga directa (ZIP extraído): CRT26-025610.zip (15 archivos)
+13:41:37  INFO      [INFO] Folio CRT26-025610: 15/15 descargados en 1 pagina(s)
+13:41:37  INFO      [REG-FUENTE] ARCHIVOS ASOCIADOS encontrado para registro CRT26-025610
+13:41:37  INFO      [BACK] Regresando al tablero...
+13:41:38  INFO      [OK] De vuelta en el tablero
+13:41:47  INFO      [INFO] Pagina 1: 2 archivo(s) encontrado(s)
+13:41:47  INFO        [1] Descargando: CRT26-011878.pdf
+13:41:52  INFO      [REG-PAGE] Resultados búsqueda: mostrando 2 de 2 trámites
+13:41:52  INFO      [WR:SATyS-Reg_2] ── Registro CRT26-025610: 15/15 OK | 0 error(es) servidor | 0 error(es) red ──
+13:41:53  INFO      [CONC-REG] [1/3] ✓ Registro CRT26-025610 completado: 15 OK / 15 total
+13:41:54  INFO           [OK] Descarga directa: CRT26-011878.pdf  (3131.2 KB)
+13:41:54  INFO        [2] Descargando: R025-01 Allcer 2025.csv
+13:41:54  INFO           [OK] Descarga directa: R025-01 Allcer 2025.csv  (11.4 KB)
+13:41:54  INFO      [INFO] Folio CRT26-011878: 2/2 descargados en 1 pagina(s)
+13:41:54  INFO      [REG-FUENTE] ARCHIVOS ASOCIADOS encontrado para registro CRT26-011878
+13:41:54  INFO      [BACK] Regresando al tablero...
+13:41:54  INFO      [OK] De vuelta en el tablero
+13:41:59  INFO      [REG-PAGE] Resultados búsqueda: mostrando 1 de 1 trámites
+13:41:59  INFO      [WR:SATyS-Reg_1] ── Registro CRT26-011878: 2/2 OK | 0 error(es) servidor | 0 error(es) red ──
+13:42:00  INFO      [CONC-REG] [2/3] ✓ Registro CRT26-011878 completado: 2 OK / 2 total
+13:42:54  WARNING   [ALT-META] Timeout: 'Folio:' no apareció en 120s. Se intentará extraer de todos modos.
+13:43:30  INFO      [ALT-META] Metadatos guardados: {'tipo_tramite': 'CGPE-01-003-L: Entrega periódica de Información General Estadística L. Sobre el Servicio Minorista Móvil de Acceso a Internet bajo esquema OMV', 'folio': '184698', 'fecha_registro': '30/06/2026', 'plazo_atencion': '28/09/2026', 'origen': 'VE-Más trámites y Servicios', 'solicitante': '', 'nombre_operador': 'IENTC, S. DE R.L. DE C.V.', 'representante_legal': 'FERNANDO ALBERTO SÁNCHEZ ASSAD', 'asunto': 'LA PRESENTE ENTREGA SE REALIZA DE FORMA EXTEMPORANEA Y VOLUNTARIA SIN QUE MEDIE REQUERIMIENTO DE AUTORIDAD.', 'descripcion': '', 'registro': ''}
+13:43:30  INFO      [ALT-DL] Descargando DOCUMENTOS ANEXOS para folio VE-184698
+13:43:33  INFO      [ALT-DL] Seccion DOCUMENTOS ANEXOS localizada: text=DOCUMENTOS ANEXOS
+13:43:35  INFO      [ALT-DL] DOCUMENTOS ANEXOS: Mostrando 1 a 6 de 6
+13:43:35  INFO      [ALT-DL] Selector DOCUMENTOS ANEXOS cambiado a: 100
+13:43:36  INFO      [ALT-DL] DOCUMENTOS ANEXOS (post-100): Mostrando 1 a 6 de 6
+13:43:36  WARNING   [ALT-DL] 9 botones > 6 esperados -- usando solo los primeros 6
+13:43:36  INFO      [ALT-DL] Pagina 1: 6 botones VER DOCUMENTO
+13:43:36  INFO        [1] nombre=documento_VE-184698_1  tipo=  fecha=
+13:43:37  INFO        [OK] 17828440387266r010-05_3t2025_ientc.xlsx  (73.1 KB)
+13:43:37  INFO        [2] nombre=documento_VE-184698_2  tipo=  fecha=
+13:43:41  INFO        [OK] 17828440185082r010-04_3t2025_ientc.csv  (0.1 KB)
+13:43:41  INFO        [3] nombre=documento_VE-184698_3  tipo=  fecha=
+13:43:45  INFO        [OK] 17828439976091r010-03_3t2025_ientc.csv  (0.1 KB)
+13:43:45  INFO        [4] nombre=documento_VE-184698_4  tipo=  fecha=
+13:43:49  INFO        [OK] 17828439841941r010-02_3t2025_ientc.csv  (0.0 KB)
+13:43:49  INFO        [5] nombre=documento_VE-184698_5  tipo=  fecha=
+13:43:53  INFO        [OK] 17828439613825r010-01_3t2025_ientc.csv  (0.0 KB)
+13:43:53  INFO        [6] nombre=documento_VE-184698_6  tipo=  fecha=
+13:43:57  INFO        [POPUP] Nueva pestana capturada al instante (PDF)
+13:43:57  INFO        [POPUP] Nueva pestana URL: https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/184698/solicitud184698.pdf
+13:43:57  INFO        [OK-POPUP] solicitud184698.pdf (312.1 KB)
+13:43:57  INFO        [OK] solicitud184698.pdf  (312.1 KB)
+13:43:57  INFO      [ALT-DL] Paginacion: mostrando 1 a 6 de 6
+13:43:57  INFO      [ALT-DL] VALIDACION OK: 6/6 documentos descargados
+13:43:57  INFO      [REG-META] metadata_satys.json actualizado para registro CRT26-027462
+13:43:57  INFO      [BACK] Regresando al tablero...
+13:44:00  INFO      [BACK] Re-navegando al tablero...
+13:44:00  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+13:44:05  INFO      [OK] Tablero de Control cargado
+13:44:10  INFO      [REG-PAGE] Resultados búsqueda: mostrando 1 de 1 trámites
+13:44:10  INFO      [WR:SATyS-Reg_0] ── Registro CRT26-027462: 6/6 OK | 0 error(es) servidor | 0 error(es) red ──
+13:44:11  INFO      [CONC-REG] [3/3] ✓ Registro CRT26-027462 completado: 6 OK / 6 total
+13:44:11  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+13:44:11  INFO      [RESUMEN] resumen_global.json: 3 folios | 3 Exitosos | 0 Incompletos | 0 No encontrados
+13:57:47  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+13:57:47  INFO      [MAIN] ── MODO REGISTRO: FASE 1: Validación de sesión ──
+13:57:48  INFO      [OK] Sesion activa recuperada con exito.
+13:57:48  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+13:57:49  INFO      [OK] Tablero de Control cargado
+13:57:50  INFO      [MAIN] Sesión validada para modo registro.
+13:57:50  INFO      [LIST] Registros a procesar (3): CRT26-027462, CRT26-011878, CRT26-025610
+13:57:50  INFO      [MAIN] 3 registro(s) pendientes | 0 ya completados (SKIP)
+13:57:50  INFO      [MAIN] ── FASE 2 REGISTRO: Lanzando 3 worker(s) para 3 registro(s) ──
+13:57:50  INFO      [WR:SATyS-Reg_0] ── Iniciando registro CRT26-027462 ──
+13:57:50  INFO      [WR:SATyS-Reg_1] ── Iniciando registro CRT26-011878 ──
+13:57:50  INFO      [WR:SATyS-Reg_2] ── Iniciando registro CRT26-025610 ──
+13:57:51  INFO      [API] Discovery activo: debug\api_log.jsonl
+13:57:51  INFO      [API] Discovery activo: debug\api_log.jsonl
+13:57:51  INFO      [API] Discovery activo: debug\api_log.jsonl
+13:57:52  INFO      [WR:SATyS-Reg_0] Sesión activa (registro CRT26-027462)
+13:57:52  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+13:57:52  INFO      [WR:SATyS-Reg_2] Sesión activa (registro CRT26-025610)
+13:57:52  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+13:57:53  INFO      [WR:SATyS-Reg_1] Sesión activa (registro CRT26-011878)
+13:57:53  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+13:57:53  INFO      [OK] Tablero de Control cargado
+13:57:53  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+13:57:53  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+13:57:53  INFO      [OK] Tablero de Control cargado
+13:57:53  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+13:57:53  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+13:57:53  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+13:57:53  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+13:57:54  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+13:57:54  INFO      [REG-BUSCAR] Buscando registro CRT26-027462 en tabla (intento 1)...
+13:57:54  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+13:57:54  INFO      [REG-BUSCAR] Buscando registro CRT26-025610 en tabla (intento 1)...
+13:57:56  INFO      [REG-PAGE] Resultados búsqueda: mostrando 1 de 1 trámites
+13:57:56  INFO      [REG-VIEW] Abriendo detalle: registro=CRT26-027462, folio=VE-184698
+13:58:10  INFO      [REG-OK] Detalle cargado: registro=CRT26-027462
+13:58:10  INFO      [WEB] Extrayendo metadatos web (intento 1) para folio CRT26-027462
+13:58:10  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio CRT26-027462
+13:58:13  INFO      [WEB] Registro encontrado: CRT26-027462
+13:58:13  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+13:58:13  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='' | no_doc=''
+13:58:13  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='None' | no_doc='None'
+13:58:13  WARNING   [V11-META-FALTANTE] folio=CRT26-027462 campo=representante_legal es nulo/vacio
+13:58:13  WARNING   [V11-META-FALTANTE] folio=CRT26-027462 campo=nombre_operador es nulo/vacio
+13:58:13  WARNING   [V11-META-FALTANTE] folio=CRT26-027462 campo=asunto es nulo/vacio
+13:58:13  INFO      [WEB] Metadatos guardados OK: Rep='None', Ope='None', Asunto='None', Registro='CRT26-027462'
+13:58:13  WARNING   [META-RETRY] Campos faltantes: ['nombre_operador', 'representante_legal']
+13:58:13  WARNING   [META-RETRY] Intento 1 fallido para folio CRT26-027462. Reintentando en 3s...
+13:58:16  INFO      [WEB] Extrayendo metadatos web (intento 2) para folio CRT26-027462
+13:58:16  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio CRT26-027462
+13:58:19  INFO      [WEB] Registro encontrado: CRT26-027462
+13:58:19  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+13:58:20  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='VE-184698' | no_doc=''
+13:58:20  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='VE-184698' | no_doc='None'
+13:58:20  INFO      [WEB] Fecha de folio OPC: 30-06-2026 12:28:11
+13:58:20  INFO      [WEB] folio derivado de folio_opc='VE-184698' → folio='184698'
+13:58:20  INFO      [WEB] Metadatos guardados OK: Rep='FERNANDO ALBERTO SÁNCHEZ ASSAD', Ope='IENTC', Asunto='Trámite que ingreso por Ventanilla Electrónica. Más trámites y servicios', Registro='CRT26-027462'
+13:58:20  INFO      [META-RETRY] Todos los campos criticos capturados en intento 2 para folio CRT26-027462
+13:58:20  INFO      [FILES] Descargando archivos del folio CRT26-027462...
+13:58:20  INFO      [OK] Tablero de Control cargado
+13:58:20  INFO      [REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...
+13:58:20  WARNING   [REG] No se encontró opción 'Todos los años' en el selector de Año
+13:58:20  INFO      [REG] Cambiando 'Mostrar' a 100 trámites...
+13:58:21  INFO      [REG] ✅ Mostrar cambiado a 100 trámites
+13:58:21  INFO      [REG-BUSCAR] Buscando registro CRT26-011878 en tabla (intento 1)...
+13:58:23  INFO      [REG-PAGE] Resultados búsqueda: mostrando 2 de 2 trámites
+13:58:23  INFO      [REG-VIEW] Abriendo detalle: registro=CRT26-025610, folio=CORREO-2014
+13:58:30  INFO      [REG-OK] Detalle cargado: registro=CRT26-025610
+13:58:30  INFO      [WEB] Extrayendo metadatos web (intento 1) para folio CRT26-025610
+13:58:30  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio CRT26-025610
+13:58:33  INFO      [INFO] Seccion 'ARCHIVOS ASOCIADOS' no existe en folio CRT26-027462 -- activar fallback
+13:58:33  INFO      [REG-PAGE] Resultados búsqueda: mostrando 1 de 1 trámites
+13:58:33  INFO      [REG-VIEW] Abriendo detalle: registro=CRT26-011878, folio=8529
+13:58:33  INFO      [REG-FUENTE] Sin ARCHIVOS ASOCIADOS -- activando flujo DOCUMENTOS ANEXOS para registro CRT26-027462 (folio=VE-184698)
+13:58:33  INFO      [ALT] Iniciando flujo DOCUMENTOS ANEXOS para folio VE-184698 (raw=VE-184698)
+13:58:33  INFO      [ALT-NAV] Navegando a Tramites Nuevos...
+13:58:33  INFO      [WEB] Registro encontrado: CRT26-025610
+13:58:33  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+13:58:34  INFO      [REG-OK] Detalle cargado: registro=CRT26-011878
+13:58:34  INFO      [WEB] Extrayendo metadatos web (intento 1) para folio CRT26-011878
+13:58:34  INFO      [WEB] Extrayendo metadatos web (una vez) de SATyS para folio CRT26-011878
+13:58:34  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='CORREO-2014' | no_doc=''
+13:58:34  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='CORREO-2014' | no_doc='None'
+13:58:34  INFO      [WEB] Fecha de folio OPC: 18-06-2026 00:00:00
+13:58:34  INFO      [WEB] folio derivado de folio_opc='CORREO-2014' → folio='2014'
+13:58:34  INFO      [WEB] Metadatos guardados OK: Rep='JUANA RAMOS MONTIEL', Ope='JUANA RAMOS MONTIEL', Asunto='PRESENTA QUEJA POR LA VINCULACION DE SU LINEA TELEFONICA POR PARTE DE LA EMPRESA AT&T. (Se recibió vía correo electrónico oficialiadepartes@crt.gob.mx) (04:43 p. m.) (AC)', Registro='CRT26-025610'
+13:58:34  INFO      [META-RETRY] Todos los campos criticos capturados en intento 1 para folio CRT26-025610
+13:58:34  INFO      [FILES] Descargando archivos del folio CRT26-025610...
+13:58:36  INFO      [ALT-NAV] Tramites Nuevos cargado OK
+13:58:36  INFO      [ALT-SEARCH] Folio normalizado para busqueda: 'VE-184698' -> '184698'
+13:58:36  INFO      [ALT-SEARCH] Buscando folio 184698 en Tramites Nuevos...
+13:58:37  INFO      [WEB] Registro encontrado: CRT26-011878
+13:58:37  WARNING   [WEB] page.evaluate retornó None en DATOS DEL DOCUMENTO -- intentando fallback con locators de Playwright
+13:58:37  INFO      [WEB] DATOS DEL DOCUMENTO (fallback locator): folio_opc='8529' | no_doc=''
+13:58:37  INFO      [WEB] DATOS DEL DOCUMENTO: folio_opc='8529' | no_doc='None'
+13:58:37  INFO      [WEB] Fecha de folio OPC: 27-03-2026 00:00:00
+13:58:38  INFO      [WEB] folio derivado de folio_opc='8529' → folio='8529'
+13:58:38  INFO      [WEB] Metadatos guardados OK: Rep='SERGIO ALLARD GAXIOLA', Ope='ALLCER INNOVACIÓN Y TECNOLOGÍA', Asunto='FORMATO R025', Registro='CRT26-011878'
+13:58:38  INFO      [META-RETRY] Todos los campos criticos capturados en intento 1 para folio CRT26-011878
+13:58:38  INFO      [FILES] Descargando archivos del folio CRT26-011878...
+13:58:43  INFO      [ALT-SEARCH] Folio VE-184698 encontrado en Tramites Nuevos
+13:58:43  INFO      [ALT-REVISAR] Abriendo detalle del tramite VE-184698...
+13:58:45  INFO      [ALT-REVISAR] Detalle del tramite cargado OK
+13:58:45  INFO      [ALT-META] Extrayendo metadatos de DATOS DEL TRAMITE para folio VE-184698
+13:58:45  INFO      [ALT-META] Esperando campo 'Folio:' (máx. 120s)...
+13:59:04  INFO      [INFO] Cambiando paginacion ARCHIVOS ASOCIADOS a '100' elementos
+13:59:07  INFO      [INFO] Cambiando paginacion ARCHIVOS ASOCIADOS a '100' elementos
+14:00:04  INFO      [INFO] Pagina 1: 1 archivo(s) encontrado(s)
+14:00:04  INFO        [1] Descargando: CRT26-025610.zip
+14:00:06  INFO      [ZIP] Archivo ZIP detectado, descomprimiendo: CRT26-025610.zip
+14:00:06  INFO      [ZIP] Descomprimido correctamente: CRT26-025610.zip. Eliminando ZIP original.
+14:00:06  INFO           [OK] Descarga directa (ZIP extraído): CRT26-025610.zip (15 archivos)
+14:00:06  INFO      [INFO] Folio CRT26-025610: 15/15 descargados en 1 pagina(s)
+14:00:06  INFO      [REG-FUENTE] ARCHIVOS ASOCIADOS encontrado para registro CRT26-025610
+14:00:06  INFO      [BACK] Regresando al tablero...
+14:00:07  INFO      [OK] De vuelta en el tablero
+14:00:07  INFO      [INFO] Pagina 1: 2 archivo(s) encontrado(s)
+14:00:07  INFO        [1] Descargando: CRT26-011878.pdf
+14:00:08  INFO           [OK] Descarga directa: CRT26-011878.pdf  (3131.2 KB)
+14:00:08  INFO        [2] Descargando: R025-01 Allcer 2025.csv
+14:00:08  INFO           [OK] Descarga directa: R025-01 Allcer 2025.csv  (11.4 KB)
+14:00:08  INFO      [INFO] Folio CRT26-011878: 2/2 descargados en 1 pagina(s)
+14:00:08  INFO      [REG-FUENTE] ARCHIVOS ASOCIADOS encontrado para registro CRT26-011878
+14:00:08  INFO      [BACK] Regresando al tablero...
+14:00:15  INFO      [OK] De vuelta en el tablero
+14:00:20  INFO      [REG-PAGE] Resultados búsqueda: mostrando 2 de 2 trámites
+14:00:20  INFO      [WR:SATyS-Reg_2] ── Registro CRT26-025610: 15/15 OK | 0 error(es) servidor | 0 error(es) red ──
+14:00:20  INFO      [CONC-REG] [1/3] ✓ Registro CRT26-025610 completado: 15 OK / 15 total
+14:00:30  INFO      [REG-PAGE] Resultados búsqueda: mostrando 1 de 1 trámites
+14:00:30  INFO      [WR:SATyS-Reg_1] ── Registro CRT26-011878: 2/2 OK | 0 error(es) servidor | 0 error(es) red ──
+14:00:31  INFO      [CONC-REG] [2/3] ✓ Registro CRT26-011878 completado: 2 OK / 2 total
+14:00:48  WARNING   [ALT-META] Timeout: 'Folio:' no apareció en 120s. Se intentará extraer de todos modos.
+14:01:21  INFO      [ALT-META] Metadatos guardados: {'tipo_tramite': 'CGPE-01-003-L: Entrega periódica de Información General Estadística L. Sobre el Servicio Minorista Móvil de Acceso a Internet bajo esquema OMV', 'folio': '184698', 'fecha_registro': '30/06/2026', 'plazo_atencion': '28/09/2026', 'origen': 'VE-Más trámites y Servicios', 'solicitante': '', 'nombre_operador': 'IENTC, S. DE R.L. DE C.V.', 'representante_legal': 'FERNANDO ALBERTO SÁNCHEZ ASSAD', 'asunto': 'LA PRESENTE ENTREGA SE REALIZA DE FORMA EXTEMPORANEA Y VOLUNTARIA SIN QUE MEDIE REQUERIMIENTO DE AUTORIDAD.', 'descripcion': '', 'registro': ''}
+14:01:21  INFO      [ALT-DL] Descargando DOCUMENTOS ANEXOS para folio VE-184698
+14:01:25  INFO      [ALT-DL] Seccion DOCUMENTOS ANEXOS localizada: text=DOCUMENTOS ANEXOS
+14:01:26  INFO      [ALT-DL] DOCUMENTOS ANEXOS: Mostrando 1 a 6 de 6
+14:01:26  INFO      [ALT-DL] Selector DOCUMENTOS ANEXOS cambiado a: 100
+14:01:27  INFO      [ALT-DL] DOCUMENTOS ANEXOS (post-100): Mostrando 1 a 6 de 6
+14:01:27  WARNING   [ALT-DL] 9 botones > 6 esperados -- usando solo los primeros 6
+14:01:27  INFO      [ALT-DL] Pagina 1: 6 botones VER DOCUMENTO
+14:01:28  INFO        [1] nombre=documento_VE-184698_1  tipo=  fecha=
+14:01:29  INFO        [OK] 17828440387266r010-05_3t2025_ientc.xlsx  (73.1 KB)
+14:01:29  INFO        [2] nombre=documento_VE-184698_2  tipo=  fecha=
+14:01:30  INFO        [OK] 17828440185082r010-04_3t2025_ientc.csv  (0.1 KB)
+14:01:30  INFO        [3] nombre=documento_VE-184698_3  tipo=  fecha=
+14:01:31  INFO        [OK] 17828439976091r010-03_3t2025_ientc.csv  (0.1 KB)
+14:01:31  INFO        [4] nombre=documento_VE-184698_4  tipo=  fecha=
+14:01:32  INFO        [OK] 17828439841941r010-02_3t2025_ientc.csv  (0.0 KB)
+14:01:33  INFO        [5] nombre=documento_VE-184698_5  tipo=  fecha=
+14:01:33  INFO        [OK] 17828439613825r010-01_3t2025_ientc.csv  (0.0 KB)
+14:01:34  INFO        [6] nombre=documento_VE-184698_6  tipo=  fecha=
+14:01:34  INFO        [POPUP] Nueva pestana capturada al instante (PDF)
+14:01:34  INFO        [POPUP] Nueva pestana URL: https://ventanilla.ift.org.mx/VentanillaElectronica/upload/diversos/tramites/184698/solicitud184698.pdf
+14:01:35  INFO        [OK-POPUP] solicitud184698.pdf (312.1 KB)
+14:01:35  INFO        [OK] solicitud184698.pdf  (312.1 KB)
+14:01:35  INFO      [ALT-DL] Paginacion: mostrando 1 a 6 de 6
+14:01:35  INFO      [ALT-DL] VALIDACION OK: 6/6 documentos descargados
+14:01:35  INFO      [REG-META] metadata_satys.json actualizado para registro CRT26-027462
+14:01:35  INFO      [BACK] Regresando al tablero...
+14:01:38  INFO      [BACK] Re-navegando al tablero...
+14:01:38  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+14:01:40  INFO      [OK] Tablero de Control cargado
+14:01:44  INFO      [REG-PAGE] Resultados búsqueda: mostrando 1 de 1 trámites
+14:01:44  INFO      [WR:SATyS-Reg_0] ── Registro CRT26-027462: 6/6 OK | 0 error(es) servidor | 0 error(es) red ──
+14:01:45  INFO      [CONC-REG] [3/3] ✓ Registro CRT26-027462 completado: 6 OK / 6 total
+14:01:45  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+14:01:45  INFO      [RESUMEN] resumen_global.json: 3 folios | 3 Exitosos | 0 Incompletos | 0 No encontrados
+14:46:50  WARNING   [WARN] --visible activo: se abrirán múltiples ventanas de Chrome simultáneamente. Usa --workers 1 para una sola ventana.
+14:46:50  INFO      [MAIN] ── MODO REGISTRO: FASE 1: Validación de sesión ──
+14:46:53  INFO      [SESION] Sesion expirada, requiere nuevo login.
+14:46:53  INFO      [LOGIN] Iniciando sesion...
+14:46:53  INFO      [NET] Cargando pagina login...
+14:46:53  INFO      [LOGIN] Llenando credenciales...
+14:47:04  WARNING   [WARN] Tablero no encontrado tras login, asumiendo exito...
+14:47:04  INFO      [SESION] Sesion guardada correctamente.
+14:47:04  INFO      [NAV] Navegando a Enlace Oficialia de Partes...
+14:47:05  INFO      [OK] Tablero de Control cargado
+14:47:06  INFO      [MAIN] Sesión validada para modo registro.
+14:47:06  INFO      [LIST] Registros a procesar (3): CRT26-027462, CRT26-011878, CRT26-025610
+14:47:06  INFO      [SKIP] Registro CRT26-027462 ya descargado. Saltando...
+14:47:06  INFO      [SKIP] Registro CRT26-011878 ya descargado. Saltando...
+14:47:06  INFO      [SKIP] Registro CRT26-025610 ya descargado. Saltando...
+14:47:06  INFO      [MAIN] 0 registro(s) pendientes | 3 ya completados (SKIP)
+14:47:06  INFO      [OK] Log guardado: C:\Users\gustavo.garcia\Documents\GitHub\Automatizacion-SATyS\descargas\descarga_log.json
+14:47:06  INFO      [RESUMEN] resumen_global.json: 3 folios | 3 Exitosos | 0 Incompletos | 0 No encontrados
