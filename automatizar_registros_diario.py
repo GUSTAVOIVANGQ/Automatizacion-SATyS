@@ -36,6 +36,12 @@ from typing import Iterable
 
 from proceso_lock import ProcesoLock, LockOcupadoError
 
+try:
+    import notificar_email as _email_mod
+    _EMAIL_DISPONIBLE = True
+except Exception:
+    _EMAIL_DISPONIBLE = False
+
 REGISTRO_RE = re.compile(r"\b[A-Z]{2,8}\d{2}-\d{3,}\b", re.IGNORECASE)
 
 PROJECT_DIR = Path(__file__).resolve().parent
@@ -370,6 +376,7 @@ def main() -> int:
             "--separador", "linea",
             "--max-paginas", str(args.max_paginas),
             "--timeout-tabla", str(args.timeout_tabla),
+            "--modo-anios", "todos",
         ]
         cmd_extraer.append("--headless" if headless else "--visible")
         rc_extraer = ejecutar_comando(cmd_extraer, PROJECT_DIR, log_path, "1) EXTRAER REGISTROS DESDE SATyS")
@@ -380,6 +387,14 @@ def main() -> int:
         registros_satys = leer_registros_txt(registros_satys_hist)
         resumen["total_registros_satys"] = len(registros_satys)
         resumen["primeros_registros_satys"] = registros_satys[:15]
+        resumen_extraer_path = registros_satys_hist.with_suffix(registros_satys_hist.suffix + ".json")
+        if resumen_extraer_path.exists():
+            try:
+                resumen["extraccion_satys"] = json.loads(
+                    resumen_extraer_path.read_text(encoding="utf-8-sig", errors="replace")
+                )
+            except Exception as exc:
+                resumen["errores"].append(f"No se pudo leer resumen del extractor: {exc}")
         if not registros_satys:
             raise RuntimeError("No se extrajo ningún Registro desde SATyS. Revisa login, red CRT o selectores de tabla.")
 
@@ -459,6 +474,16 @@ def main() -> int:
             f"Nuevos: {len(nuevos)} | main_procesar.py código: {rc_main} | Log: {log_path.name}",
             habilitado=not args.sin_notificacion,
         )
+
+        # ── Notificación por correo electrónico ──────────────────────────────
+        if _EMAIL_DISPONIBLE:
+            # main_procesar.py guarda el log en descargas/procesamiento_log_registros.json
+            log_json_path = PROJECT_DIR / "descargas" / "procesamiento_log_registros.json"
+            _email_mod.enviar_desde_log_json(log_json_path)
+        else:
+            print("\n⚠️  Módulo notificar_email no disponible; correo no enviado.")
+        # ─────────────────────────────────────────────────────────────────────
+
         return rc_main
 
     except Exception as exc:
@@ -472,6 +497,16 @@ def main() -> int:
             str(exc),
             habilitado=not args.sin_notificacion,
         )
+        # Correo de aviso de fallo
+        if _EMAIL_DISPONIBLE:
+            _email_mod.enviar_notificacion(
+                total_registros=resumen.get("total_nuevos", 0),
+                exitosos=0,
+                sin_operador=0,
+                errores=resumen.get("total_nuevos", 0),
+                registros=[],
+                fecha_ejecucion=resumen.get("fecha_ejecucion"),
+            )
         return 1
 
     finally:

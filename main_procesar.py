@@ -915,6 +915,9 @@ Ejemplos:
         except Exception:
             pass
 
+        # Sincronizar output/ y Excel con la carpeta compartida de red
+        sincronizar_carpeta_compartida()
+
         return  # Terminar sin continuar al flujo de folios
 
     # Obtener folios
@@ -1148,21 +1151,26 @@ Ejemplos:
 def sincronizar_carpeta_compartida() -> None:
     """
     Copia la carpeta 'output/' y el archivo 'TrámitesCRT.xlsx' al directorio
-    de red CARPETA_COMPARTIDA (Z:\DEI_DATOS\SATyS).
+    de red CARPETA_COMPARTIDA (Z:\\DEI_DATOS\\SATyS).
 
-    Si ya existen archivos en el destino, los mueve primero a una subcarpeta
-    backup/<YYYYMMDD_HHMMSS>/ antes de copiar los nuevos, para no perder nada.
+    Estrategia de sincronización:
+    - output/: merge inteligente. Los archivos y carpetas del local SOBREESCRIBEN
+      los del destino si ya existen. Los archivos del destino que NO estén en el
+      local permanecen intactos (no se eliminan). No se hacen backups.
+    - TrámitesCRT.xlsx: siempre se sobreescribe con la versión local (la fuente
+      de verdad). El Excel de red ya fue actualizado fila-por-fila en
+      Parte4_excel.sincronizar_excel_a_red(), por lo que esta copia final
+      garantiza que el archivo de red tenga el estado completo al terminar.
     """
     if CARPETA_COMPARTIDA is None:
         return
 
     print()
     print("─" * 70)
-    print("  SINCRONIZACIÓN CON CARPETA COMPARTIDA")
+    print("  SINCRONIZACIÓN CON CARPETA COMPARTIDA (output/ + Excel)")
     print("─" * 70)
 
     destino = Path(CARPETA_COMPARTIDA)
-    backup_raiz = destino / "backup"
 
     # Verificar accesibilidad de la unidad de red
     try:
@@ -1172,59 +1180,58 @@ def sincronizar_carpeta_compartida() -> None:
         log.error("   Verifica que la unidad Z: esté montada y tengas permisos de escritura.")
         return
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    carpeta_backup = backup_raiz / timestamp
-    hay_backup = False
+    errores = []
 
-    # ── Backup de la carpeta output existente ──
-    destino_output = destino / "output"
-    if destino_output.exists():
-        try:
-            carpeta_backup.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(destino_output), str(carpeta_backup / "output"))
-            log.info("📦 output/ existente respaldado en: %s", carpeta_backup)
-            hay_backup = True
-        except Exception as e:
-            log.error("❌ Error al respaldar output/ existente: %s", e)
-            return
-
-    # ── Backup del Excel existente ──
-    destino_excel = destino / EXCEL_PATH.name
-    if destino_excel.exists():
-        try:
-            carpeta_backup.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(destino_excel), str(carpeta_backup / EXCEL_PATH.name))
-            log.info("📦 %s existente respaldado en: %s", EXCEL_PATH.name, carpeta_backup)
-            hay_backup = True
-        except Exception as e:
-            log.error("❌ Error al respaldar %s existente: %s", EXCEL_PATH.name, e)
-            return
-
-    if hay_backup:
-        log.info("🗂️  Archivos anteriores guardados en: %s", carpeta_backup)
-
-    # ── Copiar carpeta output al destino ──
+    # ── Merge inteligente de la carpeta output/ ──
     if OUTPUT_BASE.exists():
-        try:
-            shutil.copytree(str(OUTPUT_BASE), str(destino_output))
-            log.info("✅ output/ copiado a: %s", destino_output)
-        except Exception as e:
-            log.error("❌ Error al copiar output/: %s", e)
+        destino_output = destino / "output"
+        destino_output.mkdir(parents=True, exist_ok=True)
+        copiados = 0
+        fallidos = 0
+        for item in OUTPUT_BASE.rglob("*"):
+            ruta_relativa = item.relative_to(OUTPUT_BASE)
+            destino_item = destino_output / ruta_relativa
+            try:
+                if item.is_dir():
+                    destino_item.mkdir(parents=True, exist_ok=True)
+                else:
+                    destino_item.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(str(item), str(destino_item))
+                    copiados += 1
+            except Exception as e:
+                log.warning("⚠️  No se pudo copiar %s → %s: %s", item, destino_item, e)
+                fallidos += 1
+                errores.append(str(e))
+        if fallidos == 0:
+            log.info("✅ output/ sincronizado (%d archivos) → %s", copiados, destino_output)
+        else:
+            log.warning("⚠️  output/ sincronizado con %d archivos copiados y %d fallo(s).", copiados, fallidos)
     else:
         log.warning("⚠️  La carpeta output/ no existe localmente; nada que copiar.")
 
-    # ── Copiar el Excel al destino ──
+    # ── Copiar el Excel al destino (sobreescribir) ──
     if EXCEL_PATH.exists():
+        destino_excel = destino / EXCEL_PATH.name
         try:
             shutil.copy2(str(EXCEL_PATH), str(destino_excel))
             log.info("✅ %s copiado a: %s", EXCEL_PATH.name, destino_excel)
+        except PermissionError:
+            log.warning(
+                "⚠️  El Excel en la red está abierto por otro usuario. "
+                "Se omite la copia final del Excel; la última sincronización automática "
+                "(fila-por-fila) sigue siendo válida."
+            )
         except Exception as e:
             log.error("❌ Error al copiar %s: %s", EXCEL_PATH.name, e)
+            errores.append(str(e))
     else:
         log.warning("⚠️  El archivo %s no existe localmente; nada que copiar.", EXCEL_PATH.name)
 
     print("─" * 70)
-    print(f"  ✅ Sincronización completada → {destino}")
+    if errores:
+        print(f"  ⚠️  Sincronización completada con {len(errores)} error(es) → {destino}")
+    else:
+        print(f"  ✅ Sincronización completada → {destino}")
     print("─" * 70)
 
 

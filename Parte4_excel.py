@@ -50,6 +50,11 @@ SHEET_NAME = "Turnados recibidos"
 ORGANIZAR_DESCARGAS = True
 BORRAR_CARPETA_FOLIO_VACIA = False
 
+# Carpeta compartida de red donde se sincroniza el Excel.
+# Debe coincidir con CARPETA_COMPARTIDA en main_procesar.py.
+# Pon None para deshabilitar la sincronización inmediata del Excel.
+CARPETA_COMPARTIDA_EXCEL: Path | None = Path(r"Z:\DEI_DATOS\SATyS")
+
 EXCEL_EXTS = {".xls", ".xlsx", ".xlsm", ".xlsb", ".csv"}
 WORD_EXTS = {".doc", ".docx"}
 
@@ -321,6 +326,10 @@ def actualizar_excel(
         wb.save(excel)
         wb.close()
         log.info("💾 Excel guardado: %s", excel)
+
+        # Sincronizar inmediatamente a la carpeta de red (si está configurada)
+        sincronizar_excel_a_red(excel)
+
         return True
 
     except PermissionError:
@@ -330,6 +339,44 @@ def actualizar_excel(
         log.error("❌ Error actualizando Excel: %s", e)
         traceback.print_exc()
         return False
+
+
+# ────────────────────────────────────────────────────────
+#  SINCRONIZACIÓN INMEDIATA DEL EXCEL A LA RED
+# ────────────────────────────────────────────────────────
+
+def sincronizar_excel_a_red(excel_local: Path = None) -> None:
+    """
+    Copia el Excel local a la carpeta compartida de red (Z:\DEI_DATOS\SATyS)
+    inmediatamente después de cada guardado.
+
+    - Si el archivo de red no existe, lo crea.
+    - Si ya existe, lo sobreescribe (la versión local es siempre la fuente
+      de verdad: las filas solo se agregan al final, nunca se eliminan).
+    - Los errores se loguean pero NO detienen el flujo principal.
+    """
+    if CARPETA_COMPARTIDA_EXCEL is None:
+        return
+
+    local = excel_local or EXCEL_PATH
+    if not local.exists():
+        log.warning("⚠️  [Red] Excel local no encontrado, no se puede sincronizar: %s", local)
+        return
+
+    destino_dir = Path(CARPETA_COMPARTIDA_EXCEL)
+    destino = destino_dir / local.name
+
+    try:
+        destino_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(str(local), str(destino))
+        log.info("🌐 Excel sincronizado a red: %s", destino)
+    except PermissionError:
+        log.warning(
+            "⚠️  [Red] El Excel en la red está abierto por otro usuario. "
+            "Se sincronizará en la próxima ejecución: %s", destino
+        )
+    except Exception as e:
+        log.warning("⚠️  [Red] No se pudo sincronizar el Excel a la red (%s): %s", destino, e)
 
 
 # ────────────────────────────────────────────────────────
@@ -344,3 +391,4 @@ if __name__ == "__main__":
     print("  actualizar_excel(folio, pdf_nombre, nombre_operador, ...)")
     print("  organizar_archivos(carpeta_folio, ruta)")
     print("  obtener_nota_victor(carpeta)")
+    print("  sincronizar_excel_a_red(excel_local)")

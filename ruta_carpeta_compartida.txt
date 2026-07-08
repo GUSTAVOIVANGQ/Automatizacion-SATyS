@@ -12,7 +12,7 @@
 #      TrámitesCRT.xlsx (CRT_Recurso_DEPI).
 #
 # Ejemplo (ruta real del equipo):
-Z:\DEI_DATOS\SATyS\.lock
+Z:\DEI_DATOS\SATyS\
 
 # Si dejas este archivo tal cual (todo comentado), el bloqueo solo
 # protege ESTA laptop — no protege contra las otras 3. Esto es útil

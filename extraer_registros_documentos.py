@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
 import logging
 import os
 import re
@@ -323,15 +324,14 @@ def parsear_info_paginacion(info: str | None) -> dict:
 
 def descubrir_anios_disponibles(page) -> list[dict]:
     """Detecta las opciones reales del selector Año visible en SATyS."""
-    opciones = page.evaluate(
+    raw_opciones = page.evaluate(
         """
-        () => {
+        JSON.stringify((() => {
           const visible = el => {
             if (!el) return false;
             const style = window.getComputedStyle(el);
-            const rect = el.getBoundingClientRect();
             return style.display !== 'none' && style.visibility !== 'hidden'
-              && rect.width > 0 && rect.height > 0;
+              && !el.hidden && !el.disabled;
           };
           const norm = txt => (txt || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim();
           const selects = Array.from(document.querySelectorAll('select')).filter(visible);
@@ -363,9 +363,10 @@ def descubrir_anios_disponibles(page) -> list[dict]:
           }
           candidatos.sort((a, b) => b.score - a.score);
           return candidatos.length ? candidatos[0].years : [];
-        }
+        })())
         """
-    ) or []
+    )
+    opciones = json.loads(raw_opciones or "[]")
 
     unicos: dict[int, dict] = {}
     for opcion in opciones:
@@ -378,35 +379,38 @@ def descubrir_anios_disponibles(page) -> list[dict]:
 def seleccionar_anio(page, opcion: dict) -> None:
     year = int(opcion["year"])
     value = str(opcion.get("value") or year)
-    resultado = page.evaluate(
+    payload = json.dumps({"year": year, "value": value})
+    raw_resultado = page.evaluate(
+        f"""
+        JSON.stringify((() => {{
+            const target = {payload};
+            const year = target.year;
+            const value = target.value;
+            const visible = el => {{
+              if (!el) return false;
+              const style = window.getComputedStyle(el);
+              return style.display !== 'none' && style.visibility !== 'hidden'
+                && !el.hidden && !el.disabled;
+            }};
+            const selects = Array.from(document.querySelectorAll('select')).filter(visible);
+            for (const select of selects) {{
+              const options = Array.from(select.options || []);
+              const hasYears = options.some(opt => /\\b20\\d{{2}}\\b/.test(`${{opt.textContent || ''}} ${{opt.value || ''}}`));
+              if (!hasYears) continue;
+              const option = options.find(opt => opt.value === value)
+                || options.find(opt => new RegExp(`\\\\b${{year}}\\\\b`).test(`${{opt.textContent || ''}} ${{opt.value || ''}}`));
+              if (!option) continue;
+              const changed = select.value !== option.value;
+              select.value = option.value;
+              select.dispatchEvent(new Event('input', {{ bubbles: true }}));
+              select.dispatchEvent(new Event('change', {{ bubbles: true }}));
+              return {{ok: true, changed, text: (option.textContent || option.value || '').trim()}};
+            }}
+            return {{ok: false}};
+        }})())
         """
-        ({year, value}) => {
-          const visible = el => {
-            if (!el) return false;
-            const style = window.getComputedStyle(el);
-            const rect = el.getBoundingClientRect();
-            return style.display !== 'none' && style.visibility !== 'hidden'
-              && rect.width > 0 && rect.height > 0;
-          };
-          const selects = Array.from(document.querySelectorAll('select')).filter(visible);
-          for (const select of selects) {
-            const options = Array.from(select.options || []);
-            const hasYears = options.some(opt => /\\b20\\d{2}\\b/.test(`${opt.textContent || ''} ${opt.value || ''}`));
-            if (!hasYears) continue;
-            const option = options.find(opt => opt.value === value)
-              || options.find(opt => new RegExp(`\\\\b${year}\\\\b`).test(`${opt.textContent || ''} ${opt.value || ''}`));
-            if (!option) continue;
-            const changed = select.value !== option.value;
-            select.value = option.value;
-            select.dispatchEvent(new Event('input', { bubbles: true }));
-            select.dispatchEvent(new Event('change', { bubbles: true }));
-            return {ok: true, changed, text: (option.textContent || option.value || '').trim()};
-          }
-          return {ok: false};
-        }
-        """,
-        {"year": year, "value": value},
-    ) or {"ok": False}
+    )
+    resultado = json.loads(raw_resultado or "{}")
     if not resultado.get("ok"):
         raise RuntimeError(f"No pude seleccionar el Año {year} en SATyS.")
     log.info("[CFG] Año seleccionado: %s", resultado.get("text") or year)
@@ -415,15 +419,14 @@ def seleccionar_anio(page, opcion: dict) -> None:
 
 def cambiar_mostrar_a_100(page) -> bool:
     try:
-        resultado = page.evaluate(
+        raw_resultado = page.evaluate(
             """
-            () => {
+            JSON.stringify((() => {
               const visible = el => {
                 if (!el) return false;
                 const style = window.getComputedStyle(el);
-                const rect = el.getBoundingClientRect();
                 return style.display !== 'none' && style.visibility !== 'hidden'
-                  && rect.width > 0 && rect.height > 0;
+                  && !el.hidden && !el.disabled;
               };
               const norm = txt => (txt || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim();
               const selects = Array.from(document.querySelectorAll('select')).filter(visible);
@@ -453,9 +456,10 @@ def cambiar_mostrar_a_100(page) -> bool:
               select.dispatchEvent(new Event('input', { bubbles: true }));
               select.dispatchEvent(new Event('change', { bubbles: true }));
               return {ok: true, changed, value: select.value};
-            }
+            })())
             """
         )
+        resultado = json.loads(raw_resultado or "{}")
         if not resultado or not resultado.get("ok"):
             log.warning("[CFG] No encontre el selector 'Mostrar 100 tramites'.")
             return False
@@ -484,82 +488,77 @@ def leer_estado_tabla(page) -> dict:
         "error": "",
     }
     try:
-        estado_default["tableCount"] = page.locator("table:visible").count()
-        # Find the table that has a "Registro" column
-        tables = page.locator("table:visible")
-        chosen_table = None
-        registro_index = -1
-        
-        for i in range(tables.count()):
-            table = tables.nth(i)
-            headers = table.locator("thead th, tr th")
-            for j in range(headers.count()):
-                text = headers.nth(j).inner_text().strip()
-                if text.lower() == "registro":
-                    chosen_table = table
-                    registro_index = j
-                    break
-            if chosen_table:
-                break
-                
-        if not chosen_table:
-            return estado_default
-            
-        estado_default["found"] = True
-        
-        # Check if processing is visible
-        wrapper = chosen_table.locator("xpath=ancestor::*[contains(@class, 'dataTables_wrapper')]").first
-        if wrapper.count() == 0:
-            wrapper = page.locator("body")
-            
-        processing = wrapper.locator(".dataTables_processing:visible")
-        processing_visible = processing.count() > 0
-        
-        # Extract records
-        registros = []
-        rows = chosen_table.locator("tbody tr:visible")
-        for i in range(rows.count()):
-            row = rows.nth(i)
-            cells = row.locator("td")
-            if cells.count() > registro_index:
-                raw_text = cells.nth(registro_index).inner_text().strip()
-                if raw_text and not re.search(r"no hay|sin resultados|no data", raw_text, re.I):
-                    compact = re.sub(r"\s+", "", raw_text)
-                    match = re.search(r"[A-Z]{2,6}\d{2}-\d{3,}", compact, re.I)
-                    registro = match.group(0).upper() if match else compact.upper()
-                    if registro:
-                        registros.append(registro)
-                        
-        estado_default["registros"] = registros
-        
-        # Extract info
-        info_el = wrapper.locator(".dataTables_info, [id$='_info']").first
-        info = info_el.inner_text().strip() if info_el.count() > 0 else ""
-        estado_default["info"] = info
-        
-        # Check if next button is enabled
-        next_btn = wrapper.locator(".paginate_button.next, li.next, a.next, button.next").filter(has_text=re.compile(r"siguiente|next", re.I)).first
-        if next_btn.count() == 0:
-            next_btn = wrapper.locator(".paginate_button.next, li.next, a.next, button.next").first
-            
-        has_next = False
-        if next_btn.count() > 0:
-            # Check classes for 'disabled'
-            next_class = next_btn.get_attribute("class") or ""
-            parent = next_btn.locator("xpath=..").first
-            parent_class = parent.get_attribute("class") if parent.count() > 0 else ""
-            if "disabled" not in next_class.lower() and "disabled" not in parent_class.lower():
-                has_next = True
-                
-        estado_default["hasNext"] = has_next
-        
-        # Page key
-        if rows.count() > 0:
-            estado_default["pageKey"] = rows.first.inner_text().strip()[:180]
-            
-        # Ready
-        estado_default["ready"] = not processing_visible and (len(registros) > 0 or re.search(r"Mostrando|Showing|No hay|Sin resultados|0\s+a\s+0", info, re.I) is not None)
-        
+        raw_estado = page.evaluate(
+            """
+            JSON.stringify((() => {
+              const visible = el => {
+                if (!el) return false;
+                const style = window.getComputedStyle(el);
+                return style.display !== 'none' && style.visibility !== 'hidden'
+                  && !el.hidden;
+              };
+              const norm = txt => (txt || '')
+                .normalize('NFD')
+                .replace(/[\\u0300-\\u036f]/g, '')
+                .replace(/\\s+/g, ' ')
+                .trim();
+              const compact = txt => norm(txt).replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+              const tableCount = Array.from(document.querySelectorAll('table')).filter(visible).length;
+              const candidatos = [];
+
+              for (const table of Array.from(document.querySelectorAll('table')).filter(visible)) {
+                const headerRow = table.querySelector('thead tr') || table.querySelector('tr');
+                const headers = headerRow ? Array.from(headerRow.querySelectorAll('th, td')) : [];
+                const registroIndex = headers.findIndex(th => compact(th.innerText || th.textContent || '') === 'registro');
+                if (registroIndex < 0) continue;
+
+                const wrapper = table.closest('.dataTables_wrapper') || table.parentElement || document.body;
+                const infoEl = wrapper.querySelector('.dataTables_info, [id$="_info"]');
+                const info = infoEl ? norm(infoEl.innerText || infoEl.textContent || '') : '';
+                const processingEls = Array.from(wrapper.querySelectorAll('.dataTables_processing'));
+                const processingVisible = processingEls.some(visible);
+                const rows = Array.from(table.querySelectorAll('tbody tr')).filter(visible);
+                const registros = [];
+                let pageKey = '';
+
+                for (const row of rows) {
+                  const cells = Array.from(row.querySelectorAll('td'));
+                  if (cells.length <= registroIndex) continue;
+                  const raw = norm(cells[registroIndex].innerText || cells[registroIndex].textContent || '');
+                  if (!raw || /no hay|sin resultados|no data/i.test(raw)) continue;
+                  const joined = raw.replace(/\\s+/g, '');
+                  const match = joined.match(/[A-Z]{2,8}\\d{2}-\\d{3,}/i);
+                  if (match) registros.push(match[0].toUpperCase());
+                  if (!pageKey) pageKey = norm(row.innerText || row.textContent || '').slice(0, 180);
+                }
+
+                const nextCandidates = Array.from(wrapper.querySelectorAll('.paginate_button.next, li.next, a.next, button.next'));
+                const next = nextCandidates.find(el => /siguiente|next/i.test(el.innerText || el.textContent || '')) || nextCandidates[0] || null;
+                const nextClass = next ? `${next.className || ''} ${next.parentElement?.className || ''}` : '';
+                const hasNext = !!next && !/disabled/i.test(nextClass);
+                const wrapperText = norm(wrapper.innerText || wrapper.textContent || '');
+                const score = (/Documentos en Proceso/i.test(wrapperText) ? 1000 : 0)
+                  + (/tramites|trámites/i.test(info) ? 100 : 0)
+                  + registros.length;
+
+                candidatos.push({
+                  score,
+                  registros,
+                  info,
+                  hasNext,
+                  pageKey,
+                  ready: !processingVisible && (registros.length > 0 || /Mostrando|Showing|No hay|Sin resultados|0\\s+a\\s+0/i.test(info)),
+                });
+              }
+
+              candidatos.sort((a, b) => b.score - a.score);
+              if (!candidatos.length) return {tableCount, found: false};
+              return {tableCount, found: true, ...candidatos[0]};
+            })())
+            """
+        )
+        estado = json.loads(raw_estado or "{}")
+        estado_default.update(estado)
         return estado_default
     except Exception as exc:
         estado_default["error"] = str(exc)
@@ -609,38 +608,65 @@ def esperar_tabla_registros_lista(page, timeout_ms: int = TIMEOUT_TABLA_REGISTRO
 
 def avanzar_siguiente(page) -> bool:
     try:
-        wrapper = page.locator(".dataTables_wrapper:visible").first
-        if wrapper.count() == 0:
-            wrapper = page.locator("body")
-        
-        next_btn = wrapper.locator(".paginate_button.next, li.next, a.next, button.next").filter(has_text=re.compile(r"siguiente|next", re.I)).first
-        if next_btn.count() == 0:
-            next_btn = wrapper.locator(".paginate_button.next, li.next, a.next, button.next").first
-            
-        if next_btn.count() == 0:
+        ok = page.evaluate(
+            """
+            (() => {
+              const visible = el => {
+                if (!el) return false;
+                const style = window.getComputedStyle(el);
+                return style.display !== 'none' && style.visibility !== 'hidden'
+                  && !el.hidden;
+              };
+              const compact = txt => (txt || '')
+                .normalize('NFD')
+                .replace(/[\\u0300-\\u036f]/g, '')
+                .replace(/[^A-Za-z0-9]/g, '')
+                .toLowerCase();
+              const tables = Array.from(document.querySelectorAll('table')).filter(visible);
+              const wrappers = [];
+              for (const table of tables) {
+                const headerRow = table.querySelector('thead tr') || table.querySelector('tr');
+                const headers = headerRow ? Array.from(headerRow.querySelectorAll('th, td')) : [];
+                if (!headers.some(th => compact(th.innerText || th.textContent || '') === 'registro')) continue;
+                wrappers.push(table.closest('.dataTables_wrapper') || table.parentElement || document.body);
+              }
+              for (const wrapper of wrappers) {
+                const nextCandidates = Array.from(wrapper.querySelectorAll('.paginate_button.next, li.next, a.next, button.next'));
+                const next = nextCandidates.find(el => /siguiente|next/i.test(el.innerText || el.textContent || '')) || nextCandidates[0] || null;
+                if (!next) continue;
+                const cls = `${next.className || ''} ${next.parentElement?.className || ''}`;
+                if (/disabled/i.test(cls)) continue;
+                const clickable = next.matches('a, button') ? next : (next.querySelector('a, button') || next);
+                clickable.scrollIntoView({block: 'center', inline: 'center'});
+                clickable.click();
+                return true;
+              }
+              return false;
+            })()
+            """
+        )
+        if not ok:
             return False
-            
-        next_class = next_btn.get_attribute("class") or ""
-        parent = next_btn.locator("xpath=..").first
-        parent_class = parent.get_attribute("class") if parent.count() > 0 else ""
-        
-        if "disabled" in next_class.lower() or "disabled" in parent_class.lower():
-            return False
-            
-        next_btn.click()
         esperar_datatables(page, timeout_ms=15_000)
         return True
     except Exception:
         return False
 
 
-def extraer_registros(
+def extraer_registros_detallado(
     page,
     max_paginas: int = 100,
     timeout_primera_pagina_ms: int = TIMEOUT_TABLA_REGISTROS,
-) -> list[str]:
+    anio_label: str = "",
+) -> dict:
     registros: list[str] = []
     vistos: set[str] = set()
+    paginas_leidas = 0
+    total_esperado = None
+    primera_info = ""
+    ultima_info = ""
+    ultima_paginacion: dict = {}
+    prefijo = f"[AÑO {anio_label}]" if anio_label else "[TABLA]"
 
     for pagina in range(1, max_paginas + 1):
         if pagina == 1:
@@ -657,20 +683,38 @@ def extraer_registros(
             raise RuntimeError("No encontre una tabla visible con columna 'Registro'.")
 
         nuevos = 0
+        duplicados_pagina = 0
         for registro in estado.get("registros", []):
-            if registro and registro not in vistos:
-                vistos.add(registro)
-                registros.append(registro)
-                nuevos += 1
+            if registro:
+                if registro not in vistos:
+                    vistos.add(registro)
+                    registros.append(registro)
+                    nuevos += 1
+                else:
+                    duplicados_pagina += 1
 
         info = estado.get("info") or "sin texto de paginacion"
-        log.info("[TABLA] Pagina %d: %d nuevos, %d acumulados (%s)", pagina, nuevos, len(registros), info)
+        paginacion = parsear_info_paginacion(info)
+        if pagina == 1:
+            primera_info = info
+        ultima_info = info
+        ultima_paginacion = paginacion
+        if paginacion.get("total") is not None:
+            total_esperado = paginacion["total"]
+        paginas_leidas = pagina
+        dup_msg = f", {duplicados_pagina} duplicados" if duplicados_pagina else ""
+        log.info(
+            "%s Pagina %d: %d nuevos%s, %d acumulados | %s",
+            prefijo, pagina, nuevos, dup_msg, len(registros), info,
+        )
 
         if not estado.get("hasNext"):
+            log.info("%s Ultima pagina alcanzada (pagina %d).", prefijo, pagina)
             break
 
         page_key = estado.get("pageKey", "")
         if not avanzar_siguiente(page):
+            log.warning("%s No pude avanzar a la siguiente pagina; detengo en pagina %d.", prefijo, pagina)
             break
 
         try:
@@ -683,9 +727,152 @@ def extraer_registros(
         except Exception:
             esperar_datatables(page, timeout_ms=8_000)
     else:
-        log.warning("[TABLA] Se alcanzo el maximo de paginas configurado: %d", max_paginas)
+        log.warning("%s Se alcanzo el maximo de paginas configurado: %d", prefijo, max_paginas)
 
-    return registros
+    # ── Validación final: verificar que llegamos al final de la tabla ────────────
+    if total_esperado is not None:
+        hasta = ultima_paginacion.get("hasta")
+        log.info(
+            "%s Validacion final: hasta=%s, total_esperado=%s, registros_guardados=%d",
+            prefijo, hasta, total_esperado, len(registros),
+        )
+        if total_esperado > 0 and hasta != total_esperado:
+            raise RuntimeError(
+                f"{prefijo} La paginacion no llego al final: "
+                f"ultima_info={ultima_info!r}, total_esperado={total_esperado}, hasta={hasta}, "
+                f"registros_guardados={len(registros)}. Revisa --max-paginas o el selector Mostrar 100."
+            )
+        # Permitir diferencia SOLO si hay duplicados (registros repetidos en SATyS)
+        if len(registros) > total_esperado:
+            raise RuntimeError(
+                f"{prefijo} Se guardaron MAS registros que el total reportado por SATyS: "
+                f"guardados={len(registros)}, total_pagina={total_esperado}, ultima_info={ultima_info!r}."
+            )
+        if len(registros) < total_esperado:
+            diferencia = total_esperado - len(registros)
+            log.warning(
+                "%s AVISO: %d registro(s) en SATyS son duplicados (mismo Registro en filas distintas). "
+                "Se guardaron %d registros unicos de %d reportados. ultima_info=%r",
+                prefijo, diferencia, len(registros), total_esperado, ultima_info,
+            )
+
+    return {
+        "registros": registros,
+        "total_esperado": total_esperado,
+        "paginas_leidas": paginas_leidas,
+        "primera_info": primera_info,
+        "ultima_info": ultima_info,
+    }
+
+
+def extraer_registros(
+    page,
+    max_paginas: int = 100,
+    timeout_primera_pagina_ms: int = TIMEOUT_TABLA_REGISTROS,
+) -> list[str]:
+    return extraer_registros_detallado(
+        page,
+        max_paginas=max_paginas,
+        timeout_primera_pagina_ms=timeout_primera_pagina_ms,
+    )["registros"]
+
+
+def extraer_registros_por_anio(
+    page,
+    max_paginas: int = 100,
+    timeout_primera_pagina_ms: int = TIMEOUT_TABLA_REGISTROS,
+) -> dict:
+    opciones_anio = descubrir_anios_disponibles(page)
+    if not opciones_anio:
+        log.warning("[CFG] No encontre selector de Año; extraigo solo el estado actual de la tabla.")
+        if not cambiar_mostrar_a_100(page):
+            raise RuntimeError("No pude configurar 'Mostrar 100 tramites'.")
+        detalle = extraer_registros_detallado(page, max_paginas, timeout_primera_pagina_ms)
+        detalle["anio"] = None
+        return {
+            "modo": "actual",
+            "anios_detectados": [],
+            "por_anio": [detalle],
+            "registros": detalle["registros"],
+            "total_registros": len(detalle["registros"]),
+        }
+
+    log.info(
+        "[CFG] %d Años detectados: %s",
+        len(opciones_anio),
+        ", ".join(str(op["year"]) for op in opciones_anio),
+    )
+    registros_globales: list[str] = []
+    vistos_globales: set[str] = set()
+    resumen_anios: list[dict] = []
+
+    for idx, opcion in enumerate(opciones_anio, start=1):
+        year = int(opcion["year"])
+        log.info(
+            "[CFG] ══════ Procesando Año %s (%d/%d) ══════",
+            year, idx, len(opciones_anio),
+        )
+
+        # Seleccionar año en el dropdown
+        seleccionar_anio(page, opcion)
+
+        # Cambiar 'Mostrar' a 100 para minimizar páginas
+        if not cambiar_mostrar_a_100(page):
+            raise RuntimeError(f"No pude configurar 'Mostrar 100 tramites' para el Año {year}.")
+
+        detalle = extraer_registros_detallado(
+            page,
+            max_paginas=max_paginas,
+            timeout_primera_pagina_ms=timeout_primera_pagina_ms,
+            anio_label=str(year),
+        )
+        registros_anio = detalle["registros"]
+
+        # Acumular registros globales deduplicando por si un registro aparece en varios años
+        nuevos_globales = 0
+        for registro in registros_anio:
+            if registro not in vistos_globales:
+                vistos_globales.add(registro)
+                registros_globales.append(registro)
+                nuevos_globales += 1
+
+        duplicados_entre_anios = len(registros_anio) - nuevos_globales
+        resumen_anio = {
+            "anio": year,
+            "total_reportado_satys": detalle.get("total_esperado"),
+            "total_guardados_anio": len(registros_anio),
+            "nuevos_globales": nuevos_globales,
+            "duplicados_entre_anios": duplicados_entre_anios,
+            "paginas_leidas": detalle.get("paginas_leidas"),
+            "primera_info": detalle.get("primera_info"),
+            "ultima_info": detalle.get("ultima_info"),
+        }
+        resumen_anios.append(resumen_anio)
+        log.info(
+            "[AÑO %s] ✔ COMPLETADO: %d registros unicos | total SATyS=%s | paginas=%s | acumulado global=%d",
+            year,
+            len(registros_anio),
+            detalle.get("total_esperado"),
+            detalle.get("paginas_leidas"),
+            len(registros_globales),
+        )
+        if duplicados_entre_anios:
+            log.info(
+                "[AÑO %s] Nota: %d registros de este año ya existian en años anteriores (deduplicados).",
+                year, duplicados_entre_anios,
+            )
+
+    log.info(
+        "[CFG] ══════ EXTRACCION COMPLETA: %d registros unicos en %d años ══════",
+        len(registros_globales), len(opciones_anio),
+    )
+    return {
+        "modo": "por_anio",
+        "anios_detectados": [int(op["year"]) for op in opciones_anio],
+        "por_anio": resumen_anios,
+        "registros": registros_globales,
+        "total_registros": len(registros_globales),
+    }
 
 def guardar_registros(registros: list[str], output: Path, separador: str) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -696,6 +883,12 @@ def guardar_registros(registros: list[str], output: Path, separador: str) -> Non
     if contenido:
         contenido += "\n"
     output.write_text(contenido, encoding="utf-8")
+
+
+def guardar_resumen_extraccion(output: Path, resumen: dict) -> Path:
+    resumen_path = output.with_suffix(output.suffix + ".json")
+    resumen_path.write_text(json.dumps(resumen, ensure_ascii=False, indent=2), encoding="utf-8")
+    return resumen_path
 
 
 def parse_args() -> argparse.Namespace:
@@ -719,7 +912,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--sin-todos-los-anios",
         action="store_true",
-        help="No cambia el selector de Año a 'Todos los años'.",
+        help="Compatibilidad: extrae solo el Año actual visible.",
+    )
+    parser.add_argument(
+        "--modo-anios",
+        choices=("todos", "actual"),
+        default="todos",
+        help="todos=detecta y recorre cada Año disponible; actual=solo el Año visible.",
     )
     return parser.parse_args()
 
@@ -759,17 +958,41 @@ def main() -> int:
             if not navegar_a_enlace_oficialia(page):
                 return 1
 
-            if not args.sin_todos_los_anios:
-                seleccionar_todos_los_anios(page)
-            cambiar_mostrar_a_100(page)
+            modo_anios = "actual" if args.sin_todos_los_anios else args.modo_anios
+            if modo_anios == "todos":
+                resumen = extraer_registros_por_anio(
+                    page,
+                    max_paginas=args.max_paginas,
+                    timeout_primera_pagina_ms=args.timeout_tabla * 1000,
+                )
+            else:
+                if not cambiar_mostrar_a_100(page):
+                    raise RuntimeError("No pude configurar 'Mostrar 100 tramites'.")
+                detalle = extraer_registros_detallado(
+                    page,
+                    max_paginas=args.max_paginas,
+                    timeout_primera_pagina_ms=args.timeout_tabla * 1000,
+                )
+                resumen = {
+                    "modo": "actual",
+                    "anios_detectados": [],
+                    "por_anio": [{
+                        "anio": None,
+                        "total_pagina": detalle.get("total_esperado"),
+                        "total_guardados_anio": len(detalle["registros"]),
+                        "paginas_leidas": detalle.get("paginas_leidas"),
+                        "primera_info": detalle.get("primera_info"),
+                        "ultima_info": detalle.get("ultima_info"),
+                    }],
+                    "registros": detalle["registros"],
+                    "total_registros": len(detalle["registros"]),
+                }
 
-            registros = extraer_registros(
-                page,
-                max_paginas=args.max_paginas,
-                timeout_primera_pagina_ms=args.timeout_tabla * 1000,
-            )
+            registros = resumen["registros"]
             guardar_registros(registros, args.output, args.separador)
+            resumen_path = guardar_resumen_extraccion(args.output, resumen)
             log.info("[OK] %d registros guardados en %s", len(registros), args.output)
+            log.info("[OK] Resumen de extraccion guardado en %s", resumen_path)
             return 0
         finally:
             browser.close()

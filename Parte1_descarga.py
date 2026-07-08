@@ -1032,6 +1032,7 @@ def _extraer_metadatos_satys_una_vez(page, folio: str, carpeta: Path, registro_e
         "nombre_operador": None,
         "id_solicitante": None,
         "asunto": None,
+        "tipo_tramite": None,
         "registro": None,
     }
     try:
@@ -1413,6 +1414,80 @@ def _extraer_metadatos_satys_una_vez(page, folio: str, carpeta: Path, registro_e
             
         # 3. DESCRIPCIÓN DEL DOCUMENTO (ya expandido por JS al inicio de la función)
         try:
+            # Extraer 'Tipo Trámite'
+            tipo_tramite = page.evaluate('''() => {
+                // Las etiquetas posibles para el campo en distintos formatos de SATyS
+                const etiquetas = ['Tipo Trámite', 'Tipo de Trámite', 'Tipo tramite',
+                                   'Tipo de tramite', 'Trámite', 'Tramite'];
+                function leerLabel(texto) {
+                    let labels = Array.from(document.querySelectorAll('label'));
+                    let lbl = labels.find(el => {
+                        let t = (el.textContent || '').trim().replace(/[:\s]+$/, '');
+                        return t === texto || t.startsWith(texto);
+                    });
+                    if (!lbl) return '';
+                    // htmlFor → input/select
+                    if (lbl.htmlFor) {
+                        let el = document.getElementById(lbl.htmlFor);
+                        if (el) {
+                            if (el.tagName === 'SELECT') {
+                                let opt = el.options[el.selectedIndex];
+                                return opt ? opt.text.trim() : '';
+                            }
+                            return (el.value || el.innerText || '').trim();
+                        }
+                    }
+                    // Columna Bootstrap hermana
+                    let parentCol = lbl.closest('[class*="col-"]');
+                    if (parentCol) {
+                        let nextCol = parentCol.nextElementSibling;
+                        if (nextCol) {
+                            let sel2 = nextCol.querySelector('select');
+                            if (sel2) {
+                                let opt2 = sel2.options[sel2.selectedIndex];
+                                return opt2 ? opt2.text.trim() : '';
+                            }
+                            let ctrl = nextCol.querySelector('input:not([type="hidden"]), textarea');
+                            if (ctrl) return (ctrl.value || ctrl.innerText || '').trim();
+                            return nextCol.innerText.trim();
+                        }
+                    }
+                    // Sibling directo
+                    let sib = lbl.nextElementSibling;
+                    while (sib) {
+                        if (sib.tagName === 'SELECT') {
+                            let opt = sib.options[sib.selectedIndex];
+                            return opt ? opt.text.trim() : '';
+                        }
+                        let ctrl = sib.querySelector
+                            ? sib.querySelector('input:not([type="hidden"]), textarea, select')
+                            : null;
+                        if (ctrl) {
+                            if (ctrl.tagName === 'SELECT') {
+                                let opt = ctrl.options[ctrl.selectedIndex];
+                                return opt ? opt.text.trim() : '';
+                            }
+                            return (ctrl.value || ctrl.innerText || '').trim();
+                        }
+                        if (sib.tagName === 'INPUT' || sib.tagName === 'TEXTAREA')
+                            return (sib.value || sib.innerText || '').trim();
+                        sib = sib.nextElementSibling;
+                    }
+                    return '';
+                }
+                for (const etq of etiquetas) {
+                    let v = leerLabel(etq);
+                    if (v) return v;
+                }
+                return '';
+            }''')
+            if tipo_tramite:
+                metadatos["tipo_tramite"] = tipo_tramite
+                log.info("[WEB] Tipo Trámite capturado: %s", tipo_tramite)
+        except Exception as e:
+            log.warning("[WEB] No se pudo extraer Tipo Trámite: %s", e)
+
+        try:
             # Extraer 'Asunto'
             asunto = page.evaluate('''() => {
                 // Buscamos un label que diga "Asunto"
@@ -1482,9 +1557,9 @@ def _extraer_metadatos_satys_una_vez(page, folio: str, carpeta: Path, registro_e
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(metadatos, f, ensure_ascii=False, indent=2)
 
-        log.info("[WEB] Metadatos guardados OK: Rep='%s', Ope='%s', Asunto='%s', Registro='%s'",
+        log.info("[WEB] Metadatos guardados OK: Rep='%s', Ope='%s', Asunto='%s', Tipo='%s', Registro='%s'",
                  metadatos["representante_legal"], metadatos["nombre_operador"],
-                 metadatos["asunto"], metadatos["registro"])
+                 metadatos["asunto"], metadatos.get("tipo_tramite"), metadatos["registro"])
         return metadatos
     except Exception as e:
         log.error("[WEB] Error extrayendo metadatos web: %s", e)
@@ -3243,50 +3318,95 @@ def extraer_metadatos_tramite_nuevo(page, folio: str, carpeta: Path) -> dict:
     try:
         page.evaluate("window.scrollTo(0, 0)")
 
-        # ── Esperar a que el campo 'Folio:' tenga valor (hasta 120 s) ──────────
-        # La vista 'DATOS DEL TRÁMITE' carga asincrónicamente después de abrir
-        # el detalle del trámite. Sondear cada segundo evita capturas en blanco.
-        _MAX_ESPERA_FOLIO_S = 120
+        # ── Esperar a que el campo 'Folio:' tenga valor (máx. 15 s) ─────────────
+        # Usamos wait_for_selector nativo de Playwright primero (dispara en cuanto
+        # aparece el elemento, sin desperdiciar tiempo con sleep fijo de 1 s).
+        # Si en 15 s no llega, continuamos de todas formas porque la página puede
+        # haber cargado los datos en un formato distinto al esperado.
+        _MAX_ESPERA_FOLIO_S = 15
         _folio_detectado = False
         log.info("[ALT-META] Esperando campo 'Folio:' (máx. %ds)...", _MAX_ESPERA_FOLIO_S)
-        for _intento in range(_MAX_ESPERA_FOLIO_S):
-            try:
-                _val_folio = page.evaluate("""
-                () => {
-                    // Buscar un input/textarea cuyo contenedor mencione 'Folio'
-                    const candidates = Array.from(
-                        document.querySelectorAll('input:not([type="hidden"]), textarea')
-                    );
-                    for (const inp of candidates) {
-                        const row = inp.closest(
-                            'tr, .row, .form-group, li, .col-md-12'
-                        ) || inp.parentElement;
-                        if (row && (row.textContent || '').includes('Folio')) {
-                            return (inp.value || '').trim();
+
+        # JS mejorado: busca el input/select adyacente o hermano al label 'Folio'
+        # según la estructura real de la página (label + input hermano).
+        _JS_FOLIO = """
+        () => {
+            // 1) label con texto exacto 'Folio' o 'Folio:' → buscar input/select hermano o siguiente
+            const labels = Array.from(document.querySelectorAll('label, td, th, span'));
+            for (const lbl of labels) {
+                const txt = (lbl.textContent || '').trim().replace(/:$/, '');
+                if (txt === 'Folio' || txt === 'Folio ') {
+                    // Hermano siguiente directo
+                    let sib = lbl.nextElementSibling;
+                    while (sib) {
+                        if (sib.tagName === 'INPUT' || sib.tagName === 'SELECT' || sib.tagName === 'TEXTAREA') {
+                            const v = (sib.value || sib.textContent || '').trim();
+                            if (v) return v;
+                        }
+                        // Input dentro del hermano
+                        const inner = sib.querySelector('input:not([type="hidden"]), select, textarea');
+                        if (inner) {
+                            const v = (inner.value || inner.textContent || '').trim();
+                            if (v) return v;
+                        }
+                        sib = sib.nextElementSibling;
+                    }
+                    // Padre → buscar input en el mismo contenedor de fila
+                    const row = lbl.closest('tr, .row, .form-group, li');
+                    if (row) {
+                        const inp = row.querySelector('input:not([type="hidden"]), select, textarea');
+                        if (inp) {
+                            const v = (inp.value || inp.textContent || '').trim();
+                            if (v) return v;
                         }
                     }
-                    // Fallback: buscar span/div con texto que parezca un folio numérico
-                    const spans = Array.from(document.querySelectorAll('span, td, div'));
-                    for (const el of spans) {
-                        const txt = (el.textContent || '').trim();
-                        if (/^\\d{4,}$/.test(txt)) {
-                            const parent = el.parentElement;
-                            if (parent && (parent.textContent || '').includes('Folio')) {
-                                return txt;
-                            }
-                        }
-                    }
-                    return '';
                 }
-                """)
-                if _val_folio:
-                    log.info("[ALT-META] Campo 'Folio:' detectado con valor '%s' (intento %d)",
-                             _val_folio, _intento + 1)
-                    _folio_detectado = True
-                    break
-            except Exception as _e_poll:
-                log.debug("[ALT-META] Error en polling Folio (intento %d): %s", _intento + 1, _e_poll)
-            page.wait_for_timeout(1_000)
+            }
+            // 2) Fallback: cualquier input cuyo contenedor inmediato mencione 'Folio'
+            const inputs = Array.from(document.querySelectorAll('input:not([type="hidden"]), textarea'));
+            for (const inp of inputs) {
+                const row = inp.closest('tr, .row, .form-group, li, .col-md-12') || inp.parentElement;
+                if (row && (row.textContent || '').includes('Folio')) {
+                    const v = (inp.value || '').trim();
+                    if (v) return v;
+                }
+            }
+            // 3) Fallback numérico: span/div de ≥4 dígitos dentro de contenedor con 'Folio'
+            const elems = Array.from(document.querySelectorAll('span, td, div'));
+            for (const el of elems) {
+                const txt = (el.textContent || '').trim();
+                if (/^\\d{4,}$/.test(txt)) {
+                    const parent = el.parentElement;
+                    if (parent && (parent.textContent || '').includes('Folio')) return txt;
+                }
+            }
+            return '';
+        }
+        """
+
+        # Intento rápido: si la página ya está cargada detectamos al instante
+        try:
+            _val_rapido = page.evaluate(_JS_FOLIO)
+            if _val_rapido:
+                log.info("[ALT-META] Campo 'Folio:' detectado al instante: '%s'", _val_rapido)
+                _folio_detectado = True
+        except Exception:
+            pass
+
+        if not _folio_detectado:
+            # Espera reactiva: polling cada 500 ms hasta _MAX_ESPERA_FOLIO_S segundos
+            _iteraciones = _MAX_ESPERA_FOLIO_S * 2  # 2 intentos por segundo
+            for _intento in range(_iteraciones):
+                try:
+                    _val_folio = page.evaluate(_JS_FOLIO)
+                    if _val_folio:
+                        log.info("[ALT-META] Campo 'Folio:' detectado con valor '%s' (intento %d)",
+                                 _val_folio, _intento + 1)
+                        _folio_detectado = True
+                        break
+                except Exception as _e_poll:
+                    log.debug("[ALT-META] Error en polling Folio (intento %d): %s", _intento + 1, _e_poll)
+                page.wait_for_timeout(500)  # 500 ms en vez de 1000 ms → el doble de resolución
 
         if not _folio_detectado:
             log.warning(
