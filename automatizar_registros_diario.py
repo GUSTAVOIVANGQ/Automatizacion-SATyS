@@ -286,6 +286,12 @@ def construir_parser() -> argparse.ArgumentParser:
                         help="Carpeta donde se guardan logs y resúmenes.")
     parser.add_argument("--workers", type=int, default=6,
                         help="Workers de Playwright para main_procesar.py. Recomendado: 6.")
+    parser.add_argument("--timeout-registro", type=int, default=900,
+                        help="Timeout duro por Registro en segundos. Si un Registro se traba, se mata su proceso hijo y sigue el lote.")
+    parser.add_argument("--reintentos-registro", type=int, default=2,
+                        help="Reintentos automáticos solo para registros incompletos. 2 = hasta 3 intentos totales.")
+    parser.add_argument("--workers-reintento", type=int, default=2,
+                        help="Workers usados en reintentos de registros fallidos/incompletos. Default: 2.")
     parser.add_argument("--headless", action="store_true", default=True,
                         help="Ejecuta Playwright sin navegador visible. Default: activo.")
     parser.add_argument("--visible", action="store_true",
@@ -320,6 +326,9 @@ def main() -> int:
         "fecha_ejecucion": datetime.now().isoformat(),
         "headless": headless,
         "workers": args.workers,
+        "timeout_registro_segundos": args.timeout_registro,
+        "reintentos_registro": args.reintentos_registro,
+        "workers_reintento": args.workers_reintento,
         "timeout_tabla_segundos": args.timeout_tabla,
         "paths": {
             "project_dir": str(PROJECT_DIR),
@@ -405,7 +414,37 @@ def main() -> int:
         resumen["excel_info"] = excel_info
 
         # 3) Comparar y guardar nuevos.
-        nuevos = [registro for registro in registros_satys if registro not in procesados_excel]
+        nuevos_excel = [registro for registro in registros_satys if registro not in procesados_excel]
+
+        # 3b) También incluir registros que ya están en el Excel pero tienen
+        #     carpeta sin archivos reales (solo los JSONs generados por el programa).
+        #     Esto garantiza que los re-intentos ocurran en cada corrida diaria.
+        DESCARGA_BASE_DIARIO = PROJECT_DIR / "descargas"
+        _JSON_GEN_DIARIO = {"metadata_completo.json", "metadata_satys.json", "metadata_tramite_nuevo.json"}
+
+        def _descarga_incompleta_diario(reg: str) -> bool:
+            """True si el registro no tiene archivos reales descargados."""
+            carpeta_d = DESCARGA_BASE_DIARIO / reg
+            if not carpeta_d.exists():
+                return True
+            archivos_d = [
+                f for f in carpeta_d.glob("*")
+                if f.is_file() and f.name not in _JSON_GEN_DIARIO
+            ]
+            return not bool(archivos_d)
+
+        # Registros en Excel pero con descarga incompleta (no incluidos ya en nuevos_excel)
+        incompletos_en_excel = [
+            reg for reg in registros_satys
+            if reg in procesados_excel and _descarga_incompleta_diario(reg)
+        ]
+
+        nuevos = unicos_preservando_orden(nuevos_excel + incompletos_en_excel)
+
+        if incompletos_en_excel:
+            print(f"⚠️  Registros en Excel pero con descarga incompleta (se re-intentarán): {len(incompletos_en_excel)}")
+            print("   ", ", ".join(incompletos_en_excel[:30]) + ("..." if len(incompletos_en_excel) > 30 else ""))
+
         guardar_txt_lineas(registros_nuevos_hist, nuevos)
         guardar_txt_lineas(args.registros_latest, nuevos)
 
@@ -419,16 +458,20 @@ def main() -> int:
 
         resumen["total_procesados_excel"] = len(procesados_excel)
         resumen["total_nuevos"] = len(nuevos)
+        resumen["total_nuevos_excel"] = len(nuevos_excel)
+        resumen["total_incompletos_reintento"] = len(incompletos_en_excel)
         resumen["registros_nuevos"] = nuevos
 
         print("\n" + "=" * 90)
         print("RESULTADO DE COMPARACIÓN")
         print("=" * 90)
-        print(f"Registros en SATyS:       {len(registros_satys)}")
-        print(f"Ya procesados en Excel:   {len(procesados_excel)}")
-        print(f"Nuevos para procesar:     {len(nuevos)}")
-        print(f"TXT nuevos para main:     {args.registros_latest}")
-        print(f"Copia histórica nuevos:   {registros_nuevos_hist}")
+        print(f"Registros en SATyS:           {len(registros_satys)}")
+        print(f"Ya procesados en Excel:        {len(procesados_excel)}")
+        print(f"Nuevos (no en Excel):          {len(nuevos_excel)}")
+        print(f"Re-intentos (descarga incompleta): {len(incompletos_en_excel)}")
+        print(f"Total a procesar:              {len(nuevos)}")
+        print(f"TXT nuevos para main:          {args.registros_latest}")
+        print(f"Copia histórica nuevos:        {registros_nuevos_hist}")
         if nuevos:
             print("Nuevos:", ", ".join(nuevos[:50]) + ("..." if len(nuevos) > 50 else ""))
 
@@ -458,20 +501,29 @@ def main() -> int:
             str(args.main_script),
             "--archivo-registro", str(args.registros_latest),
             "--workers", str(args.workers),
+            "--timeout-registro", str(args.timeout_registro),
+            "--reintentos-registro", str(args.reintentos_registro),
+            "--workers-reintento", str(args.workers_reintento),
         ]
         if headless:
             cmd_main.append("--headless")
 
         rc_main = ejecutar_comando(cmd_main, PROJECT_DIR, log_path, "2) PROCESAR REGISTROS NUEVOS")
         resumen["return_code_main"] = rc_main
+
+        fallidos_latest = PROJECT_DIR / "registros_fallidos" / "registros_fallidos_latest.txt"
+        fallidos = leer_registros_txt(fallidos_latest) if fallidos_latest.exists() else []
+        resumen["registros_fallidos_controlados"] = fallidos
+        resumen["total_fallidos_controlados"] = len(fallidos)
         resumen["ok"] = rc_main == 0
         resumen["mensaje"] = (
-            f"Procesados {len(nuevos)} registro(s) nuevo(s). Código main_procesar.py: {rc_main}."
+            f"Procesados {len(nuevos)} registro(s) nuevo(s). Código main_procesar.py: {rc_main}. "
+            f"Fallidos controlados: {len(fallidos)}."
         )
 
         notificar_windows(
             "SATyS CRT — proceso diario finalizado",
-            f"Nuevos: {len(nuevos)} | main_procesar.py código: {rc_main} | Log: {log_path.name}",
+            f"Nuevos: {len(nuevos)} | Fallidos controlados: {len(fallidos)} | main_procesar.py código: {rc_main} | Log: {log_path.name}",
             habilitado=not args.sin_notificacion,
         )
 

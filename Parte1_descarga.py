@@ -27,6 +27,10 @@ import logging
 import argparse
 import threading
 import concurrent.futures
+import subprocess
+import tempfile
+import signal
+import uuid
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_result, before_sleep_log
 from logging.handlers import RotatingFileHandler
 
@@ -100,6 +104,21 @@ TIMEOUT_NAV   = int(os.getenv("SATYS_TIMEOUT_NAV", "60000"))   # ms -- carga de 
 TIMEOUT_CORTO = int(os.getenv("SATYS_TIMEOUT_CORTO", "10000"))   # ms -- esperas de elementos
 TIMEOUT_DL    = int(os.getenv("SATYS_TIMEOUT_DL", "90000"))   # ms -- espera de descarga
 TIMEOUT_DETALLE = int(os.getenv("SATYS_TIMEOUT_DETALLE", "120000"))  # ms -- espera de carga en Ver detalle
+
+# Watchdog profesional por Registro.
+# Un Registro completo corre en un proceso hijo independiente; si excede este
+# límite, el proceso hijo se mata junto con sus Chromium sin congelar el lote.
+TIMEOUT_REGISTRO = int(os.getenv("SATYS_TIMEOUT_REGISTRO", "900"))  # segundos (15 min)
+REINTENTOS_REGISTRO = int(os.getenv("SATYS_REINTENTOS_REGISTRO", "2"))  # 2 = 3 intentos totales
+WORKERS_REINTENTO_REGISTRO = int(os.getenv("SATYS_WORKERS_REINTENTO", "2"))
+REGISTROS_FALLIDOS_DIR = Path(os.getenv("SATYS_FALLIDOS_DIR", "registros_fallidos"))
+
+# Retransmisión de logs descriptivos de cada proceso hijo al log principal.
+# Mantiene la protección anti-congelamiento por subproceso, pero vuelve a mostrar
+# en monitor_registros_*.log los mensajes detallados que antes salían en vivo
+# ([REG-BUSCAR], [REG-VIEW], [WEB], [FILES], Descargando, etc.).
+RELAY_WORKER_LOGS = os.getenv("SATYS_RELAY_WORKER_LOGS", "True").lower() in ("true", "1", "yes", "si", "sí")
+MAX_RELAY_LINE_CHARS = int(os.getenv("SATYS_MAX_RELAY_LINE_CHARS", "900"))
 
 # API discovery y descarga directa (experimental)
 API_DISCOVERY = os.getenv("SATYS_API_DISCOVERY", "True").lower() in ("true", "1", "yes")
@@ -365,13 +384,18 @@ def _descargar_directo(context, page, url: str, dest: Path) -> bool:
     if req_ctx is None:
         return False
     try:
+        log.info("     [DL-DIRECTO] GET inicio: %s -> %s", url, dest.name)
         resp = req_ctx.get(url, timeout=TIMEOUT_DL)
+        log.info("     [DL-DIRECTO] GET respuesta: status_ok=%s archivo=%s", resp.ok, dest.name)
         if not resp.ok:
             return False
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_bytes(resp.body())
+        body = resp.body()
+        dest.write_bytes(body)
+        log.info("     [DL-DIRECTO] Escrito: %s (%.1f KB)", dest.name, len(body) / 1024)
         return True
-    except Exception:
+    except Exception as exc:
+        log.warning("     [DL-DIRECTO] Falló descarga directa de %s: %s", dest.name, exc)
         return False
 
 def _retry_if_both_none(res):
@@ -1804,7 +1828,9 @@ def descargar_archivos(context, page, folio: str, carpeta: Path) -> tuple:
                             page.on("download", on_dl)
                             context.on("page", on_pg)
 
+                            log.info("     [DL-CLICK] Click inicio: %s", nombre_previo)
                             btn.click()
+                            log.info("     [DL-CLICK] Click enviado: %s", nombre_previo)
 
                             import time
                             start_t = time.time()
@@ -1816,11 +1842,14 @@ def descargar_archivos(context, page, folio: str, carpeta: Path) -> tuple:
 
                             page.remove_listener("download", on_dl)
                             context.remove_listener("page", on_pg)
+                            log.info("     [DL-WAIT] Resultado eventos: download=%s popup=%s archivo=%s", bool(dl_obj), bool(np_obj), nombre_previo)
 
                             if dl_obj:
                                 fname = dl_obj.suggested_filename or fname
                                 dest = carpeta / fname
+                                log.info("     [DL-SAVE] save_as inicio: %s -> %s", nombre_previo, dest)
                                 dl_obj.save_as(str(dest))
+                                log.info("     [DL-SAVE] save_as fin: %s", dest.name)
                                 extraidos = extraer_zip_si_aplica(dest, carpeta)
 
                                 if extraidos:
@@ -2094,19 +2123,42 @@ _TABLERO_REGISTRO_CONFIGURADO = False
 _TABLERO_REGISTRO_LOCK = threading.Lock()
 
 
-def configurar_tablero_para_busqueda_registro(page) -> bool:
+def extraer_anio_de_registro(registro: str) -> str | None:
+    """
+    Extrae el año completo de 4 dígitos desde un número de registro SATyS.
+
+    Ejemplos:
+      'CRT26-028792' -> '2026'
+      'CRT25-005481' -> '2025'
+      'CRT24-001234' -> '2024'
+
+    Retorna None si no se puede extraer el año.
+    """
+    m = re.search(r"[A-Z]+(\d{2})-", registro.strip().upper())
+    if m:
+        sufijo = m.group(1)  # ej: '26', '25'
+        # Convertir a año completo: '26' -> 2026, '25' -> 2025
+        # Suponemos siglo 21 (20xx) para rangos 00-99
+        anio_int = 2000 + int(sufijo)
+        return str(anio_int)  # ej: '2026'
+    return None
+
+
+def configurar_tablero_para_busqueda_registro(page, anio_objetivo: str = None) -> bool:
     """
     Configura el tablero de 'Documentos en Proceso' para buscar por Registro:
-      1. Cambia el selector 'Año: 2026' a 'Todos los años'
-      2. Cambia el selector 'Mostrar 10 trámites' a '100'
+      1. Selecciona el año del registro en el selector (ej. '2026' para CRT26-).
+         Si no existe esa opción, hace fallback a 'Todos los años'.
+      2. Cambia el selector 'Mostrar 10 trámites' a '100'.
 
     Debe llamarse UNA VEZ por worker, justo después de navegar_a_tablero().
     Retorna True si se configuró correctamente, False si falló (el tablero
     puede seguir funcionando con la configuración por defecto).
     """
-    log.info("[REG] Configurando tablero para búsqueda por Registro (Todos los años + 100)...")
+    log.info("[REG] Configurando tablero para búsqueda por Registro (Año=%s + 100)...",
+             anio_objetivo or "Todos los años")
     try:
-        # ── 1. Selector de Año ──────────────────────────────────────────────
+        # ── 1. Selector de Año ────────────────────────────────────────────────
         # El <select> de Año está a la derecha de "Documentos en Proceso".
         # Buscar por el texto visible "Año:" cercano o por los valores conocidos.
         anio_ok = False
@@ -2119,18 +2171,44 @@ def configurar_tablero_para_busqueda_registro(page) -> bool:
             count_anio = selects_anio.count()
             if count_anio > 0:
                 sel_anio = selects_anio.first
-                # Intentar seleccionar "Todos los años" por distintos valores posibles
                 opciones_año = sel_anio.locator("option")
+
+                # ── Estrategia de selección ────────────────────────────────────
+                # 1º: Si tenemos un año objetivo (ej '2026'), intentar seleccionarlo
+                # 2º: Si no existe esa opción, hacer fallback a 'Todos los años'
                 mejor_val = None
                 mejor_texto = None
+                fallback_val = None
+                fallback_texto = None
+
                 for oi in range(opciones_año.count()):
                     opt = opciones_año.nth(oi)
-                    val  = opt.get_attribute("value") or ""
-                    texto = opt.inner_text().strip().lower()
-                    if "todos" in texto or val in ("", "0", "all"):
+                    val   = opt.get_attribute("value") or ""
+                    texto = opt.inner_text().strip()
+                    texto_l = texto.lower()
+
+                    # Guardar opción de 'Todos los años' como fallback
+                    if "todos" in texto_l or val in ("", "0", "all"):
+                        fallback_val  = val
+                        fallback_texto = texto
+
+                    # Buscar el año objetivo exacto (ej '2026' en texto o en value)
+                    if anio_objetivo and (texto == anio_objetivo or val == anio_objetivo):
                         mejor_val  = val
-                        mejor_texto = opt.inner_text().strip()
-                        break
+                        mejor_texto = texto
+                        break  # Encontrado exacto, no seguir buscando
+
+                # Si no encontramos el año objetivo, usar el fallback
+                if mejor_val is None:
+                    if anio_objetivo:
+                        log.warning(
+                            "[REG] Año '%s' no encontrado en el selector. "
+                            "Haciendo fallback a '%s'",
+                            anio_objetivo, fallback_texto or "Todos los años"
+                        )
+                    mejor_val  = fallback_val
+                    mejor_texto = fallback_texto
+
                 if mejor_val is not None:
                     log.info("[REG] Cambiando Año a '%s' (value='%s')...", mejor_texto, mejor_val)
                     sel_anio.select_option(value=mejor_val)
@@ -2147,7 +2225,7 @@ def configurar_tablero_para_busqueda_registro(page) -> bool:
                     anio_ok = True
                     log.info("[REG] ✅ Año cambiado a '%s'", mejor_texto)
                 else:
-                    log.warning("[REG] No se encontró opción 'Todos los años' en el selector de Año")
+                    log.warning("[REG] No se encontró opción válida en el selector de Año")
             else:
                 log.warning("[REG] No se encontró selector de Año en el tablero")
         except Exception as e:
@@ -2204,23 +2282,41 @@ def buscar_registro_en_tabla(page, registro: str) -> bool:
     verifica que la tabla tenga al menos una fila donde la columna 'Registro'
     coincida exactamente con el valor buscado.
 
-    Retorna True si se encontraron resultados válidos, False si no.
+    Retorna True SOLO si se encontró una fila con el registro exacto.
+    Retorna False si no hay resultados o el filtro no produjo el registro buscado.
     """
     try:
-        # Asegurar pestaña "Documentos en Proceso"
+        # Asegurar pestaña "Documentos en Proceso" --- SOLO clicar si NO está activa ya.
+        # Si hacemos clic cuando ya estamos en esa pestaña, el portal puede recargar
+        # la tabla y resetear el año que acabamos de configurar (ej. 2025 → 2026).
         try:
-            tab = page.locator("a, button").filter(
+            tab = page.locator("a, button, li").filter(
                 has_text=re.compile(r"Documentos en Proceso", re.I)
             ).first
             tab.wait_for(state="visible", timeout=3_000)
-            tab.click()
+            # Solo clicar si la pestaña NO está marcada como activa
+            clases_tab  = (tab.get_attribute("class") or "").lower()
+            # Buscar también en el elemento padre (algunos frameworks ponen 'active' en <li>)
             try:
-                page.wait_for_selector(
-                    "input[type='search'], .dataTables_filter input",
-                    timeout=5_000, state="visible"
-                )
+                padre_clase = (tab.locator("xpath=..").get_attribute("class") or "").lower()
             except Exception:
-                page.wait_for_timeout(600)
+                padre_clase = ""
+            ya_activa = any(
+                c in clases_tab or c in padre_clase
+                for c in ("active", "selected", "current", "is-active")
+            )
+            if not ya_activa:
+                log.debug("[REG-BUSCAR] Activando pestaña 'Documentos en Proceso'")
+                tab.click()
+                try:
+                    page.wait_for_selector(
+                        "input[type='search'], .dataTables_filter input",
+                        timeout=5_000, state="visible"
+                    )
+                except Exception:
+                    page.wait_for_timeout(600)
+            else:
+                log.debug("[REG-BUSCAR] Pestaña ya activa, no se hace clic para preservar año configurado")
         except Exception:
             pass
 
@@ -2237,38 +2333,77 @@ def buscar_registro_en_tabla(page, registro: str) -> bool:
             search.click()
             page.keyboard.press("Control+A")
         search.fill(registro)
-        # Esperar que DataTables filtre
+
+        # Esperar que DataTables active el spinner de procesamiento
+        try:
+            page.wait_for_function(
+                "() => { const p = document.querySelector('.dataTables_processing'); "
+                "return p && (p.style.display === 'block' || p.style.display === ''); }",
+                timeout=2_000
+            )
+        except Exception:
+            pass  # El spinner puede no aparecer si el filtro es muy rápido
+
+        # Esperar que DataTables termine de filtrar (spinner desaparece)
         try:
             page.wait_for_function(
                 "() => { const p = document.querySelector('.dataTables_processing'); "
                 "return !p || p.style.display === 'none' || p.style.display === ''; }",
-                timeout=8_000
+                timeout=10_000
             )
         except Exception:
-            page.wait_for_timeout(800)
+            page.wait_for_timeout(1_000)
+
+        # Espera adicional para asegurar que las filas del DOM se actualizaron
+        # (el spinner puede desaparecer antes de que el filtro textual termine de renderizar)
+        page.wait_for_timeout(400)
 
         # Verificar que hay filas y que alguna tiene el registro correcto
         tbody = page.locator("table tbody").first
         filas = tbody.locator("tr")
-        if filas.count() == 0:
+        n_filas = filas.count()
+
+        if n_filas == 0:
+            log.debug("[REG-BUSCAR] Tabla vacía después de filtrar por '%s'", registro)
             return False
         primera = filas.first.inner_text().lower()
         if "no hay" in primera or "no data" in primera or "sin resultados" in primera:
+            log.debug("[REG-BUSCAR] Tabla sin resultados para '%s'", registro)
             return False
 
-        # Verificar que alguna fila tiene exactamente nuestro registro en col 1
-        for i in range(min(filas.count(), 5)):
+        # Verificar que alguna fila tiene exactamente nuestro registro
+        # (NO usar fallback: si el DataTable tiene 14 filas sin filtrar,
+        #  el fallback producía falsos positivos y REGISTRO_NO_ENCONTRADO posterior)
+        col_idx = 1  # Columna "Registro" normalmente en índice 1
+        try:
+            headers = page.locator("table thead th")
+            for j in range(min(headers.count(), 10)):
+                header_text = headers.nth(j).inner_text().lower()
+                if "registro" in header_text and "fecha" not in header_text:
+                    col_idx = j
+                    break
+        except Exception:
+            pass
+
+        for i in range(min(n_filas, 10)):
             fila = filas.nth(i)
             celdas = fila.locator("td")
-            if celdas.count() > 1:
-                reg_celda = celdas.nth(1).inner_text().strip()
+            if celdas.count() > col_idx:
+                reg_celda = celdas.nth(col_idx).inner_text().strip()
                 if reg_celda.lower() == registro.lower():
+                    log.debug("[REG-BUSCAR] Coincidencia exacta en fila %d: '%s'", i, reg_celda)
                     return True
 
-        # Si no verificamos exacto, aceptar si hay resultados (el filtro hizo su trabajo)
-        return filas.count() > 0
+        # Si no encontramos la coincidencia exacta, el filtro no funcionó aún
+        # o el DataTable mostró filas que no corresponden al registro
+        log.debug(
+            "[REG-BUSCAR] '%s' no encontrado exacto en %d fila(s) visibles — "
+            "posible tabla sin filtrar o race condition", registro, n_filas
+        )
+        return False
 
-    except Exception:
+    except Exception as e:
+        log.debug("[REG-BUSCAR] Excepción en búsqueda de '%s': %s", registro, e)
         return False
 
 
@@ -4553,6 +4688,194 @@ def _worker_folio(folio: str, folio_raw: str) -> tuple:
     return folio, resultados
 
 
+
+# ============================================================
+#  WATCHDOG REGISTRO -- Procesamiento aislado y matable
+# ============================================================
+def _sanitize_for_filename(text: str) -> str:
+    """Convierte un registro/folio en un nombre seguro de archivo."""
+    text = (text or "SIN_REGISTRO").strip()
+    text = re.sub(r'[^A-Za-z0-9_.-]+', '_', text)
+    return text[:80] or "SIN_REGISTRO"
+
+
+def _resultado_controlado_registro(registro: str, archivo: str, tipo: str, detalle: str, **extra) -> list:
+    """Resultado uniforme para errores controlados de un Registro."""
+    item = {
+        "folio": registro,
+        "registro": registro,
+        "archivo": archivo,
+        "tipo": tipo,
+        "ruta": detalle,
+        "tamano_kb": 0,
+        "ok": False,
+        "controlado": True,
+        "fecha": datetime.now().isoformat(),
+    }
+    item.update(extra)
+    return [item]
+
+
+def _kill_process_tree(proc: subprocess.Popen, registro: str, motivo: str = "timeout") -> None:
+    """Mata el proceso hijo y sus Chromium/descendientes sin bloquear el lote."""
+    if proc.poll() is not None:
+        return
+    log.error("[WATCHDOG] Matando proceso del registro %s (pid=%s) por %s", registro, proc.pid, motivo)
+    try:
+        if os.name == "nt":
+            subprocess.run(
+                ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+        else:
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            except Exception:
+                proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except Exception:
+                try:
+                    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                except Exception:
+                    proc.kill()
+    except Exception as exc:
+        log.warning("[WATCHDOG] No se pudo matar árbol de proceso para %s: %s", registro, exc)
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+
+def _relay_worker_log(info: dict, registro: str, final: bool = False) -> None:
+    """
+    Copia al log principal las líneas nuevas del log del proceso hijo.
+
+    La versión con watchdog ejecuta cada Registro en un proceso hijo para poder
+    matarlo si se congela. Eso resolvió el bloqueo, pero escondía los mensajes
+    descriptivos dentro de logs/workers_registro/*.worker.log. Esta función hace
+    tail incremental de ese archivo y reemite las líneas útiles al monitor
+    principal, sin perder el aislamiento del proceso.
+    """
+    if not RELAY_WORKER_LOGS:
+        return
+
+    worker_log = info.get("worker_log")
+    if not worker_log:
+        return
+    worker_log = Path(worker_log)
+    if not worker_log.exists():
+        return
+
+    pos = int(info.get("log_pos") or 0)
+    try:
+        with worker_log.open("r", encoding="utf-8", errors="replace") as rf:
+            rf.seek(pos)
+            chunk = rf.read()
+            info["log_pos"] = rf.tell()
+    except Exception:
+        return
+
+    if not chunk:
+        return
+
+    for raw_line in chunk.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        # No ensuciar el monitor con comandos internos o marcadores técnicos.
+        if line.startswith("CMD:") or line.startswith("[WORKER] return_code="):
+            continue
+
+        # El worker ya escribe líneas tipo: "11:15:00  INFO      [WEB] ...".
+        # Quitamos hora/nivel para evitar doble timestamp en el monitor principal,
+        # pero conservamos el nivel original.
+        level_name = "INFO"
+        msg = line
+        m = re.match(r"^\d{2}:\d{2}:\d{2}\s+(DEBUG|INFO|WARNING|ERROR|CRITICAL)\s+(.*)$", line)
+        if m:
+            level_name = m.group(1)
+            msg = m.group(2).strip()
+
+        if not msg:
+            continue
+        if len(msg) > MAX_RELAY_LINE_CHARS:
+            msg = msg[:MAX_RELAY_LINE_CHARS] + " ...[truncado]"
+
+        level = getattr(logging, level_name, logging.INFO)
+        log.log(level, "[DETALLE:%s] %s", registro, msg)
+
+
+def _leer_resultado_worker_json(path: Path, registro: str, rc: int, worker_log: Path) -> list:
+    """Lee el JSON producido por un worker; si no existe, devuelve error controlado."""
+    if path.exists():
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+            resultados = payload.get("resultados") or []
+            if isinstance(resultados, list) and resultados:
+                return resultados
+        except Exception as exc:
+            return _resultado_controlado_registro(
+                registro,
+                "ERROR_RESULTADO_WORKER",
+                "ERROR_WORKER_JSON",
+                f"No se pudo leer JSON del worker: {exc}. Log worker: {worker_log}",
+                return_code=rc,
+                worker_log=str(worker_log),
+            )
+    return _resultado_controlado_registro(
+        registro,
+        "ERROR_WORKER_SIN_RESULTADO",
+        "ERROR_WORKER_PROCESO",
+        f"El worker terminó sin JSON de resultado. return_code={rc}. Log worker: {worker_log}",
+        return_code=rc,
+        worker_log=str(worker_log),
+    )
+
+
+def _ejecutar_worker_registro_interno(registro: str, registro_raw: str, resultado_json: Path) -> int:
+    """
+    Modo interno: procesa exactamente un Registro y escribe el resultado en JSON.
+    Se invoca desde un proceso hijo para que el padre pueda matarlo si se congela.
+    """
+    started = datetime.now().isoformat()
+    try:
+        reg_ret, resultados = _worker_registro(registro, registro_raw)
+        payload = {
+            "ok": True,
+            "registro": reg_ret,
+            "started_at": started,
+            "finished_at": datetime.now().isoformat(),
+            "resultados": resultados,
+        }
+        resultado_json.parent.mkdir(parents=True, exist_ok=True)
+        resultado_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        return 0
+    except Exception as exc:
+        log.exception("[WORKER-INTERNO] Error fatal procesando registro %s", registro)
+        resultados = _resultado_controlado_registro(
+            registro,
+            "ERROR_FATAL_WORKER_INTERNO",
+            "ERROR",
+            str(exc)[:500],
+        )
+        payload = {
+            "ok": False,
+            "registro": registro,
+            "started_at": started,
+            "finished_at": datetime.now().isoformat(),
+            "error": str(exc),
+            "resultados": resultados,
+        }
+        try:
+            resultado_json.parent.mkdir(parents=True, exist_ok=True)
+            resultado_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        except Exception:
+            pass
+        return 1
+
 # ============================================================
 #  WORKER REGISTRO -- Procesamiento concurrente por Registro
 # ============================================================
@@ -4637,8 +4960,16 @@ def _worker_registro(registro: str, registro_raw: str) -> tuple:
                 }]
 
             # ── Configurar tablero para búsqueda por Registro ────────────────
-            # Cambiar Año a 'Todos los años' y Mostrar a 100 trámites
-            cfg_ok = configurar_tablero_para_busqueda_registro(page)
+            # Extraer el año del registro para seleccionarlo en el tablero:
+            # CRT26-... → '2026', CRT25-... → '2025', etc.
+            anio_reg = extraer_anio_de_registro(registro)
+            if anio_reg:
+                log.info("[WR:%s] Año extraído del registro %s: %s", tname, registro, anio_reg)
+            else:
+                log.warning("[WR:%s] No se pudo extraer año de registro %s -- se usará 'Todos los años'",
+                            tname, registro)
+
+            cfg_ok = configurar_tablero_para_busqueda_registro(page, anio_objetivo=anio_reg)
             if not cfg_ok:
                 log.warning(
                     "[WR:%s] Configuración de tablero parcial/fallida para registro %s "
@@ -4705,15 +5036,38 @@ def main():
                         help="Buscar por número de Registro en vez de Folio OPC")
     parser.add_argument("--registros", nargs="+",
                         help="Lista de números de Registro a procesar (ej. CRT26-002483)")
+    parser.add_argument("--timeout-registro", type=int, default=TIMEOUT_REGISTRO,
+                        help="Timeout duro por Registro en segundos. Si se excede, se mata el proceso hijo y se continúa.")
+    parser.add_argument("--reintentos-registro", type=int, default=REINTENTOS_REGISTRO,
+                        help="Reintentos automáticos SOLO para registros que sigan incompletos. 2 = 3 intentos totales.")
+    parser.add_argument("--workers-reintento", type=int, default=WORKERS_REINTENTO_REGISTRO,
+                        help="Workers usados en reintentos de registros fallidos/incompletos.")
+    parser.add_argument("--no-relay-worker-logs", action="store_true",
+                        help="No retransmitir al log principal los logs detallados de cada registro. Útil solo si quieres logs más cortos.")
+    parser.add_argument("--_registro-worker", type=str, default="", help=argparse.SUPPRESS)
+    parser.add_argument("--_registro-raw", type=str, default="", help=argparse.SUPPRESS)
+    parser.add_argument("--_resultado-json", type=str, default="", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
-    global HEADLESS
+    global HEADLESS, RELAY_WORKER_LOGS
+    if getattr(args, "no_relay_worker_logs", False):
+        RELAY_WORKER_LOGS = False
     if args.headless:
         HEADLESS = True
     if args.visible:
         HEADLESS = False
 
     num_workers = args.workers  # 0 = sin límite (todos a la vez)
+
+    # Modo interno usado por el watchdog: procesa un único Registro en un
+    # proceso hijo matable. No imprime banner para mantener limpios los logs.
+    if args._registro_worker:
+        resultado_path = Path(args._resultado_json) if args._resultado_json else (Path(tempfile.gettempdir()) / f"satys_result_{uuid.uuid4().hex}.json")
+        return _ejecutar_worker_registro_interno(
+            args._registro_worker.strip(),
+            (args._registro_raw or args._registro_worker).strip(),
+            resultado_path,
+        )
 
     print("\n+" + "-" * 68 + "+")
     print("|" + "  SATyS - DESCARGA AUTOMATICA DE ARCHIVOS (PARTE 1)  ".center(68) + "|")
@@ -4791,73 +5145,292 @@ def main():
         num_workers_r = num_workers  # Usar el mismo número de workers
 
         # ── Separar registros ya completados (SKIP) ───────────────
+        # Un registro se considera COMPLETO solo si:
+        #   1. Su carpeta existe Y tiene archivos.
+        #   2. Sus JSON de metadata NO tienen campos críticos vacíos o null.
+        # Campos críticos: id_representante_legal, id_solicitante.
+        CAMPOS_CRITICOS_SKIP = ("id_representante_legal", "id_solicitante")
+
+        def _registro_ya_completo(reg: str) -> bool:
+            """Retorna True solo si el registro tiene descarga completa y metadata válida."""
+            carpeta_r = DESCARGA_BASE / reg
+
+            # Condición 1: carpeta debe existir y tener archivos REALES descargados.
+            # Los JSON generados por el programa no cuentan como descarga.
+            if not carpeta_r.exists():
+                return False
+            _JSON_GEN = {"metadata_completo.json", "metadata_satys.json", "metadata_tramite_nuevo.json"}
+            archivos_reales = [
+                f for f in carpeta_r.glob("*")
+                if f.is_file() and f.name not in _JSON_GEN
+            ]
+            if not archivos_reales:
+                return False
+
+            # Condición 2: ningún campo crítico puede estar vacío o null en los JSON
+            def _campos_incompletos_skip(json_path) -> bool:
+                if not json_path.exists():
+                    return False  # No existe el JSON → no bloqueamos por él
+                try:
+                    with open(json_path, "r", encoding="utf-8") as fj:
+                        meta_j = json.load(fj)
+                    for campo in CAMPOS_CRITICOS_SKIP:
+                        valor = meta_j.get(campo)
+                        if valor is None or str(valor).strip() == "":
+                            return True
+                    return False
+                except Exception:
+                    return True  # No se puede leer → marcar como pendiente
+
+            if _campos_incompletos_skip(carpeta_r / "metadata_satys.json"):
+                return False
+            if _campos_incompletos_skip(carpeta_r / "metadata_tramite_nuevo.json"):
+                return False
+
+            return True
+
         todos_resultados_r = []
         registros_pendientes = []
         for reg in registros:
-            carpeta_r = crear_carpeta(reg)
-            metadata_file_r = carpeta_r / "metadata_completo.json"
-            if metadata_file_r.exists():
-                try:
-                    with open(metadata_file_r, "r", encoding="utf-8") as f:
-                        meta_e = json.load(f)
-                    if (meta_e.get("estado") == "OK"
-                            and meta_e.get("total_archivos_ok", 0) > 0):
-                        log.info("[SKIP] Registro %s ya descargado. Saltando...", reg)
-                        todos_resultados_r.extend(meta_e.get("archivos", []))
-                        continue
-                except Exception as e:
-                    log.warning("[SKIP] No se pudo leer metadata de %s: %s", reg, e)
-            registros_pendientes.append(reg)
+            if _registro_ya_completo(reg):
+                log.info("[SKIP] Registro %s ya descargado y completo. Saltando...", reg)
+            else:
+                registros_pendientes.append(reg)
 
         log.info(
             "[MAIN] %d registro(s) pendientes | %d ya completados (SKIP)",
             len(registros_pendientes), len(registros) - len(registros_pendientes),
         )
 
-        # ── FASE 2: Procesamiento concurrente ─────────────────────
-        if registros_pendientes:
-            workers_activos_r = (len(registros_pendientes) if num_workers_r == 0
-                                 else min(num_workers_r, len(registros_pendientes)))
-            log.info(
-                "[MAIN] ── FASE 2 REGISTRO: Lanzando %d worker(s) para %d registro(s) ──",
-                workers_activos_r, len(registros_pendientes),
-            )
-            resultados_lock_r = threading.Lock()
+        # ── FASE 2: Procesamiento concurrente aislado por proceso ───
+        def _guardar_txt_fallidos(regs: list[str], etiqueta: str) -> Path | None:
+            regs = list(dict.fromkeys(r for r in regs if r))
+            if not regs:
+                return None
+            REGISTROS_FALLIDOS_DIR.mkdir(parents=True, exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            out = REGISTROS_FALLIDOS_DIR / f"registros_fallidos_{ts}_{etiqueta}.txt"
+            contenido = "\n".join(regs) + "\n"
+            out.write_text(contenido, encoding="utf-8")
+            latest = REGISTROS_FALLIDOS_DIR / "registros_fallidos_latest.txt"
+            latest.write_text(contenido, encoding="utf-8")
+            log.warning("[FALLIDOS] Lista de registros pendientes/fallidos guardada: %s", out.resolve())
+            log.warning("[FALLIDOS] Última lista actualizada: %s", latest.resolve())
+            return out
 
-            with concurrent.futures.ThreadPoolExecutor(
-                max_workers=workers_activos_r,
-                thread_name_prefix="SATyS-Reg",
-            ) as executor_r:
-                futures_map_r = {
-                    executor_r.submit(_worker_registro, reg, reg): reg
-                    for reg in registros_pendientes
+        def _procesar_lote_registros_subprocesos(regs_lote: list[str], workers_lote: int, intento_num: int) -> list:
+            """Lanza workers como procesos hijos matables y devuelve resultados controlados."""
+            if not regs_lote:
+                return []
+
+            workers_lote = len(regs_lote) if workers_lote == 0 else min(max(1, workers_lote), len(regs_lote))
+            timeout_reg = max(60, int(args.timeout_registro or TIMEOUT_REGISTRO))
+            run_id = datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + uuid.uuid4().hex[:8]
+            worker_dir = log_dir / "workers_registro" / run_id
+            worker_dir.mkdir(parents=True, exist_ok=True)
+
+            log.info(
+                "[PROC-REG] Intento %d: %d registro(s), workers=%d, timeout=%ds, logs=%s",
+                intento_num, len(regs_lote), workers_lote, timeout_reg, worker_dir,
+            )
+
+            pendientes = list(regs_lote)
+            running: dict[str, dict] = {}
+            resultados_lote: list = []
+            completados = 0
+            total = len(regs_lote)
+
+            def _lanzar(reg: str):
+                safe = _sanitize_for_filename(reg)
+                result_json = worker_dir / f"{safe}.resultado.json"
+                worker_log = worker_dir / f"{safe}.worker.log"
+                cmd = [
+                    sys.executable,
+                    str(Path(__file__).resolve()),
+                    "--_registro-worker", reg,
+                    "--_registro-raw", reg,
+                    "--_resultado-json", str(result_json),
+                ]
+                cmd.append("--headless" if HEADLESS else "--visible")
+                # Los procesos hijo no reciben --workers para evitar recursión/concurrencia interna.
+                log.info("[PROC-REG] Intento %d iniciando registro %s", intento_num, reg)
+                fh = worker_log.open("w", encoding="utf-8", errors="replace")
+                fh.write("CMD: " + " ".join(str(x) for x in cmd) + "\n")
+                fh.flush()
+                popen_kwargs = {
+                    "cwd": str(Path(__file__).resolve().parent),
+                    "stdout": fh,
+                    "stderr": subprocess.STDOUT,
+                    "text": True,
+                    "encoding": "utf-8",
+                    "errors": "replace",
+                }
+                if os.name == "nt":
+                    popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                else:
+                    popen_kwargs["preexec_fn"] = os.setsid
+                proc = subprocess.Popen(cmd, **popen_kwargs)
+                running[reg] = {
+                    "proc": proc,
+                    "fh": fh,
+                    "start": time.time(),
+                    "result_json": result_json,
+                    "worker_log": worker_log,
+                    "log_pos": 0,
+                    "intento": intento_num,
                 }
 
-                completados_r = 0
-                for future_r in concurrent.futures.as_completed(futures_map_r):
-                    reg_key = futures_map_r[future_r]
-                    completados_r += 1
+            try:
+                while pendientes or running:
+                    while pendientes and len(running) < workers_lote:
+                        _lanzar(pendientes.pop(0))
+
+                    now = time.time()
+                    for reg, info in list(running.items()):
+                        # Retransmitir en vivo al monitor principal los logs descriptivos
+                        # generados por el proceso hijo de este registro.
+                        _relay_worker_log(info, reg)
+                        proc = info["proc"]
+                        rc = proc.poll()
+                        elapsed = now - info["start"]
+
+                        if rc is None and elapsed > timeout_reg:
+                            _relay_worker_log(info, reg, final=True)
+                            _kill_process_tree(proc, reg, motivo=f"TIMEOUT_REGISTRO>{timeout_reg}s")
+                            try:
+                                proc.wait(timeout=10)
+                            except Exception:
+                                pass
+                            try:
+                                info["fh"].write(f"\n[TIMEOUT_REGISTRO] Superó {timeout_reg}s; proceso terminado por watchdog.\n")
+                                info["fh"].flush()
+                                info["fh"].close()
+                            except Exception:
+                                pass
+                            completados += 1
+                            resultados_lote.extend(_resultado_controlado_registro(
+                                reg,
+                                "TIMEOUT_REGISTRO",
+                                "TIMEOUT_REGISTRO",
+                                f"Superó {timeout_reg}s en intento {intento_num}. Worker log: {info['worker_log']}",
+                                timeout_segundos=timeout_reg,
+                                intento=intento_num,
+                                worker_log=str(info["worker_log"]),
+                            ))
+                            log.error(
+                                "[CONC-REG] [%d/%d] ✗ Registro %s TIMEOUT_REGISTRO tras %ds (intento %d). Log: %s",
+                                completados, total, reg, timeout_reg, intento_num, info["worker_log"],
+                            )
+                            del running[reg]
+                            continue
+
+                        if rc is not None:
+                            _relay_worker_log(info, reg, final=True)
+                            try:
+                                info["fh"].write(f"\n[WORKER] return_code={rc}\n")
+                                info["fh"].flush()
+                                info["fh"].close()
+                            except Exception:
+                                pass
+                            res = _leer_resultado_worker_json(info["result_json"], reg, rc, info["worker_log"])
+                            resultados_lote.extend(res)
+                            ok_c = sum(1 for r in res if r.get("ok"))
+                            completados += 1
+                            if rc == 0:
+                                log.info(
+                                    "[CONC-REG] [%d/%d] ✓ Registro %s terminado: %d OK / %d total (intento %d)",
+                                    completados, total, reg, ok_c, len(res), intento_num,
+                                )
+                            else:
+                                log.error(
+                                    "[CONC-REG] [%d/%d] ✗ Registro %s terminó con código %s: %d OK / %d total. Log: %s",
+                                    completados, total, reg, rc, ok_c, len(res), info["worker_log"],
+                                )
+                            del running[reg]
+
+                    if pendientes or running:
+                        time.sleep(1)
+            except KeyboardInterrupt:
+                log.error("[PROC-REG] Interrupción manual. Matando workers activos...")
+                for reg, info in list(running.items()):
+                    _kill_process_tree(info["proc"], reg, motivo="KeyboardInterrupt")
                     try:
-                        reg_ret, res_r = future_r.result()
-                        ok_c_r = sum(1 for r in res_r if r.get("ok"))
-                        with resultados_lock_r:
-                            todos_resultados_r.extend(res_r)
-                        log.info(
-                            "[CONC-REG] [%d/%d] ✓ Registro %s completado: %d OK / %d total",
-                            completados_r, len(registros_pendientes),
-                            reg_ret, ok_c_r, len(res_r),
-                        )
-                    except Exception as e_r:
-                        log.error(
-                            "[CONC-REG] [%d/%d] ✗ Excepción en worker registro %s: %s",
-                            completados_r, len(registros_pendientes), reg_key, e_r,
-                        )
-                        with resultados_lock_r:
-                            todos_resultados_r.append({
-                                "folio": reg_key, "archivo": "EXCEPCION_WORKER",
-                                "tipo": "ERROR", "ruta": str(e_r)[:120],
-                                "tamano_kb": 0, "ok": False,
-                            })
+                        info["fh"].close()
+                    except Exception:
+                        pass
+                raise
+            finally:
+                for reg, info in list(running.items()):
+                    try:
+                        info["fh"].close()
+                    except Exception:
+                        pass
+
+            return resultados_lote
+
+        if registros_pendientes:
+            todos_resultados_r = []
+            registros_por_intentar = list(registros_pendientes)
+            max_reintentos = max(0, int(args.reintentos_registro or 0))
+            total_intentos = 1 + max_reintentos
+
+            for intento_num in range(1, total_intentos + 1):
+                if not registros_por_intentar:
+                    break
+
+                if intento_num == 1:
+                    workers_lote = (len(registros_por_intentar) if num_workers_r == 0
+                                    else min(num_workers_r, len(registros_por_intentar)))
+                else:
+                    workers_lote = min(
+                        max(1, int(args.workers_reintento or WORKERS_REINTENTO_REGISTRO)),
+                        len(registros_por_intentar),
+                    )
+
+                log.info(
+                    "[MAIN] ── FASE 2 REGISTRO: intento %d/%d con %d registro(s) ──",
+                    intento_num, total_intentos, len(registros_por_intentar),
+                )
+                resultados_intento = _procesar_lote_registros_subprocesos(
+                    registros_por_intentar,
+                    workers_lote,
+                    intento_num,
+                )
+                todos_resultados_r.extend(resultados_intento)
+
+                # Recalcular fallidos con evidencia real en descargas/, no solo por return code.
+                fallidos_post = [reg for reg in registros_por_intentar if not _registro_ya_completo(reg)]
+                recuperados = len(registros_por_intentar) - len(fallidos_post)
+                log.info(
+                    "[REINTENTOS] Intento %d/%d terminado: recuperados=%d | siguen pendientes=%d",
+                    intento_num, total_intentos, recuperados, len(fallidos_post),
+                )
+
+                if fallidos_post and intento_num < total_intentos:
+                    _guardar_txt_fallidos(fallidos_post, f"tras_intento_{intento_num}")
+                    registros_por_intentar = fallidos_post
+                    log.warning(
+                        "[REINTENTOS] Reintentando SOLO %d registro(s) incompletos con workers=%s",
+                        len(registros_por_intentar), args.workers_reintento,
+                    )
+                else:
+                    registros_por_intentar = fallidos_post
+                    break
+
+            fallidos_finales = [reg for reg in registros_pendientes if not _registro_ya_completo(reg)]
+            if fallidos_finales:
+                out_fallidos = _guardar_txt_fallidos(fallidos_finales, "final")
+                log.error(
+                    "[FALLIDOS] %d registro(s) no pudieron completarse tras %d intento(s). Archivo: %s",
+                    len(fallidos_finales), total_intentos, out_fallidos,
+                )
+            else:
+                try:
+                    REGISTROS_FALLIDOS_DIR.mkdir(parents=True, exist_ok=True)
+                    (REGISTROS_FALLIDOS_DIR / "registros_fallidos_latest.txt").write_text("", encoding="utf-8")
+                except Exception:
+                    pass
+                log.info("[FALLIDOS] Todos los registros pendientes quedaron completos tras los intentos controlados.")
 
         # ── Reporte final modo registro ───────────────────────────
         if todos_resultados_r:

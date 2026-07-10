@@ -271,9 +271,36 @@ def actualizar_excel(
         col_tipo        = encabezados.get("Tipo Trámite", None)
         col_fecha_limite = encabezados.get("FECHA LÍMITE", None)
 
-        # Insertar siempre en la última fila, sin importar si ya existe
-        fila = ws.max_row + 1
-        log.info("➕ Agregando nueva fila %d para folio %s (registro %s)", fila, folio, registro or "N/A")
+        # Idempotencia: si el registro/folio ya existe, actualizar esa fila
+        # en lugar de duplicar. Esto permite reprocesar TODO descargas/ sin
+        # generar filas repetidas en TrámitesCRT.xlsx.
+        def _norm_excel(v):
+            return str(v or "").strip().upper()
+
+        fila = None
+        registro_norm = _norm_excel(registro)
+        folio_norm = _norm_excel(folio)
+
+        # Prioridad 1: misma columna 1711 (registro), si hay registro.
+        if registro_norm:
+            for r in range(2, ws.max_row + 1):
+                if _norm_excel(ws.cell(row=r, column=col_1711).value) == registro_norm:
+                    fila = r
+                    break
+
+        # Prioridad 2: mismo Memo/Volante, solo si no se encontró por registro.
+        if fila is None and folio_norm:
+            for r in range(2, ws.max_row + 1):
+                if _norm_excel(ws.cell(row=r, column=col_memo).value) == folio_norm:
+                    fila = r
+                    break
+
+        if fila is None:
+            fila = ws.max_row + 1
+            log.info("➕ Agregando nueva fila %d para folio %s (registro %s)", fila, folio, registro or "N/A")
+        else:
+            log.info("♻️  Actualizando fila existente %d para folio %s (registro %s)", fila, folio, registro or "N/A")
+
         ws.cell(row=fila, column=col_memo, value=folio)
 
         # Escribir datos

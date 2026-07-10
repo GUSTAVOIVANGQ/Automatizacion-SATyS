@@ -129,6 +129,194 @@ def cargar_registros_desde_archivo(path: str | Path) -> list[str]:
     return registros
 
 
+def es_registro_pendiente(registro: str) -> bool:
+    """
+    Determina si un registro necesita ser (re)descargado.
+
+    Un registro se considera PENDIENTE si cumple CUALQUIERA de estas condiciones:
+      1. Su carpeta en descargas/ no existe.
+      2. Su carpeta existe pero está vacía (sin archivos).
+      3. metadata_satys.json o metadata_tramite_nuevo.json tienen los campos
+         'id_solicitante', 'asunto' o 'representante_legal' vacíos o null.
+
+    Retorna True si el registro debe descargarse/reprocesarse.
+    """
+    carpeta = DESCARGA_BASE / registro
+
+    # Condición 1: carpeta no existe
+    if not carpeta.exists():
+        return True
+
+    # Condición 2: carpeta vacía de archivos reales.
+    # Los JSON generados por el programa (metadata_*.json, metadata_completo.json)
+    # NO cuentan como descarga; solo PDFs u otros archivos descargados cuentan.
+    JSON_GENERADOS = {"metadata_completo.json", "metadata_satys.json", "metadata_tramite_nuevo.json"}
+    archivos_reales = [
+        f for f in carpeta.glob("*")
+        if f.is_file() and f.name not in JSON_GENERADOS
+    ]
+    if not archivos_reales:
+        return True
+
+    # Condición 3: revisar campos críticos en los JSON de metadatos
+    CAMPOS_CRITICOS = ("id_representante_legal", "id_solicitante")
+
+    def _campos_incompletos(json_path: Path) -> bool:
+        """Retorna True si el JSON tiene algún campo crítico vacío o null."""
+        if not json_path.exists():
+            return False  # Si no existe el JSON, no bloqueamos por este archivo
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+            for campo in CAMPOS_CRITICOS:
+                valor = meta.get(campo)
+                if valor is None or str(valor).strip() == "":
+                    return True
+            return False
+        except Exception:
+            return True  # Si no se puede leer, marcar como pendiente
+
+    if _campos_incompletos(carpeta / "metadata_satys.json"):
+        return True
+    if _campos_incompletos(carpeta / "metadata_tramite_nuevo.json"):
+        return True
+
+    return False
+
+
+def filtrar_registros_pendientes(registros: list[str]) -> tuple[list[str], list[str]]:
+    """
+    Filtra la lista de registros y separa los pendientes de los ya completos.
+
+    Retorna: (pendientes, completos)
+      - pendientes: lista de registros que necesitan descarga/reprocesamiento.
+      - completos:  lista de registros que ya tienen descarga correcta.
+    """
+    pendientes = []
+    completos = []
+    for registro in registros:
+        if es_registro_pendiente(registro):
+            pendientes.append(registro)
+        else:
+            completos.append(registro)
+    return pendientes, completos
+
+
+
+# ────────────────────────────────────────────────────────
+#  DESCUBRIMIENTO DE DESCARGAS LOCALES PARA PARTES 2-4
+# ────────────────────────────────────────────────────────
+
+JSON_GENERADOS_DESCARGA = {
+    "metadata_completo.json",
+    "metadata_satys.json",
+    "metadata_tramite_nuevo.json",
+}
+
+
+def carpeta_tiene_archivos_reales(carpeta: Path) -> bool:
+    """
+    True si la carpeta tiene al menos un archivo real descargado.
+
+    Los JSON de metadatos NO cuentan como descarga; sirven para procesar,
+    pero no prueban que el expediente tenga documentos.
+    """
+    if not carpeta.exists() or not carpeta.is_dir():
+        return False
+    for archivo in carpeta.iterdir():
+        if archivo.is_file() and archivo.name not in JSON_GENERADOS_DESCARGA:
+            return True
+    return False
+
+
+def leer_metadata_descarga(carpeta: Path) -> dict:
+    """Lee metadata_satys.json y metadata_tramite_nuevo.json si existen."""
+    data: dict = {}
+    for nombre in ("metadata_satys.json", "metadata_tramite_nuevo.json"):
+        path = carpeta / nombre
+        if not path.exists():
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                contenido = json.load(f)
+            if isinstance(contenido, dict):
+                data.update(contenido)
+        except Exception as e:
+            log.warning("⚠️  No se pudo leer metadata %s: %s", path, e)
+    return data
+
+
+def folio_excel_desde_metadata(carpeta: Path, fallback: str) -> str:
+    """
+    Determina el folio que debe escribirse en Excel para una carpeta local.
+    Prioridad:
+      1) metadata['folio']
+      2) número extraído de metadata['folio_opc']
+      3) metadata['memo_folio_opc']
+      4) nombre de carpeta / fallback
+    """
+    meta = leer_metadata_descarga(carpeta)
+    folio_directo = meta.get("folio")
+    if not folio_directo:
+        folio_opc = meta.get("folio_opc", "") or ""
+        if folio_opc:
+            numeros = re.sub(r"[^0-9]", "", str(folio_opc))
+            folio_directo = numeros if numeros else None
+    return str(folio_directo or meta.get("memo_folio_opc") or fallback).strip()
+
+
+def registro_desde_metadata_o_nombre(carpeta: Path) -> str:
+    """Devuelve el Registro CRT si está en metadata o en el nombre de carpeta."""
+    meta = leer_metadata_descarga(carpeta)
+    for key in ("registro", "numero_registro", "1711"):
+        valor = normalizar_registro_satys(meta.get(key, ""))
+        if valor:
+            return valor
+    return normalizar_registro_satys(carpeta.name)
+
+
+def descubrir_descargas_procesables(incluir_subcarpetas: bool = True) -> list[tuple[Path, str, str]]:
+    """
+    Escanea descargas/ y devuelve TODAS las carpetas procesables.
+
+    Retorna tuplas:
+      (carpeta_fisica, folio_id_para_output, registro_detectado_o_nombre)
+
+    Esto permite que, al terminar Parte1, Partes 2-4 trabajen sobre el
+    estado real de C:\\...\\descargas y no solo sobre la lista que se acaba
+    de bajar en esta ejecución.
+    """
+    if not DESCARGA_BASE.exists():
+        return []
+
+    candidatos: list[tuple[Path, str, str]] = []
+    vistos: set[str] = set()
+
+    def agregar(carpeta: Path, folio_id: str) -> None:
+        try:
+            key = str(carpeta.resolve()).lower()
+        except Exception:
+            key = str(carpeta).lower()
+        if key in vistos:
+            return
+        if not carpeta_tiene_archivos_reales(carpeta):
+            return
+        vistos.add(key)
+        registro_ref = registro_desde_metadata_o_nombre(carpeta) or carpeta.name
+        candidatos.append((carpeta, folio_id, registro_ref))
+
+    for carpeta in sorted([p for p in DESCARGA_BASE.iterdir() if p.is_dir()], key=lambda p: p.name.upper()):
+        # Caso normal: descargas/<folio_o_registro>/archivos...
+        agregar(carpeta, carpeta.name)
+
+        # Caso especial: descargas/<folio>_1/<registro>/archivos...
+        if incluir_subcarpetas:
+            for sub in sorted([p for p in carpeta.iterdir() if p.is_dir()], key=lambda p: p.name.upper()):
+                agregar(sub, f"{carpeta.name}__{sub.name}")
+
+    return candidatos
+
+
 
 # ────────────────────────────────────────────────────────
 #  PARTE 1: Descarga (importa Parte1_descarga.py)
@@ -723,6 +911,12 @@ Ejemplos:
                         help="Ruta a un archivo .txt con la lista de folios a procesar (uno por línea)")
     parser.add_argument("--workers", type=int, default=10,
                         help="Número de ventanas de navegador a usar en Playwright (Parte 1)")
+    parser.add_argument("--timeout-registro", type=int, default=900,
+                        help="Timeout duro por Registro en segundos durante la descarga. Default: 900 (15 min).")
+    parser.add_argument("--reintentos-registro", type=int, default=2,
+                        help="Reintentos automáticos solo para registros incompletos. 2 = hasta 3 intentos totales.")
+    parser.add_argument("--workers-reintento", type=int, default=2,
+                        help="Workers usados en reintentos de registros fallidos/incompletos. Default: 2.")
     parser.add_argument("--headless", action="store_true",
                         help="Ocultar navegador de Playwright (ejecución en segundo plano).")
     parser.add_argument("--archivo-registro", type=str, default="",
@@ -769,44 +963,88 @@ Ejemplos:
             log.error("❌ El archivo de registros está vacío o no contiene registros con formato CRT26-000000")
             return
 
+        # Guardar la lista original solo como referencia.
+        # Las Partes 2-4 ya no se limitarán a lo descargado en este intento;
+        # al terminar Parte1 se escaneará descargas/ completo.
+        registros_archivo_original = list(registros)
+
+        # ── Filtrar registros pendientes ─────────────────────────────────
+        log.info("🔍 Analizando qué registros ya fueron descargados correctamente...")
+        registros_pendientes, registros_completos = filtrar_registros_pendientes(registros)
+
         print("\n" + "─" * 70)
         print("  MODO REGISTRO: DESCARGA POR NÚMERO DE REGISTRO")
         print("─" * 70)
-        print(f"  Total de registros a procesar: {len(registros)}")
-        muestra_registros = ", ".join(registros[:50])
-        if len(registros) > 50:
-            muestra_registros += f", ... (+{len(registros) - 50} más)"
-        print(f"  Registros: {muestra_registros}")
+        print(f"  📋 Total en archivo     : {len(registros)}")
+        print(f"  ✅ Ya completos (skip)  : {len(registros_completos)}")
+        print(f"  📥 Pendientes (a bajar) : {len(registros_pendientes)}")
+        print("─" * 70)
+
+        if registros_pendientes:
+            muestra = ", ".join(registros_pendientes[:30])
+            if len(registros_pendientes) > 30:
+                muestra += f", ... (+{len(registros_pendientes) - 30} más)"
+            print(f"  Pendientes: {muestra}")
+        else:
+            print("  🎉 ¡Todos los registros ya están completos! No hay nada que descargar.")
         print("─" * 70 + "\n")
 
-        # ── Ejecutar Parte 1 en modo registro ───────────────────────────
-        try:
-            import Parte1_descarga
-        except ImportError as e:
-            log.error("❌ No se encontró Parte1_descarga.py: %s", e)
+        if registros_pendientes:
+            # Usar solo los registros pendientes para la descarga.
+            # Los ya completos NO se descargan de nuevo, pero SÍ se procesarán
+            # después porque las Partes 2-4 escanearán descargas/ completo.
+            registros = registros_pendientes
+
+            # ── Ejecutar Parte 1 en modo registro ───────────────────────────
+            try:
+                import Parte1_descarga
+            except ImportError as e:
+                log.error("❌ No se encontró Parte1_descarga.py: %s", e)
+                return
+
+            Parte1_descarga.USUARIO   = SATYS_USUARIO
+            Parte1_descarga.PASSWORD  = SATYS_PASSWORD
+            Parte1_descarga.HEADLESS  = args.headless
+            Parte1_descarga.DESCARGA_BASE = DESCARGA_BASE
+
+            headless_flag = ["--headless"] if args.headless else ["--visible"]
+            try:
+                original_argv = sys.argv
+                sys.argv = (
+                    ["Parte1_descarga.py"]
+                    + headless_flag
+                    + ["--workers", str(args.workers)]
+                    + ["--timeout-registro", str(args.timeout_registro)]
+                    + ["--reintentos-registro", str(args.reintentos_registro)]
+                    + ["--workers-reintento", str(args.workers_reintento)]
+                    + ["--modo-registro"]
+                    + ["--registros"] + registros
+                )
+                Parte1_descarga.main()
+                sys.argv = original_argv
+            except Exception as e:
+                log.error("❌ Error en descarga por registro: %s", e)
+                sys.argv = original_argv
+                return
+        else:
+            log.info("✅ No hay registros pendientes para descargar. Se omite Parte 1 y se procesará descargas/ completo.")
+
+        # Después de Parte1, procesar en Partes 2-4 TODO lo que está realmente
+        # descargado en descargas/. Esto incluye:
+        #   - registros que ya estaban completos antes de esta corrida,
+        #   - registros recuperados en esta corrida,
+        #   - carpetas cuyo nombre real es folio/VE aunque hayan venido de un registro CRT.
+        carpetas_para_procesar = descubrir_descargas_procesables()
+
+        if not carpetas_para_procesar:
+            log.error("❌ No se encontraron carpetas procesables en %s. No se ejecutan Partes 2-4.", DESCARGA_BASE)
+            sincronizar_carpeta_compartida()
             return
 
-        Parte1_descarga.USUARIO   = SATYS_USUARIO
-        Parte1_descarga.PASSWORD  = SATYS_PASSWORD
-        Parte1_descarga.HEADLESS  = args.headless
-        Parte1_descarga.DESCARGA_BASE = DESCARGA_BASE
-
-        headless_flag = ["--headless"] if args.headless else ["--visible"]
-        try:
-            original_argv = sys.argv
-            sys.argv = (
-                ["Parte1_descarga.py"]
-                + headless_flag
-                + ["--workers", str(args.workers)]
-                + ["--modo-registro"]
-                + ["--registros"] + registros
-            )
-            Parte1_descarga.main()
-            sys.argv = original_argv
-        except Exception as e:
-            log.error("❌ Error en descarga por registro: %s", e)
-            sys.argv = original_argv
-            return
+        log.info(
+            "✅ Partes 2-4 procesarán %d carpeta(s) descargada(s) detectada(s) en %s, no solo las de esta ejecución.",
+            len(carpetas_para_procesar), DESCARGA_BASE,
+        )
 
         # ── Cargar catálogo RPC para Partes 2-4 ──────────────────────
         log.info("🗂️  Cargando catálogo RPC...")
@@ -840,53 +1078,28 @@ Ejemplos:
             log.error("❌ No se encontró el Excel: %s", EXCEL_PATH)
             return
 
-        # ── Partes 2-4 para cada registro ───────────────────────────
+        # ── Partes 2-4 para cada carpeta realmente descargada ─────────
         resultados_r = []
-        for i_r, registro in enumerate(registros, 1):
-            # La carpeta de descarga se llama igual que el registro
-            carpetas_reg = descubrir_carpetas_de_folio(registro)
-            if not carpetas_reg:
-                carpetas_reg = [(DESCARGA_BASE / registro, registro)]
+        total_carpetas_r = len(carpetas_para_procesar)
+        for i_r, (carpeta_reg, folio_id_reg, registro_ref) in enumerate(carpetas_para_procesar, 1):
+            print(f"\n{'─' * 70}")
+            print(f"  [{i_r}/{total_carpetas_r}] PROCESANDO DESCARGA: {carpeta_reg.name}")
+            print(f"      Carpeta : {carpeta_reg}")
+            print(f"      Registro: {registro_ref}")
+            print(f"{'─' * 70}")
 
-            for carpeta_reg, folio_id_reg in carpetas_reg:
-                print(f"\n{'─' * 70}")
-                print(f"  [{i_r}/{len(registros)}] PROCESANDO REGISTRO: {registro}")
-                print(f"{'─' * 70}")
+            folio_para_excel = folio_excel_desde_metadata(carpeta_reg, registro_ref or carpeta_reg.name)
 
-                # Leer el folio (Memo/Folio OPC) desde metadata si existe
-                meta_path_r = carpeta_reg / "metadata_satys.json"
-                folio_para_excel = registro  # fallback
-                if meta_path_r.exists():
-                    try:
-                        with open(meta_path_r, "r", encoding="utf-8") as f_meta:
-                            meta_r = json.load(f_meta)
-                            # Primero intentar el campo "folio" (ya derivado por Parte1)
-                            folio_directo = meta_r.get("folio")
-                            # Fallback: derivar desde folio_opc si folio no está
-                            if not folio_directo:
-                                folio_opc_r = meta_r.get("folio_opc", "") or ""
-                                if folio_opc_r:
-                                    import re as _re
-                                    numeros_r = _re.sub(r"[^0-9]", "", folio_opc_r)
-                                    folio_directo = numeros_r if numeros_r else None
-                            folio_para_excel = (
-                                folio_directo
-                                or meta_r.get("memo_folio_opc")
-                                or registro
-                            )
-                    except Exception:
-                        pass
-
-                resultado_r = procesar_folio(
-                    folio=folio_para_excel,
-                    catalogo=catalogo_r,
-                    modo_extraccion=MODO_EXTRACCION,
-                    azure_endpoint=AZURE_ENDPOINT,
-                    azure_key=AZURE_KEY,
-                    carpeta=carpeta_reg,
-                    folio_id=folio_id_reg,
-                )
-                resultados_r.append(resultado_r)
+            resultado_r = procesar_folio(
+                folio=folio_para_excel,
+                catalogo=catalogo_r,
+                modo_extraccion=MODO_EXTRACCION,
+                azure_endpoint=AZURE_ENDPOINT,
+                azure_key=AZURE_KEY,
+                carpeta=carpeta_reg,
+                folio_id=folio_id_reg,
+            )
+            resultados_r.append(resultado_r)
 
         imprimir_reporte(resultados_r)
 
@@ -901,7 +1114,8 @@ Ejemplos:
             log_data_r = {
                 "fecha_ejecucion":  datetime.now().isoformat(),
                 "modo":             "registro",
-                "total_registros":  len(resultados_r),
+                "total_carpetas_descargas_procesadas": len(resultados_r),
+                "registros_archivo_original": len(registros_archivo_original),
                 "total_exitosos":   conteos_r["exitosos"],
                 "total_sin_operador": conteos_r["sin_operador"],
                 "total_errores":    conteos_r["errores"],
