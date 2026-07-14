@@ -1,0 +1,23 @@
+[Unit]
+Description=SATyS CRT - API de monitoreo FastAPI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gustavo.garcia
+WorkingDirectory=/data/satys/Automatizacion-SATyS
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONIOENCODING=utf-8
+Environment=SATYS_ESTADO_JSON=/data/satys/Automatizacion-SATyS/logs/estado_actual.json
+Environment=SATYS_SYSTEMD_SERVICE=satys-diario.service
+Environment=SATYS_SYSTEMD_TIMER=satys-diario.timer
+Environment=SATYS_API_ALLOW_START=1
+Environment=SATYS_API_ALLOW_MANUAL=1
+Environment=SATYS_API_ALLOW_TIMER_EDIT=0
+ExecStart=/data/satys/venv/bin/uvicorn satys_api:app --host 0.0.0.0 --port 8080
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
