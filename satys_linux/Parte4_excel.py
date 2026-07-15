@@ -16,7 +16,6 @@ Uso independiente:
 
 import sys
 import io
-import os
 import re
 import shutil
 import logging
@@ -51,13 +50,10 @@ SHEET_NAME = "Turnados recibidos"
 ORGANIZAR_DESCARGAS = True
 BORRAR_CARPETA_FOLIO_VACIA = False
 
-# Carpeta compartida/salida consolidada donde se sincroniza el Excel.
-# En Linux queda deshabilitada si SATYS_CARPETA_COMPARTIDA no está definida.
-CARPETA_COMPARTIDA_EXCEL: Path | None = (
-    Path(os.getenv("SATYS_CARPETA_COMPARTIDA")).expanduser()
-    if os.getenv("SATYS_CARPETA_COMPARTIDA", "").strip()
-    else None
-)
+# Carpeta compartida de red donde se sincroniza el Excel.
+# Debe coincidir con CARPETA_COMPARTIDA en main_procesar.py.
+# Pon None para deshabilitar la sincronización inmediata del Excel.
+CARPETA_COMPARTIDA_EXCEL: Path | None = Path(r"Z:\DEI_DATOS\SATyS")
 
 EXCEL_EXTS = {".xls", ".xlsx", ".xlsm", ".xlsb", ".csv"}
 WORD_EXTS = {".doc", ".docx"}
@@ -378,7 +374,7 @@ def actualizar_excel(
 
 def sincronizar_excel_a_red(excel_local: Path = None) -> None:
     """
-    Copia el Excel local a SATYS_CARPETA_COMPARTIDA, si está definido
+    Copia el Excel local a la carpeta compartida de red (Z:\DEI_DATOS\SATyS)
     inmediatamente después de cada guardado.
 
     - Si el archivo de red no existe, lo crea.

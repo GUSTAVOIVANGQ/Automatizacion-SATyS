@@ -28,6 +28,7 @@ import os
 import re
 import subprocess
 import sys
+import signal
 import time
 import traceback
 from datetime import datetime
@@ -381,6 +382,20 @@ def main() -> int:
     try:
         estado.actualizar(stage="tomando_lock")
         lock.adquirir()
+
+        def _salir_limpiamente(signum, frame):
+            try:
+                lock.liberar()
+            finally:
+                estado.finalizar(ok=False, mensaje=f"Proceso detenido por señal {signum}")
+                raise SystemExit(128 + signum)
+
+        try:
+            signal.signal(signal.SIGTERM, _salir_limpiamente)
+            signal.signal(signal.SIGINT, _salir_limpiamente)
+        except Exception:
+            pass
+
         estado.actualizar(stage="lock_adquirido")
     except LockOcupadoError as exc:
         # No es un error real del monitor: simplemente otra laptop ya está
@@ -559,6 +574,7 @@ def main() -> int:
             "--timeout-registro", str(args.timeout_registro),
             "--reintentos-registro", str(args.reintentos_registro),
             "--workers-reintento", str(args.workers_reintento),
+            "--sin-lock",
         ]
         if headless:
             cmd_main.append("--headless")
@@ -587,14 +603,13 @@ def main() -> int:
         )
 
         # ── Notificación por correo electrónico ──────────────────────────────
-        if _EMAIL_DISPONIBLE and not args.sin_email:
-            # main_procesar.py guarda el log en descargas/procesamiento_log_registros.json
-            log_json_path = PROJECT_DIR / "descargas" / "procesamiento_log_registros.json"
-            _email_mod.enviar_desde_log_json(log_json_path)
-        elif args.sin_email:
+        # main_procesar.py ya envía el correo final con resultados correctos y
+        # rutas de salida (Folios_Datos_Completos.xlsx, output/, descargas/ y
+        # TrámitesCRT.xlsx). No enviamos un segundo correo aquí para evitar duplicados.
+        if args.sin_email:
             print("\nℹ️  Correo deshabilitado por --sin-email.")
         else:
-            print("\n⚠️  Módulo notificar_email no disponible; correo no enviado.")
+            print("\nℹ️  La notificación de resultados la envía main_procesar.py al finalizar.")
 
         estado.finalizar(
             ok=rc_main == 0,
@@ -632,6 +647,11 @@ def main() -> int:
         return 1
 
     finally:
+        try:
+            lock.liberar()
+            print("🔓 Lock compartido liberado al finalizar automatizar_registros_diario.py.")
+        except Exception:
+            pass
         try:
             resumen["fecha_fin"] = datetime.now().isoformat()
             resumen_json.write_text(json.dumps(resumen, ensure_ascii=False, indent=2), encoding="utf-8")

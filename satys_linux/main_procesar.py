@@ -6,17 +6,15 @@ r"""
 Ejecuta el flujo completo de procesamiento:
 
   Parte 1 → Descarga automática desde SATyS (Playwright)
-  Metadatos → Lectura directa de metadata_satys.json / metadata_tramite_nuevo.json
+  Parte 2 → Extracción de datos del PDF (Azure AI o pdfplumber)
   Parte 3 → Búsqueda en RPC (API REST, sin Playwright)
   Parte 4 → Actualización de Excel y organización de archivos
 
-  Nota: Parte2_extraer.py NO se llama en el flujo de producción Linux.
-
 Uso:
-  python main_procesar.py                    # Procesa descargas existentes con metadatos + Parte 3 + Parte 4
-  python main_procesar.py 6407 6801          # Folios específicos con metadatos + Parte 3 + Parte 4
-  python main_procesar.py --descarga         # Parte 1 + metadatos + Parte 3 + Parte 4
-  python main_procesar.py --descarga 6407    # Parte 1 + metadatos + Parte 3 + Parte 4
+  .\python_portable\python.exe main_procesar.py                    # Partes 2-4 (todos los folios)
+  .\python_portable\python.exe main_procesar.py 6407 6801          # Partes 2-4 (folios específicos)
+  .\python_portable\python.exe main_procesar.py --descarga         # Parte 1 + 2-4
+  .\python_portable\python.exe main_procesar.py --descarga 6407    # Parte 1 (folio) + 2-4
   .\python_portable\python.exe main_procesar.py --rebuild-catalogo # Reconstruir catálogo RPC
 =============================================================
 """
@@ -29,6 +27,7 @@ import json
 import logging
 import argparse
 import shutil
+import signal
 from pathlib import Path
 from datetime import datetime
 
@@ -63,10 +62,15 @@ SATYS_USUARIO = os.getenv("SATYS_USER", "david.palestina@ift.org.mx")
 SATYS_PASSWORD = os.getenv("SATYS_PASS", "Crt20261234**")
 HEADLESS = False  # False = ver navegador | True = sin ventana
 
-# ──── PARTE 2: Extracción de datos ────
-# Producción Linux: se usan metadatos extraídos desde SATyS/JSON y lógica local.
-# La extracción en nube queda deshabilitada por decisión de despliegue.
-MODO_EXTRACCION = os.getenv("SATYS_MODO_EXTRACCION", "metadata_satys")
+# ──── PARTE 2: Extracción de PDFs ────
+# Cambia esta línea para elegir el modo de extracción:
+#   "azure"      → Usa Azure AI Document Intelligence (más preciso, requiere internet)
+#   "pdfplumber" → Usa pdfplumber + regex local (gratis, sin internet, menos preciso)
+MODO_EXTRACCION = "azure"
+
+# Credenciales Azure AI (solo necesarias si MODO_EXTRACCION = "azure")
+AZURE_ENDPOINT = "https://foundrycenac.cognitiveservices.azure.com/"
+AZURE_KEY = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_KEY", "")
 
 # ──── PARTE 3: Búsqueda en RPC ────
 # El catálogo se descarga automáticamente la primera vez
@@ -75,15 +79,10 @@ MODO_EXTRACCION = os.getenv("SATYS_MODO_EXTRACCION", "metadata_satys")
 # ──── PARTE 4: Excel y archivos ────
 ORGANIZAR_DESCARGAS = True  # True = mover archivos a carpetas RPC
 
-# ──── PARTE 5: Carpeta compartida/salida consolidada ────
-# En Linux no se usa unidad de red de Windows. Si se requiere copia final, definir:
-#   export SATYS_CARPETA_COMPARTIDA=/data/satys/compartido
-# Si no se define, no se sincroniza fuera del proyecto.
-CARPETA_COMPARTIDA = (
-    Path(os.getenv("SATYS_CARPETA_COMPARTIDA")).expanduser()
-    if os.getenv("SATYS_CARPETA_COMPARTIDA", "").strip()
-    else None
-)
+# ──── PARTE 5: Carpeta compartida de red ────
+# Directorio destino donde se copian output/ y TrámitesCRT.xlsx al finalizar.
+# Pon None para deshabilitar la sincronización.
+CARPETA_COMPARTIDA = Path(r"Z:\DEI_DATOS\SATyS")
 # ════════════════════════════════════════════════════════════════
 
 
@@ -284,7 +283,7 @@ def descubrir_descargas_procesables(incluir_subcarpetas: bool = True) -> list[tu
     Retorna tuplas:
       (carpeta_fisica, folio_id_para_output, registro_detectado_o_nombre)
 
-    Esto permite que, al terminar Parte1, el procesamiento local (metadatos + Parte 3 + Parte 4) trabaje sobre el
+    Esto permite que, al terminar Parte1, Partes 2-4 trabajen sobre el
     estado real de C:\\...\\descargas y no solo sobre la lista que se acaba
     de bajar en esta ejecución.
     """
@@ -488,7 +487,9 @@ def descubrir_carpetas_de_folio(folio: str) -> list[tuple[Path, str]]:
 def procesar_folio(
     folio: str,
     catalogo: list,
-    modo_extraccion: str = "metadata_satys",
+    modo_extraccion: str = "azure",
+    azure_endpoint: str = "",
+    azure_key: str = "",
     carpeta: Path = None,
     folio_id: str = None,
 ) -> dict:
@@ -519,12 +520,13 @@ def procesar_folio(
     }
 
     carpeta = carpeta if carpeta is not None else (DESCARGA_BASE / folio)
+    resultado["descargas_dir"] = str(carpeta)
     if not carpeta.exists():
         log.error("❌ Carpeta no existe: %s", carpeta)
         return resultado
 
-    # ──── LECTURA DE METADATOS (sin llamar Parte2_extraer.py) ────
-    log.info("📄 [METADATOS] Leyendo metadata_satys.json / metadata_tramite_nuevo.json directamente.")
+    # ──── LECTURA DE METADATOS (Omitiendo Parte 2) ────
+    log.info("📄 [PARTE 2-OMITIDA] Leyendo metadatos de JSON directamente...")
 
     # Buscar si existe un PDF en la carpeta
     pdfs = list(carpeta.glob("*.pdf"))
@@ -651,9 +653,33 @@ def procesar_folio(
                 origen_ganador = "ID"
                 log.info("✅ Coincidencia exacta por ID: %s", match_id["nombre_completo"][:60])
             else:
-                log.warning("⚠️  id_solicitante='%s' NO encontrado en catálogo. Se intentará fuzzy por nombre.", id_solicitante)
+                rpc_resultado = {
+                    "nombre_completo": "",
+                    "numero_rpc": "",
+                    "idBp": "",
+                    "ruta": "",
+                    "score": 0.0,
+                    "ok": False,
+                    "empate": False,
+                    "metodo": "id_exacto",
+                    "id_solicitante": id_solicitante,
+                    "motivo": "id_solicitante_no_encontrado_en_excel_rpc",
+                }
+                log.warning("⚠️  id_solicitante='%s' NO encontrado en catálogo RPC. Se marcará como SIN OPERADOR (0%%).", id_solicitante)
         else:
-            log.warning("⚠️  No hay id_solicitante en metadata. Se usará búsqueda fuzzy por nombre.")
+            rpc_resultado = {
+                "nombre_completo": "",
+                "numero_rpc": "",
+                "idBp": "",
+                "ruta": "",
+                "score": 0.0,
+                "ok": False,
+                "empate": False,
+                "metodo": "id_exacto",
+                "id_solicitante": "",
+                "motivo": "metadata_sin_id_solicitante",
+            }
+            log.warning("⚠️  No hay id_solicitante en metadata. Se marcará como SIN OPERADOR (0%%).")
 
         # ── FALLBACK: Similitud fuzzy por nombre (solo si ID falló) ──────────
         # Se conserva el código de similitud anterior como respaldo.
@@ -709,12 +735,34 @@ def procesar_folio(
         #     else:
         #         log.warning("⚠️  Sin nombre de operador en PDF ni Web, se omite búsqueda RPC")
     else:
-        # Catálogo sin 'norm' → usar Parte3_rpc directamente (sin Excel)
+        # Catálogo exacto no disponible. Por regla de negocio, NO se permite
+        # resolver operador por nombre/API/fuzzy: el cruce RPC debe ser 100% por
+        # id_solicitante == ID OPERADOR, o 0% / sin operador.
         nombre_pdf = datos_pdf.get("nombre_operador", "")
-        origen_ganador = "API"
-        nombre_original_usado = nombre_pdf
-        if nombre_pdf:
-            rpc_resultado = buscar_en_rpc(nombre_pdf, catalogo=catalogo)
+        if os.getenv("SATYS_RPC_PERMITIR_FUZZY", "0").strip() == "1":
+            # Modo diagnóstico/manual, deshabilitado por defecto.
+            origen_ganador = "API"
+            nombre_original_usado = nombre_pdf
+            if nombre_pdf:
+                log.warning("⚠️  SATYS_RPC_PERMITIR_FUZZY=1 activo: usando búsqueda RPC por nombre/API.")
+                rpc_resultado = buscar_en_rpc(nombre_pdf, catalogo=catalogo)
+        else:
+            rpc_resultado = {
+                "nombre_completo": "",
+                "numero_rpc": "",
+                "idBp": "",
+                "ruta": "",
+                "score": 0.0,
+                "ok": False,
+                "empate": False,
+                "metodo": "id_exacto",
+                "id_solicitante": id_solicitante,
+                "motivo": "catalogo_rpc_exact_no_disponible",
+            }
+            log.warning(
+                "⚠️  Catálogo RPC exacto no disponible o inválido. "
+                "Se omite búsqueda por nombre/API; folio quedará en _sin_operador."
+            )
 
     # ── Reporte de resultado RPC ─────────────────────────────────────────────
     if rpc_resultado and rpc_resultado.get("ok"):
@@ -741,11 +789,15 @@ def procesar_folio(
         resultado["nombre_operador"] = rpc_resultado["nombre_completo"]
         log.info("🔧 Nombre actualizado al oficial del catálogo.")
     elif rpc_resultado and not rpc_resultado.get("ok"):
-        # Hay resultado pero con empate u otro problema
+        # Sin coincidencia exacta por ID: 0% y revisión manual.
         resultado["rpc_resultado"] = rpc_resultado
         score_exactitud = rpc_resultado.get("score", 0) * 100
-        log.warning("⚠️  RPC encontrado pero con problema (empate u otro): %.0f%%", score_exactitud)
-        print(f"\n   ⚠️  EXACTITUD: {score_exactitud:.2f}% — Revisión manual requerida")
+        motivo = rpc_resultado.get("motivo", "sin_coincidencia_exacta")
+        log.warning("⚠️  RPC sin coincidencia exacta por ID: %.0f%% (%s)", score_exactitud, motivo)
+        print(f"\n   ⚠️  PORCENTAJE DE EXACTITUD (ID exacto): {score_exactitud:.2f}%")
+        print(f"      id_solicitante usado    : {id_solicitante or 'N/A'}")
+        print("      ID OPERADOR en catálogo : NO ENCONTRADO")
+        print("      Resultado               : _sin_operador / revisión manual")
 
     nombre_final = resultado.get("nombre_operador") or ""
 
@@ -776,6 +828,7 @@ def procesar_folio(
             destino = organizar_archivos(carpeta, ruta_destino)
             if destino:
                 resultado["organizado_ok"] = True
+                resultado["output_dir"] = str(destino)
         else:
             # Sin operador o coincidencia insuficiente → copiar carpeta a output\_sin_operador\{folio_id}
             # Usa rglob para copiar recursivamente (incluye archivos en subcarpetas de ZIPs extraídos)
@@ -795,6 +848,7 @@ def procesar_folio(
                         log.warning("⚠️  No se pudo copiar %s: %s", archivo.name, e_copy)
             resultado["archivos_pendientes"] = archivos_copiados
             resultado["sin_operador_dir"] = str(sin_op_dir)
+            resultado["output_dir"] = str(sin_op_dir)
             if archivos_copiados:
                 log.info("📂 Folio %s copiado a: %s (%d archivos)",
                          folio, sin_op_dir, len(archivos_copiados))
@@ -877,6 +931,77 @@ def imprimir_reporte(resultados: list):
     }
 
 
+def _conteos_resultados(resultados: list[dict]) -> dict:
+    """Conteos consistentes para reporte, JSON y correo."""
+    return {
+        "exitosos": sum(1 for r in resultados if r.get("rpc_ok") and r.get("organizado_ok") and r.get("excel_ok")),
+        "sin_operador": sum(1 for r in resultados if not (r.get("rpc_ok") and r.get("organizado_ok") and r.get("excel_ok")) and r.get("nombre_operador")),
+        "errores": sum(1 for r in resultados if not (r.get("rpc_ok") and r.get("organizado_ok") and r.get("excel_ok")) and not r.get("nombre_operador")),
+    }
+
+
+def _enviar_email_fin_proceso(
+    *,
+    resultados: list[dict],
+    modo: str,
+    log_path: Path | None = None,
+    excel_metadata_path: Path | None = None,
+    sin_email: bool = False,
+    email_to: str = "",
+) -> None:
+    """Envía la notificación final SATyS sin romper la corrida si falla el correo.
+
+    La notificación usa la configuración hardcodeada en notificar_email.py.
+    Siempre incluye las cuatro salidas principales: Folios_Datos_Completos.xlsx,
+    output/, descargas/ y TrámitesCRT.xlsx.
+    """
+    if sin_email:
+        log.info("ℹ️  Correo deshabilitado por --sin-email.")
+        return
+
+    try:
+        from notificar_email import enviar_notificacion
+    except Exception as e:
+        log.warning("⚠️  Módulo notificar_email no disponible; correo no enviado: %s", e)
+        return
+
+    conteos = _conteos_resultados(resultados)
+    excel_metadata_path = excel_metadata_path or (OUTPUT_BASE / "Folios_Datos_Completos.xlsx")
+
+    # Rutas absolutas para que el correo indique claramente dónde quedó cada salida.
+    project_root = Path.cwd()
+    outputs = {
+        "Folios_Datos_Completos.xlsx": str((project_root / excel_metadata_path).resolve() if not excel_metadata_path.is_absolute() else excel_metadata_path.resolve()),
+        "Carpeta output": str((project_root / OUTPUT_BASE).resolve() if not OUTPUT_BASE.is_absolute() else OUTPUT_BASE.resolve()),
+        "Carpeta descargas": str((project_root / DESCARGA_BASE).resolve() if not DESCARGA_BASE.is_absolute() else DESCARGA_BASE.resolve()),
+        "TrámitesCRT.xlsx": str((project_root / EXCEL_PATH).resolve() if not EXCEL_PATH.is_absolute() else EXCEL_PATH.resolve()),
+    }
+    if CARPETA_COMPARTIDA is not None:
+        outputs["Carpeta compartida"] = str(CARPETA_COMPARTIDA)
+
+    try:
+        enviar_notificacion(
+            total_registros=len(resultados),
+            exitosos=conteos["exitosos"],
+            sin_operador=conteos["sin_operador"],
+            errores=conteos["errores"],
+            registros=resultados,
+            fecha_ejecucion=datetime.now().isoformat(),
+            destinatarios=email_to or None,
+            modo=modo,
+            outputs=outputs,
+            log_path=str(log_path) if log_path else None,
+            project_root=project_root,
+            descargas_base=DESCARGA_BASE,
+            output_base=OUTPUT_BASE,
+            excel_path=EXCEL_PATH,
+            excel_metadata_path=excel_metadata_path,
+            carpeta_compartida=CARPETA_COMPARTIDA,
+        )
+    except Exception as e:
+        log.warning("⚠️  Error no crítico enviando correo de notificación: %s", e)
+
+
 
 # ════════════════════════════════════════════════════════
 #  FUNCIÓN PRINCIPAL
@@ -890,8 +1015,8 @@ def main():
 Ejemplos:
   main_procesar.py                      Partes 1-4 con folios por defecto
   main_procesar.py 6407 6801            Partes 1-4 con folios específicos
-  main_procesar.py --solo-procesar      Procesa todos los folios en descargas/ con metadatos + Parte 3 + Parte 4
-  main_procesar.py --solo-procesar 6407 Procesa folio específico con metadatos + Parte 3 + Parte 4
+  main_procesar.py --solo-procesar      Partes 2-4 con todos los folios en descargas/
+  main_procesar.py --solo-procesar 6407 Partes 2-4 con folio específico
   main_procesar.py --rebuild-catalogo   Reconstruir catálogo RPC
         """,
     )
@@ -922,446 +1047,549 @@ Ejemplos:
     parser.add_argument("--archivo-registro", type=str, default="",
                         help="Ruta a un archivo .txt con la lista de números de Registro a procesar "
                              "(uno por línea o separados por espacios/comas, ej. CRT26-002483). Activa el modo de búsqueda por Registro.")
+    parser.add_argument("--sin-email", action="store_true",
+                        help="No enviar notificación por correo al finalizar esta corrida.")
+    parser.add_argument("--email-to", type=str, default="",
+                        help="Destinatarios de correo separados por coma. Si se omite, usa los DESTINATARIOS hardcodeados en notificar_email.py.")
+    parser.add_argument("--sin-lock", action="store_true",
+                        help="No tomar el lock compartido. Usar solo cuando un proceso padre, como automatizar_registros_diario.py, ya tomó el lock.")
     args = parser.parse_args()
 
-    # ──── Bloqueo compartido: evita que 2+ laptops corran el proceso a la vez ────
-    # Si otro equipo (u otra ejecución en esta misma laptop) ya está corriendo
-    # main_procesar.py, se cancela aquí con un mensaje claro en vez de arriesgar
-    # colisiones en SATyS, en TrámitesCRT.xlsx o en /output y /descargas.
-    _lock = ProcesoLock(proceso="main_procesar.py")
+    # ──── Bloqueo compartido: evita que 2+ corridas SATyS se empalmen ────
+    # main_procesar.py toma el lock en corridas manuales, desde UI o API.
+    # En corrida diaria, automatizar_registros_diario.py toma el lock externo
+    # y llama main_procesar.py con --sin-lock para evitar bloquearse a sí mismo.
+    _lock = None
+    if not args.sin_lock:
+        _lock = ProcesoLock(proceso="main_procesar.py")
+        try:
+            _lock.adquirir()
+        except LockOcupadoError as e:
+            log.error("🔒 %s", e)
+            log.error("   Esta ejecución no iniciará. Intenta de nuevo más tarde.")
+            return 1
+
+        def _salir_limpiamente(signum, frame):
+            try:
+                if _lock is not None:
+                    _lock.liberar()
+            finally:
+                raise SystemExit(128 + signum)
+
+        try:
+            signal.signal(signal.SIGTERM, _salir_limpiamente)
+            signal.signal(signal.SIGINT, _salir_limpiamente)
+        except Exception:
+            pass
+    else:
+        log.info("🔒 Lock compartido omitido por --sin-lock; se asume que el proceso padre ya lo tomó.")
+
     try:
-        _lock.adquirir()
-    except LockOcupadoError as e:
-        log.error("🔒 %s", e)
-        log.error("   Esta laptop no iniciará el proceso. Intenta de nuevo más tarde.")
-        return
 
-    # Configuración local
-    global ORGANIZAR_DESCARGAS
-    if args.no_organizar:
-        ORGANIZAR_DESCARGAS = False
+        # Configuración local
+        global ORGANIZAR_DESCARGAS
+        if args.no_organizar:
+            ORGANIZAR_DESCARGAS = False
 
-    # Banner
-    print("\n" + "╔" + "═" * 68 + "╗")
-    print("║" + "  SATyS — PROCESAMIENTO COMPLETO (PARTES 1-4)  ".center(68) + "║")
-    modo_label = "metadatos SATyS / JSON local"
-    print("║" + f"  Extracción: {modo_label} • RPC: API REST • Fuzzy Matching  ".center(68) + "║")
-    print("╚" + "═" * 68 + "╝\n")
+        # Banner
+        print("\n" + "╔" + "═" * 68 + "╗")
+        print("║" + "  SATyS — PROCESAMIENTO COMPLETO (PARTES 1-4)  ".center(68) + "║")
+        modo_label = "Azure AI" if MODO_EXTRACCION == "azure" else "pdfplumber (local)"
+        print("║" + f"  Extracción: {modo_label} • RPC: ID exacto 0/100  ".center(68) + "║")
+        print("╚" + "═" * 68 + "╝\n")
 
-    # ────────────────────────────────────────────────────────────────────────
-    # MODO REGISTRO: buscar y descargar por número de Registro
-    # ────────────────────────────────────────────────────────────────────────
-    if args.archivo_registro:
-        try:
-            registros = cargar_registros_desde_archivo(args.archivo_registro)
-            print(f"📄 Cargados {len(registros)} registro(s) desde {args.archivo_registro}")
-        except Exception as e:
-            log.error("❌ Error leyendo archivo de registros %s: %s", args.archivo_registro, e)
-            return
-
-        if not registros:
-            log.error("❌ El archivo de registros está vacío o no contiene registros con formato CRT26-000000")
-            return
-
-        # Guardar la lista original solo como referencia.
-        # El procesamiento local ya no se limitará a lo descargado en este intento;
-        # al terminar Parte1 se escaneará descargas/ completo.
-        registros_archivo_original = list(registros)
-
-        # ── Filtrar registros pendientes ─────────────────────────────────
-        log.info("🔍 Analizando qué registros ya fueron descargados correctamente...")
-        registros_pendientes, registros_completos = filtrar_registros_pendientes(registros)
-
-        print("\n" + "─" * 70)
-        print("  MODO REGISTRO: DESCARGA POR NÚMERO DE REGISTRO")
-        print("─" * 70)
-        print(f"  📋 Total en archivo     : {len(registros)}")
-        print(f"  ✅ Ya completos (skip)  : {len(registros_completos)}")
-        print(f"  📥 Pendientes (a bajar) : {len(registros_pendientes)}")
-        print("─" * 70)
-
-        if registros_pendientes:
-            muestra = ", ".join(registros_pendientes[:30])
-            if len(registros_pendientes) > 30:
-                muestra += f", ... (+{len(registros_pendientes) - 30} más)"
-            print(f"  Pendientes: {muestra}")
-        else:
-            print("  🎉 ¡Todos los registros ya están completos! No hay nada que descargar.")
-        print("─" * 70 + "\n")
-
-        if registros_pendientes:
-            # Usar solo los registros pendientes para la descarga.
-            # Los ya completos NO se descargan de nuevo, pero SÍ se procesarán
-            # después porque el procesamiento local escaneará descargas/ completo.
-            registros = registros_pendientes
-
-            # ── Ejecutar Parte 1 en modo registro ───────────────────────────
+        # ────────────────────────────────────────────────────────────────────────
+        # MODO REGISTRO: buscar y descargar por número de Registro
+        # ────────────────────────────────────────────────────────────────────────
+        if args.archivo_registro:
             try:
-                import Parte1_descarga
-            except ImportError as e:
-                log.error("❌ No se encontró Parte1_descarga.py: %s", e)
-                return
-
-            Parte1_descarga.USUARIO   = SATYS_USUARIO
-            Parte1_descarga.PASSWORD  = SATYS_PASSWORD
-            Parte1_descarga.HEADLESS  = args.headless
-            Parte1_descarga.DESCARGA_BASE = DESCARGA_BASE
-
-            headless_flag = ["--headless"] if args.headless else ["--visible"]
-            try:
-                original_argv = sys.argv
-                sys.argv = (
-                    ["Parte1_descarga.py"]
-                    + headless_flag
-                    + ["--workers", str(args.workers)]
-                    + ["--timeout-registro", str(args.timeout_registro)]
-                    + ["--reintentos-registro", str(args.reintentos_registro)]
-                    + ["--workers-reintento", str(args.workers_reintento)]
-                    + ["--modo-registro"]
-                    + ["--registros"] + registros
-                )
-                Parte1_descarga.main()
-                sys.argv = original_argv
+                registros = cargar_registros_desde_archivo(args.archivo_registro)
+                print(f"📄 Cargados {len(registros)} registro(s) desde {args.archivo_registro}")
             except Exception as e:
-                log.error("❌ Error en descarga por registro: %s", e)
-                sys.argv = original_argv
+                log.error("❌ Error leyendo archivo de registros %s: %s", args.archivo_registro, e)
                 return
-        else:
-            log.info("✅ No hay registros pendientes para descargar. Se omite Parte 1 y se procesará descargas/ completo.")
 
-        # Después de Parte1, procesar con metadatos + Parte 3 + Parte 4 TODO lo que está realmente
-        # descargado en descargas/. Esto incluye:
-        #   - registros que ya estaban completos antes de esta corrida,
-        #   - registros recuperados en esta corrida,
-        #   - carpetas cuyo nombre real es folio/VE aunque hayan venido de un registro CRT.
-        carpetas_para_procesar = descubrir_descargas_procesables()
+            if not registros:
+                log.error("❌ El archivo de registros está vacío o no contiene registros con formato CRT26-000000")
+                return
 
-        if not carpetas_para_procesar:
-            log.error("❌ No se encontraron carpetas procesables en %s. No se ejecuta procesamiento local.", DESCARGA_BASE)
+            # Guardar la lista original solo como referencia.
+            # Las Partes 2-4 ya no se limitarán a lo descargado en este intento;
+            # al terminar Parte1 se escaneará descargas/ completo.
+            registros_archivo_original = list(registros)
+
+            # ── Filtrar registros pendientes ─────────────────────────────────
+            log.info("🔍 Analizando qué registros ya fueron descargados correctamente...")
+            registros_pendientes, registros_completos = filtrar_registros_pendientes(registros)
+
+            print("\n" + "─" * 70)
+            print("  MODO REGISTRO: DESCARGA POR NÚMERO DE REGISTRO")
+            print("─" * 70)
+            print(f"  📋 Total en archivo     : {len(registros)}")
+            print(f"  ✅ Ya completos (skip)  : {len(registros_completos)}")
+            print(f"  📥 Pendientes (a bajar) : {len(registros_pendientes)}")
+            print("─" * 70)
+
+            if registros_pendientes:
+                muestra = ", ".join(registros_pendientes[:30])
+                if len(registros_pendientes) > 30:
+                    muestra += f", ... (+{len(registros_pendientes) - 30} más)"
+                print(f"  Pendientes: {muestra}")
+            else:
+                print("  🎉 ¡Todos los registros ya están completos! No hay nada que descargar.")
+            print("─" * 70 + "\n")
+
+            if registros_pendientes:
+                # Usar solo los registros pendientes para la descarga.
+                # Los ya completos NO se descargan de nuevo, pero SÍ se procesarán
+                # después porque las Partes 2-4 escanearán descargas/ completo.
+                registros = registros_pendientes
+
+                # ── Ejecutar Parte 1 en modo registro ───────────────────────────
+                try:
+                    import Parte1_descarga
+                except ImportError as e:
+                    log.error("❌ No se encontró Parte1_descarga.py: %s", e)
+                    return
+
+                Parte1_descarga.USUARIO   = SATYS_USUARIO
+                Parte1_descarga.PASSWORD  = SATYS_PASSWORD
+                Parte1_descarga.HEADLESS  = args.headless
+                Parte1_descarga.DESCARGA_BASE = DESCARGA_BASE
+
+                headless_flag = ["--headless"] if args.headless else ["--visible"]
+                try:
+                    original_argv = sys.argv
+                    sys.argv = (
+                        ["Parte1_descarga.py"]
+                        + headless_flag
+                        + ["--workers", str(args.workers)]
+                        + ["--timeout-registro", str(args.timeout_registro)]
+                        + ["--reintentos-registro", str(args.reintentos_registro)]
+                        + ["--workers-reintento", str(args.workers_reintento)]
+                        + ["--modo-registro"]
+                        + ["--registros"] + registros
+                    )
+                    Parte1_descarga.main()
+                    sys.argv = original_argv
+                except Exception as e:
+                    log.error("❌ Error en descarga por registro: %s", e)
+                    sys.argv = original_argv
+                    return
+            else:
+                log.info("✅ No hay registros pendientes para descargar. Se omite Parte 1 y se procesará descargas/ completo.")
+
+            # Después de Parte1, procesar en Partes 2-4 TODO lo que está realmente
+            # descargado en descargas/. Esto incluye:
+            #   - registros que ya estaban completos antes de esta corrida,
+            #   - registros recuperados en esta corrida,
+            #   - carpetas cuyo nombre real es folio/VE aunque hayan venido de un registro CRT.
+            carpetas_para_procesar = descubrir_descargas_procesables()
+
+            if not carpetas_para_procesar:
+                log.error("❌ No se encontraron carpetas procesables en %s. No se ejecutan Partes 2-4.", DESCARGA_BASE)
+                sincronizar_carpeta_compartida()
+                return
+
+            log.info(
+                "✅ Partes 2-4 procesarán %d carpeta(s) descargada(s) detectada(s) en %s, no solo las de esta ejecución.",
+                len(carpetas_para_procesar), DESCARGA_BASE,
+            )
+
+            # ── Cargar catálogo RPC para Partes 2-4 ──────────────────────
+            log.info("🗂️  Cargando catálogo RPC exacto desde Excel oficial...")
+            catalogo_r = []
+            try:
+                sys.path.append(os.path.join(str(_script_dir), "buscar_concesionario"))
+                import buscar_concesionario as bc_r
+                from descargar_concesiones_rpc import descargar_bd as descargar_bd_r
+
+                bd_dir_r = Path(_script_dir) / "base_de_datos_rpc"
+                bd_dir_r.mkdir(exist_ok=True)
+
+                def _cat_reciente_r(bd):
+                    archivos = sorted(
+                        bd.glob("03_concesiones_permisos_autorizaciones_*.xlsx"),
+                        key=lambda p: p.stat().st_mtime, reverse=True,
+                    )
+                    return archivos[0] if archivos else None
+
+                def _cat_necesita_actualizacion_r(bd, max_dias: int = 7) -> bool:
+                    reciente = _cat_reciente_r(bd)
+                    if reciente is None:
+                        return True
+                    edad_dias = (datetime.now().timestamp() - reciente.stat().st_mtime) / 86400
+                    return edad_dias > max_dias
+
+                xlsx_r = None
+                if args.rebuild_catalogo or _cat_necesita_actualizacion_r(bd_dir_r):
+                    log.info("⬇️  Verificando/Descargando la base RPC más reciente...")
+                    descargado_r = descargar_bd_r(str(bd_dir_r))
+                    if descargado_r:
+                        xlsx_r = Path(descargado_r)
+                if xlsx_r is None:
+                    xlsx_r = _cat_reciente_r(bd_dir_r)
+
+                if xlsx_r and xlsx_r.exists():
+                    cat_excel_r = bc_r.cargar_catalogo_desde_excel(str(xlsx_r), "copeau", solo_vigentes=False)
+                    catalogo_r = bc_r.preparar_catalogo_para_matching(cat_excel_r)
+                    log.info("✅ Catálogo RPC exacto listo: %d concesionarios", len(catalogo_r))
+                else:
+                    raise FileNotFoundError("No se encontró Excel oficial RPC en base_de_datos_rpc")
+            except Exception as e_cat:
+                log.error(
+                    "❌ Catálogo RPC exacto no disponible: %s. "
+                    "No se usará fuzzy/API; registros sin ID exacto quedarán en _sin_operador.",
+                    e_cat,
+                )
+                catalogo_r = []
+
+            # ── Verificar Excel ──────────────────────────────────────────
+            if not EXCEL_PATH.exists():
+                log.error("❌ No se encontró el Excel: %s", EXCEL_PATH)
+                return
+
+            # ── Partes 2-4 para cada carpeta realmente descargada ─────────
+            resultados_r = []
+            total_carpetas_r = len(carpetas_para_procesar)
+            for i_r, (carpeta_reg, folio_id_reg, registro_ref) in enumerate(carpetas_para_procesar, 1):
+                print(f"\n{'─' * 70}")
+                print(f"  [{i_r}/{total_carpetas_r}] PROCESANDO DESCARGA: {carpeta_reg.name}")
+                print(f"      Carpeta : {carpeta_reg}")
+                print(f"      Registro: {registro_ref}")
+                print(f"{'─' * 70}")
+
+                folio_para_excel = folio_excel_desde_metadata(carpeta_reg, registro_ref or carpeta_reg.name)
+
+                resultado_r = procesar_folio(
+                    folio=folio_para_excel,
+                    catalogo=catalogo_r,
+                    modo_extraccion=MODO_EXTRACCION,
+                    azure_endpoint=AZURE_ENDPOINT,
+                    azure_key=AZURE_KEY,
+                    carpeta=carpeta_reg,
+                    folio_id=folio_id_reg,
+                )
+                resultados_r.append(resultado_r)
+
+            imprimir_reporte(resultados_r)
+
+            # Guardar log de resultados
+            log_path_r = DESCARGA_BASE / "procesamiento_log_registros.json"
+            try:
+                conteos_r = _conteos_resultados(resultados_r)
+                log_data_r = {
+                    "fecha_ejecucion":  datetime.now().isoformat(),
+                    "modo":             "registro",
+                    "total_carpetas_descargas_procesadas": len(resultados_r),
+                    "registros_archivo_original": len(registros_archivo_original),
+                    "total_exitosos":   conteos_r["exitosos"],
+                    "total_sin_operador": conteos_r["sin_operador"],
+                    "total_errores":    conteos_r["errores"],
+                    "resultados": resultados_r,
+                }
+                with open(log_path_r, "w", encoding="utf-8") as f_log_r:
+                    json.dump(log_data_r, f_log_r, ensure_ascii=False, indent=2, default=str)
+                log.info("📄 Log de registros guardado en: %s", log_path_r)
+                log.info("📊 Resumen: %d exitosos | %d sin operador en catálogo | %d errores",
+                         conteos_r["exitosos"], conteos_r["sin_operador"], conteos_r["errores"])
+            except Exception:
+                pass
+
+            # Generar Excel consolidado con todos los campos de metadata_satys.json
+            # y metadata_tramite_nuevo.json por cada número de registro.
+            excel_metadata_r = OUTPUT_BASE / "Folios_Datos_Completos.xlsx"
+            try:
+                from generar_excel_metadata_json import generar_excel_metadata_json
+                excel_metadata_r = generar_excel_metadata_json(
+                    resultados=resultados_r,
+                    descargas_base=DESCARGA_BASE,
+                    output_base=OUTPUT_BASE,
+                    excel_salida=OUTPUT_BASE / "Folios_Datos_Completos.xlsx",
+                    project_root=Path.cwd(),
+                )
+                log.info("📘 Excel consolidado JSON guardado en: %s", excel_metadata_r)
+            except Exception as e_meta_r:
+                log.error("❌ Error al generar Excel consolidado JSON: %s", e_meta_r)
+
+            # Sincronizar output/ y Excel con la carpeta compartida de red
             sincronizar_carpeta_compartida()
+
+            # Notificación final por correo para cualquier corrida en modo registro.
+            _enviar_email_fin_proceso(
+                resultados=resultados_r,
+                modo="registros",
+                log_path=log_path_r,
+                excel_metadata_path=excel_metadata_r,
+                sin_email=args.sin_email,
+                email_to=args.email_to,
+            )
+
+            return  # Terminar sin continuar al flujo de folios
+
+        # Obtener folios
+        folios = []
+        if args.archivo_folios:
+            try:
+                with open(args.archivo_folios, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            folios.append(line)
+                print(f"📄 Cargados {len(folios)} folios desde {args.archivo_folios}")
+            except Exception as e:
+                log.error("❌ Error leyendo archivo de folios %s: %s", args.archivo_folios, e)
+                return
+
+        if args.folios:
+            folios.extend([f.strip() for f in args.folios])
+        
+        if not folios and args.buscar > 0:
+            # Generar un rango amplio de folios a intentar descargar
+            folios = [str(f) for f in range(args.desde, args.desde + 500)]
+            os.environ["SATYS_MAX_FOLIOS"] = str(args.buscar)
+            print(f"🔍 Configurado para buscar los primeros {args.buscar} folios existentes a partir del {args.desde}")
+        elif not folios:
+            # Menú interactivo si no se pasan argumentos
+            print("\n" + "═" * 70)
+            print("  MENÚ INTERACTIVO DE PROCESAMIENTO".center(70))
+            print("═" * 70)
+            try:
+                desde_str = input("👉 Ingresa el folio INICIAL a procesar (ej. 6407): ").strip()
+                hasta_str = input("👉 Ingresa el folio FINAL a procesar (ej. 6433): ").strip()
+            
+                if not desde_str or not hasta_str:
+                    print("⚠️  Entradas vacías. Cancelando ejecución.")
+                    return
+                
+                args.desde = int(desde_str)
+                hasta = int(hasta_str)
+            
+                if hasta < args.desde:
+                    print("⚠️  El folio final no puede ser menor al inicial. Cancelando.")
+                    return
+                
+                args.buscar = hasta - args.desde + 1
+                folios = [str(f) for f in range(args.desde, hasta + 1)]
+            
+                # Limitar a descargar la cantidad exacta de folios requeridos en Parte1
+                os.environ["SATYS_MAX_FOLIOS"] = str(args.buscar)
+                print(f"\n🔍 [MENÚ] Procesando {args.buscar} folios: desde el {args.desde} hasta el {hasta}")
+            except ValueError:
+                print("⚠️  Entrada inválida (deben ser números enteros). Cancelando.")
+                return
+
+        # ──── PARTE 1: Descarga ────
+        if not args.solo_procesar:
+            print("─" * 70)
+            print("  PARTE 1: DESCARGA AUTOMÁTICA DESDE SATyS")
+            print("─" * 70)
+            if not ejecutar_descarga(folios, workers=args.workers, headless=args.headless):
+                log.error("❌ La descarga falló o no pudo completar todos los folios. Cancelando el proceso.")
+                return
+            print()
+
+        def normalizar_folio_local(folio_str: str) -> str:
+            m = re.search(r"(\d+)$", str(folio_str).strip())
+            return str(int(m.group(1))) if m else str(folio_str).strip()
+
+        # Ahora verificar qué folios tienen carpeta
+        if DESCARGA_BASE.exists():
+            carpetas_existentes = [
+                d.name for d in DESCARGA_BASE.iterdir()
+                if d.is_dir()
+            ]
+        
+            if args.solo_procesar and not args.folios and not args.archivo_folios:
+                # Si solo procesamos y no dimos folios, procesar TODAS las carpetas
+                folios = sorted(carpetas_existentes)
+            else:
+                # Filtrar para procesar solo los que realmente existen
+                folios_normalizados = [normalizar_folio_local(f) for f in folios]
+                folios = [f for f in folios_normalizados if f in carpetas_existentes]
+        else:
+            log.error("❌ No se encontró carpeta descargas/")
             return
 
-        log.info(
-            "✅ Procesamiento local procesará %d carpeta(s) descargada(s) detectada(s) en %s, no solo las de esta ejecución.",
-            len(carpetas_para_procesar), DESCARGA_BASE,
-        )
+        if not folios:
+            log.error("❌ No hay folios para procesar")
+            return
 
-        # ── Cargar catálogo RPC para Parte 3 ─────────────────────────
-        log.info("🗂️  Cargando catálogo RPC...")
-        catalogo_r = []
-        try:
-            sys.path.append(os.path.join(str(_script_dir), "buscar_concesionario"))
-            import buscar_concesionario as bc_r
-            from descargar_concesiones_rpc import descargar_bd as descargar_bd_r
-            from datetime import datetime as _dt_r
+        log.info("📋 Folios a procesar: %s", ", ".join(folios))
 
-            bd_dir_r = Path(_script_dir) / "base_de_datos_rpc"
-            bd_dir_r.mkdir(exist_ok=True)
-
-            def _cat_reciente_r(bd):
-                archivos = sorted(
-                    bd.glob("03_concesiones_permisos_autorizaciones_*.xlsx"),
-                    key=lambda p: p.stat().st_mtime, reverse=True,
-                )
-                return archivos[0] if archivos else None
-
-            xlsx_r = _cat_reciente_r(bd_dir_r)
-            if xlsx_r:
-                cat_excel_r = bc_r.cargar_catalogo_desde_excel(str(xlsx_r), "copeau", solo_vigentes=False)
-                catalogo_r = bc_r.preparar_catalogo_para_matching(cat_excel_r)
-                log.info("✅ Catálogo RPC listo: %d concesionarios", len(catalogo_r))
-        except Exception as e_cat:
-            log.warning("⚠️  Catálogo RPC no disponible: %s", e_cat)
-
-        # ── Verificar Excel ──────────────────────────────────────────
+        # Verificar Excel
         if not EXCEL_PATH.exists():
             log.error("❌ No se encontró el Excel: %s", EXCEL_PATH)
             return
 
-        # ── Metadatos + Parte 3 + Parte 4 para cada carpeta descargada ─
-        resultados_r = []
-        total_carpetas_r = len(carpetas_para_procesar)
-        for i_r, (carpeta_reg, folio_id_reg, registro_ref) in enumerate(carpetas_para_procesar, 1):
-            print(f"\n{'─' * 70}")
-            print(f"  [{i_r}/{total_carpetas_r}] PROCESANDO DESCARGA: {carpeta_reg.name}")
-            print(f"      Carpeta : {carpeta_reg}")
-            print(f"      Registro: {registro_ref}")
-            print(f"{'─' * 70}")
+        # ──── Cargar catálogo RPC (usando buscar_concesionario si es posible) ────
+        log.info("🗂️  Cargando catálogo RPC (buscando Excel de concesionarios)...")
+        catalogo = []
+        try:
+            sys.path.append(os.path.join(str(_script_dir), "buscar_concesionario"))
+            import buscar_concesionario as bc
+            from descargar_concesiones_rpc import descargar_bd
+        
+            bd_dir = Path(_script_dir) / "base_de_datos_rpc"
+            bd_dir.mkdir(exist_ok=True)
 
-            folio_para_excel = folio_excel_desde_metadata(carpeta_reg, registro_ref or carpeta_reg.name)
+            def _catalogo_existente_mas_reciente(bd_dir: Path):
+                archivos = sorted(
+                    bd_dir.glob("03_concesiones_permisos_autorizaciones_*.xlsx"),
+                    key=lambda p: p.stat().st_mtime, reverse=True,
+                )
+                return archivos[0] if archivos else None
 
-            resultado_r = procesar_folio(
-                folio=folio_para_excel,
-                catalogo=catalogo_r,
-                modo_extraccion=MODO_EXTRACCION,
-                carpeta=carpeta_reg,
-                folio_id=folio_id_reg,
-            )
-            resultados_r.append(resultado_r)
+            def _catalogo_necesita_actualizacion(bd_dir: Path, max_dias: int = 7) -> bool:
+                mas_reciente = _catalogo_existente_mas_reciente(bd_dir)
+                if mas_reciente is None:
+                    return True
+                edad_dias = (datetime.now().timestamp() - mas_reciente.stat().st_mtime) / 86400
+                return edad_dias > max_dias
 
-        imprimir_reporte(resultados_r)
+            excel_path_full = None
+            if args.rebuild_catalogo or _catalogo_necesita_actualizacion(bd_dir):
+                log.info("⬇️  Verificando/Descargando la base de datos más reciente...")
+                descargado_path = descargar_bd(str(bd_dir))
+                if descargado_path:
+                    excel_path_full = Path(descargado_path)
+            else:
+                mas_reciente = _catalogo_existente_mas_reciente(bd_dir)
+                excel_path_full = mas_reciente
+                log.info("✅ Catálogo reciente (%s), se omite la descarga.", mas_reciente.name)
+
+            if excel_path_full is None:
+                # Fallback a buscar el xlsx más reciente en la carpeta si falló la descarga
+                mas_reciente = _catalogo_existente_mas_reciente(bd_dir)
+                if mas_reciente is not None:
+                    excel_path_full = mas_reciente
+                    log.info("Usando archivo existente (offline fallback): %s", excel_path_full.name)
+                else:
+                    # Fallback final a la antigua carpeta si base_de_datos_rpc está vacío
+                    excel_path_full = Path(_script_dir) / "buscar_concesionario" / "Area _de_descargas" / "03_concesiones_permisos_autorizaciones_250326.xlsx"
+        
+            if excel_path_full.exists():
+                cat_excel = bc.cargar_catalogo_desde_excel(str(excel_path_full), "copeau", solo_vigentes=False)
+                catalogo = bc.preparar_catalogo_para_matching(cat_excel)
+                log.info("✅ Catálogo CSV/Excel listo: %d concesionarios", len(catalogo))
+            else:
+                log.warning("⚠️  Excel de buscar_concesionario no encontrado en: %s", excel_path_full)
+                raise FileNotFoundError("Excel no encontrado")
+        except Exception as e:
+            if os.getenv("SATYS_RPC_PERMITIR_FUZZY", "0").strip() == "1":
+                log.warning("⚠️  Falló carga exacta desde buscar_concesionario (%s). Usando Parte3_rpc por nombre/API porque SATYS_RPC_PERMITIR_FUZZY=1.", e)
+                catalogo = cargar_catalogo(force_rebuild=args.rebuild_catalogo)
+                if catalogo:
+                    log.info("✅ Catálogo Parte3_rpc listo: %d concesionarios", len(catalogo))
+                else:
+                    log.warning("⚠️  Sin catálogo — la búsqueda RPC usará solo API directa")
+            else:
+                log.error(
+                    "❌ No se pudo cargar el catálogo RPC exacto desde Excel (%s). "
+                    "No se usará fuzzy/API. Los registros quedarán en _sin_operador hasta corregir catálogo.",
+                    e,
+                )
+                catalogo = []
+
+        # ──── Procesar cada folio (Partes 2-4) ────
+        resultados = []
+        for i, folio in enumerate(folios, 1):
+            carpetas_folio = descubrir_carpetas_de_folio(folio)
+            if not carpetas_folio:
+                # Compatibilidad: folio sin carpeta descubierta -> se intenta con
+                # la ruta clasica de todos modos (procesar_folio reportara el error).
+                carpetas_folio = [(DESCARGA_BASE / folio, folio)]
+
+            if len(carpetas_folio) > 1:
+                log.info("🔀 Folio %s tiene %d tramites/registros distintos -- "
+                         "se generara una fila de Excel por cada uno.",
+                         folio, len(carpetas_folio))
+
+            for carpeta_folio, folio_id in carpetas_folio:
+                print(f"\n{'─' * 70}")
+                if len(carpetas_folio) > 1:
+                    print(f"  [{i}/{len(folios)}] PROCESANDO FOLIO: {folio}  (tramite: {folio_id})")
+                else:
+                    print(f"  [{i}/{len(folios)}] PROCESANDO FOLIO: {folio}")
+                print(f"{'─' * 70}")
+
+                resultado = procesar_folio(
+                    folio=folio,
+                    catalogo=catalogo,
+                    modo_extraccion=MODO_EXTRACCION,
+                    azure_endpoint=AZURE_ENDPOINT,
+                    azure_key=AZURE_KEY,
+                    carpeta=carpeta_folio,
+                    folio_id=folio_id,
+                )
+                resultados.append(resultado)
+
+        # Reporte
+        imprimir_reporte(resultados)
 
         # Guardar log de resultados
-        log_path_r = DESCARGA_BASE / "procesamiento_log_registros.json"
+        log_path = DESCARGA_BASE / "procesamiento_log.json"
         try:
-            conteos_r = {
-                "exitosos":     sum(1 for r in resultados_r if r.get('rpc_ok') and r.get('organizado_ok') and r.get('excel_ok')),
-                "sin_operador": sum(1 for r in resultados_r if not (r.get('rpc_ok') and r.get('organizado_ok') and r.get('excel_ok')) and r.get('nombre_operador')),
-                "errores":      sum(1 for r in resultados_r if not (r.get('rpc_ok') and r.get('organizado_ok') and r.get('excel_ok')) and not r.get('nombre_operador')),
+            conteos = _conteos_resultados(resultados)
+            log_data = {
+                "fecha_ejecucion":    datetime.now().isoformat(),
+                "modo_extraccion":    MODO_EXTRACCION,
+                "total_folios":       len(resultados),
+                "total_exitosos":     conteos["exitosos"],
+                "total_sin_operador": conteos["sin_operador"],
+                "total_errores":      conteos["errores"],
+                "resultados": resultados,
             }
-            log_data_r = {
-                "fecha_ejecucion":  datetime.now().isoformat(),
-                "modo":             "registro",
-                "total_carpetas_descargas_procesadas": len(resultados_r),
-                "registros_archivo_original": len(registros_archivo_original),
-                "total_exitosos":   conteos_r["exitosos"],
-                "total_sin_operador": conteos_r["sin_operador"],
-                "total_errores":    conteos_r["errores"],
-                "resultados": resultados_r,
-            }
-            with open(log_path_r, "w", encoding="utf-8") as f_log_r:
-                json.dump(log_data_r, f_log_r, ensure_ascii=False, indent=2, default=str)
-            log.info("📄 Log de registros guardado en: %s", log_path_r)
+            with open(log_path, "w", encoding="utf-8") as f:
+                json.dump(log_data, f, ensure_ascii=False, indent=2, default=str)
+            log.info("📄 Log guardado en: %s", log_path)
             log.info("📊 Resumen: %d exitosos | %d sin operador en catálogo | %d errores",
-                     conteos_r["exitosos"], conteos_r["sin_operador"], conteos_r["errores"])
+                     conteos["exitosos"], conteos["sin_operador"], conteos["errores"])
         except Exception:
             pass
 
-        # Sincronizar output/ y Excel con la carpeta compartida de red
+        # -- Generar / Actualizar Excel de Datos Consolidados desde JSON --
+        excel_metadata = OUTPUT_BASE / "Folios_Datos_Completos.xlsx"
+        try:
+            from generar_excel_metadata_json import generar_excel_metadata_json
+            excel_metadata = generar_excel_metadata_json(
+                resultados=resultados,
+                descargas_base=DESCARGA_BASE,
+                output_base=OUTPUT_BASE,
+                excel_salida=OUTPUT_BASE / "Folios_Datos_Completos.xlsx",
+                project_root=Path.cwd(),
+            )
+            log.info("📘 Excel consolidado JSON guardado en: %s", excel_metadata)
+        except Exception as e:
+            log.error("❌ Error al generar el Excel consolidado de metadatos JSON: %s", e)
+
+        # -- Sincronizar con carpeta compartida de red --
         sincronizar_carpeta_compartida()
 
-        return  # Terminar sin continuar al flujo de folios
+        # Notificación final por correo para cualquier corrida en modo folios.
+        _enviar_email_fin_proceso(
+            resultados=resultados,
+            modo="folios",
+            log_path=log_path,
+            excel_metadata_path=excel_metadata,
+            sin_email=args.sin_email,
+            email_to=args.email_to,
+        )
 
-    # Obtener folios
-    folios = []
-    if args.archivo_folios:
-        try:
-            with open(args.archivo_folios, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line:
-                        folios.append(line)
-            print(f"📄 Cargados {len(folios)} folios desde {args.archivo_folios}")
-        except Exception as e:
-            log.error("❌ Error leyendo archivo de folios %s: %s", args.archivo_folios, e)
-            return
 
-    if args.folios:
-        folios.extend([f.strip() for f in args.folios])
-        
-    if not folios and args.buscar > 0:
-        # Generar un rango amplio de folios a intentar descargar
-        folios = [str(f) for f in range(args.desde, args.desde + 500)]
-        os.environ["SATYS_MAX_FOLIOS"] = str(args.buscar)
-        print(f"🔍 Configurado para buscar los primeros {args.buscar} folios existentes a partir del {args.desde}")
-    elif not folios:
-        # Menú interactivo si no se pasan argumentos
-        print("\n" + "═" * 70)
-        print("  MENÚ INTERACTIVO DE PROCESAMIENTO".center(70))
-        print("═" * 70)
-        try:
-            desde_str = input("👉 Ingresa el folio INICIAL a procesar (ej. 6407): ").strip()
-            hasta_str = input("👉 Ingresa el folio FINAL a procesar (ej. 6433): ").strip()
-            
-            if not desde_str or not hasta_str:
-                print("⚠️  Entradas vacías. Cancelando ejecución.")
-                return
-                
-            args.desde = int(desde_str)
-            hasta = int(hasta_str)
-            
-            if hasta < args.desde:
-                print("⚠️  El folio final no puede ser menor al inicial. Cancelando.")
-                return
-                
-            args.buscar = hasta - args.desde + 1
-            folios = [str(f) for f in range(args.desde, hasta + 1)]
-            
-            # Limitar a descargar la cantidad exacta de folios requeridos en Parte1
-            os.environ["SATYS_MAX_FOLIOS"] = str(args.buscar)
-            print(f"\n🔍 [MENÚ] Procesando {args.buscar} folios: desde el {args.desde} hasta el {hasta}")
-        except ValueError:
-            print("⚠️  Entrada inválida (deben ser números enteros). Cancelando.")
-            return
-
-    # ──── PARTE 1: Descarga ────
-    if not args.solo_procesar:
-        print("─" * 70)
-        print("  PARTE 1: DESCARGA AUTOMÁTICA DESDE SATyS")
-        print("─" * 70)
-        if not ejecutar_descarga(folios, workers=args.workers, headless=args.headless):
-            log.error("❌ La descarga falló o no pudo completar todos los folios. Cancelando el proceso.")
-            return
-        print()
-
-    def normalizar_folio_local(folio_str: str) -> str:
-        m = re.search(r"(\d+)$", str(folio_str).strip())
-        return str(int(m.group(1))) if m else str(folio_str).strip()
-
-    # Ahora verificar qué folios tienen carpeta
-    if DESCARGA_BASE.exists():
-        carpetas_existentes = [
-            d.name for d in DESCARGA_BASE.iterdir()
-            if d.is_dir()
-        ]
-        
-        if args.solo_procesar and not args.folios and not args.archivo_folios:
-            # Si solo procesamos y no dimos folios, procesar TODAS las carpetas
-            folios = sorted(carpetas_existentes)
-        else:
-            # Filtrar para procesar solo los que realmente existen
-            folios_normalizados = [normalizar_folio_local(f) for f in folios]
-            folios = [f for f in folios_normalizados if f in carpetas_existentes]
-    else:
-        log.error("❌ No se encontró carpeta descargas/")
-        return
-
-    if not folios:
-        log.error("❌ No hay folios para procesar")
-        return
-
-    log.info("📋 Folios a procesar: %s", ", ".join(folios))
-
-    # Verificar Excel
-    if not EXCEL_PATH.exists():
-        log.error("❌ No se encontró el Excel: %s", EXCEL_PATH)
-        return
-
-    # ──── Cargar catálogo RPC (usando buscar_concesionario si es posible) ────
-    log.info("🗂️  Cargando catálogo RPC (buscando Excel de concesionarios)...")
-    catalogo = []
-    try:
-        sys.path.append(os.path.join(str(_script_dir), "buscar_concesionario"))
-        import buscar_concesionario as bc
-        from descargar_concesiones_rpc import descargar_bd
-        
-        bd_dir = Path(_script_dir) / "base_de_datos_rpc"
-        bd_dir.mkdir(exist_ok=True)
-
-        def _catalogo_existente_mas_reciente(bd_dir: Path):
-            archivos = sorted(
-                bd_dir.glob("03_concesiones_permisos_autorizaciones_*.xlsx"),
-                key=lambda p: p.stat().st_mtime, reverse=True,
-            )
-            return archivos[0] if archivos else None
-
-        def _catalogo_necesita_actualizacion(bd_dir: Path, max_dias: int = 7) -> bool:
-            mas_reciente = _catalogo_existente_mas_reciente(bd_dir)
-            if mas_reciente is None:
-                return True
-            edad_dias = (datetime.now().timestamp() - mas_reciente.stat().st_mtime) / 86400
-            return edad_dias > max_dias
-
-        excel_path_full = None
-        if args.rebuild_catalogo or _catalogo_necesita_actualizacion(bd_dir):
-            log.info("⬇️  Verificando/Descargando la base de datos más reciente...")
-            descargado_path = descargar_bd(str(bd_dir))
-            if descargado_path:
-                excel_path_full = Path(descargado_path)
-        else:
-            mas_reciente = _catalogo_existente_mas_reciente(bd_dir)
-            excel_path_full = mas_reciente
-            log.info("✅ Catálogo reciente (%s), se omite la descarga.", mas_reciente.name)
-
-        if excel_path_full is None:
-            # Fallback a buscar el xlsx más reciente en la carpeta si falló la descarga
-            mas_reciente = _catalogo_existente_mas_reciente(bd_dir)
-            if mas_reciente is not None:
-                excel_path_full = mas_reciente
-                log.info("Usando archivo existente (offline fallback): %s", excel_path_full.name)
-            else:
-                # Fallback final a la antigua carpeta si base_de_datos_rpc está vacío
-                excel_path_full = Path(_script_dir) / "buscar_concesionario" / "Area _de_descargas" / "03_concesiones_permisos_autorizaciones_250326.xlsx"
-        
-        if excel_path_full.exists():
-            cat_excel = bc.cargar_catalogo_desde_excel(str(excel_path_full), "copeau", solo_vigentes=False)
-            catalogo = bc.preparar_catalogo_para_matching(cat_excel)
-            log.info("✅ Catálogo CSV/Excel listo: %d concesionarios", len(catalogo))
-        else:
-            log.warning("⚠️  Excel de buscar_concesionario no encontrado en: %s", excel_path_full)
-            raise FileNotFoundError("Excel no encontrado")
-    except Exception as e:
-        log.warning("⚠️  Falló carga desde buscar_concesionario (%s). Usando Parte3_rpc...", e)
-        catalogo = cargar_catalogo(force_rebuild=args.rebuild_catalogo)
-        if catalogo:
-            log.info("✅ Catálogo Parte3_rpc listo: %d concesionarios", len(catalogo))
-        else:
-            log.warning("⚠️  Sin catálogo — la búsqueda RPC usará solo API directa")
-
-    # ──── Procesar cada folio (metadatos + Parte 3 + Parte 4) ────
-    resultados = []
-    for i, folio in enumerate(folios, 1):
-        carpetas_folio = descubrir_carpetas_de_folio(folio)
-        if not carpetas_folio:
-            # Compatibilidad: folio sin carpeta descubierta -> se intenta con
-            # la ruta clasica de todos modos (procesar_folio reportara el error).
-            carpetas_folio = [(DESCARGA_BASE / folio, folio)]
-
-        if len(carpetas_folio) > 1:
-            log.info("🔀 Folio %s tiene %d tramites/registros distintos -- "
-                     "se generara una fila de Excel por cada uno.",
-                     folio, len(carpetas_folio))
-
-        for carpeta_folio, folio_id in carpetas_folio:
-            print(f"\n{'─' * 70}")
-            if len(carpetas_folio) > 1:
-                print(f"  [{i}/{len(folios)}] PROCESANDO FOLIO: {folio}  (tramite: {folio_id})")
-            else:
-                print(f"  [{i}/{len(folios)}] PROCESANDO FOLIO: {folio}")
-            print(f"{'─' * 70}")
-
-            resultado = procesar_folio(
-                folio=folio,
-                catalogo=catalogo,
-                modo_extraccion=MODO_EXTRACCION,
-                carpeta=carpeta_folio,
-                folio_id=folio_id,
-            )
-            resultados.append(resultado)
-
-    # Reporte
-    imprimir_reporte(resultados)
-
-    # Guardar log de resultados
-    log_path = DESCARGA_BASE / "procesamiento_log.json"
-    try:
-        conteos = {
-            "exitosos":     sum(1 for r in resultados if r.get('rpc_ok') and r.get('organizado_ok') and r.get('excel_ok')),
-            "sin_operador": sum(1 for r in resultados if not (r.get('rpc_ok') and r.get('organizado_ok') and r.get('excel_ok')) and r.get('nombre_operador')),
-            "errores":      sum(1 for r in resultados if not (r.get('rpc_ok') and r.get('organizado_ok') and r.get('excel_ok')) and not r.get('nombre_operador')),
-        }
-        log_data = {
-            "fecha_ejecucion":    datetime.now().isoformat(),
-            "modo_extraccion":    MODO_EXTRACCION,
-            "total_folios":       len(resultados),
-            "total_exitosos":     conteos["exitosos"],
-            "total_sin_operador": conteos["sin_operador"],
-            "total_errores":      conteos["errores"],
-            "resultados": resultados,
-        }
-        with open(log_path, "w", encoding="utf-8") as f:
-            json.dump(log_data, f, ensure_ascii=False, indent=2, default=str)
-        log.info("📄 Log guardado en: %s", log_path)
-        log.info("📊 Resumen: %d exitosos | %d sin operador en catálogo | %d errores",
-                 conteos["exitosos"], conteos["sin_operador"], conteos["errores"])
-    except Exception:
-        pass
-
-    # -- Generar / Actualizar Excel de Datos Consolidados --
-    try:
-        import generar_excel_folios
-        generar_excel_folios.agregar_folios_a_excel(folios)
-    except Exception as e:
-        log.error("❌ Error al generar el Excel de folios procesados: %s", e)
-
-    # -- Sincronizar con carpeta compartida de red --
-    sincronizar_carpeta_compartida()
+    finally:
+        if _lock is not None:
+            try:
+                _lock.liberar()
+                log.info("🔓 Lock compartido liberado al finalizar main_procesar.py.")
+            except Exception as e:
+                log.warning("⚠️  No se pudo liberar el lock compartido: %s", e)
 
 
 def sincronizar_carpeta_compartida() -> None:
     """
     Copia la carpeta 'output/' y el archivo 'TrámitesCRT.xlsx' al directorio
-    definido por SATYS_CARPETA_COMPARTIDA, si esa variable está configurada.
+    de red CARPETA_COMPARTIDA (Z:\\DEI_DATOS\\SATyS).
 
     Estrategia de sincronización:
     - output/: merge inteligente. Los archivos y carpetas del local SOBREESCRIBEN
@@ -1387,7 +1615,7 @@ def sincronizar_carpeta_compartida() -> None:
         destino.mkdir(parents=True, exist_ok=True)
     except Exception as e:
         log.error("❌ No se puede acceder a la carpeta compartida %s: %s", destino, e)
-        log.error("   Verifica SATYS_CARPETA_COMPARTIDA y permisos de escritura.")
+        log.error("   Verifica que la unidad Z: esté montada y tengas permisos de escritura.")
         return
 
     errores = []

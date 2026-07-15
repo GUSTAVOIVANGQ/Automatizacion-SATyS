@@ -1,245 +1,359 @@
-# 📋 Proyecto SATyS - Automatización de Descargas y Procesamiento
+# 📋 Proyecto SATyS - Automatización de Descargas y Procesamiento (Linux)
 
 **Sistema Automatizado de Trámites y Servicios (SATyS)**
 **Comisión Reguladora de Telecomunicaciones (CRT)**
 
+Versión para servidor Linux (Red Hat Enterprise Linux). Reemplaza la versión anterior en Windows: sin Python embebido, sin GUI de escritorio (Flet) y con un panel web + `systemd` para operación desatendida.
+
 ---
 
-## 🖥️ Interfaz Gráfica (Recomendada)
+## 🎯 Descripción general
 
-Se cuenta con una **Interfaz Gráfica de Usuario (GUI)** para orquestar todo el flujo de trabajo sin necesidad de usar comandos en la terminal. Desde aquí puedes seguir el progreso en tiempo real y consultar el Resumen Ejecutivo de los resultados.
+Automatización del flujo completo de **descarga, procesamiento y organización** de trámites del sistema SATyS del IFT/CRT. El sistema:
 
-### 🚀 Configuración Recomendada
+- Revisa todos los días la tabla **Documentos en Proceso** del SATyS y detecta números de **Registro** nuevos comparando contra `TrámitesCRT.xlsx` (columna `1711`).
+- Extrae metadatos del trámite directamente de la web (sin OCR).
+- Descarga en paralelo todos los archivos asociados a cada registro/folio, con reintentos automáticos.
+- Consulta el Registro Público de Concesiones (RPC) por comparación exacta `id_solicitante == ID OPERADOR`.
+- Actualiza `TrámitesCRT.xlsx` y organiza los archivos descargados en `/output/<operador>/`.
+- Genera un Excel consolidado (`output/Folios_Datos_Completos.xlsx`) con todos los campos extraídos.
+- Envía una notificación por correo con el resumen de cada corrida.
+- Corre de forma desatendida vía `systemd` (timer diario) y expone un panel web (FastAPI) para monitoreo y ejecución manual.
 
-- **Folios:** Cargar un **Archivo TXT** (ej. `folios.txt`) con un folio por línea.
-- **Ventanas Playwright:** Configurar en **6** (buena paralelización sin saturar la red).
-- **Mostrar navegador:** Mantener **Apagado** (modo Headless). Esto evita abrir ventanas visibles de Chromium, consumiendo menos memoria y acelerando la ejecución.
+### 🔄 Flujo del proceso
 
-Para iniciar la interfaz ejecuta:
+```
+┌───────────────────────────────────────────────────────────────────┐
+│                          PROYECTO SATyS                             │
+├───────────────────────────────────────────────────────────────────┤
+│  MONITOR DIARIO (automatizar_registros_diario.py)                   │
+│  ├── Login en https://satys.ift.org.mx/                             │
+│  ├── Extrae columna "Registro" de Documentos en Proceso             │
+│  ├── Compara contra TrámitesCRT.xlsx (columna 1711)                 │
+│  └── Genera registros.txt solo con registros nuevos                 │
+│                                                                       │
+│  PARTE 1 — DESCARGA (Playwright, headless)                          │
+│  ├── Búsqueda del registro/folio en Oficialía de Partes              │
+│  ├── Extracción de metadatos del trámite vía JS de la página        │
+│  ├── Descarga en paralelo de todos los archivos asociados           │
+│  │   └── Hasta 3 intentos por archivo → si falla: ERROR_SERVIDOR    │
+│  ├── Descompresión de los .zip encontrados                          │
+│  └── Organización temporal en descargas/<registro>/                 │
+│                                                                       │
+│  PARTE 3 — BÚSQUEDA EN RPC                                          │
+│  ├── Descarga/actualización del catálogo de Concesiones             │
+│  ├── Comparación exacta id_solicitante == ID OPERADOR               │
+│  │   (100% si existe en el Excel oficial, 0% si no existe)          │
+│  └── Construcción de ruta estandarizada por operador                │
+│                                                                       │
+│  PARTE 4 — EXCEL Y CARPETAS                                         │
+│  ├── Inserción de resultados en TrámitesCRT.xlsx                    │
+│  └── Traslado final a output/<operador>/ u output/_sin_operador/    │
+│                                                                       │
+│  EXPORTACIÓN FINAL                                                   │
+│  ├── Genera/actualiza output/Folios_Datos_Completos.xlsx            │
+│  └── Envía notificación por correo con el resumen de la corrida     │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+> `Parte2_extraer.py` (extracción de PDF vía Azure/pdfplumber) se conserva por compatibilidad pero **no se usa en producción**; el flujo real usa los metadatos obtenidos directamente del SATyS.
+
+---
+
+## 🖥️ Panel web (reemplaza la GUI de Windows)
+
+La antigua interfaz de escritorio (Flet) fue reemplazada por un panel web servido con **FastAPI** (`satys_api.py`), sin frameworks de frontend ni build tools — solo HTML/CSS/JS servidos directamente.
+
+Incluye:
+
+1. **Automatización diaria**: estado en vivo del timer/servicio `systemd`, resumen de la última corrida y log en tiempo real.
+2. **Procesar manualmente**: subir un `.txt` de folios o de registros y lanzar una corrida sin usar la terminal.
+3. **Historial**: corridas diarias y manuales anteriores.
+4. **Descargas**: `TrámitesCRT.xlsx`, `output/Folios_Datos_Completos.xlsx`, `output.zip`, `descargas.zip`.
+
+Levantar en modo prueba:
 
 ```bash
-.\python-3.11.9-embed-amd64\python.exe ui_satys.py
+uvicorn satys_api:app --host 0.0.0.0 --port 8080
 ```
 
-### 📸 Galería de la Interfaz
+Detalles completos de endpoints y variables en [`README_FRONTEND_LINUX.md`](README_FRONTEND_LINUX.md).
 
-![Pantalla Principal](Screenshots/A1.png)
-![Configuración y Log](Screenshots/A2.png)
-![Procesamiento](Screenshots/A3.png)
-![Resumen Ejecutivo](Screenshots/A4.png)
-![Historial](Screenshots/A5.png)
+## Screenshots
+
+![Panel - Inicio](Screenshots/b1.png)
+
+![Panel - Procesar manualmente](Screenshots/b2.png)
+
+![Panel - Historial](Screenshots/b3.png)
+
+![Detalle de corrida](Screenshots/b4.png)
+
+![Descargas y Excel](Screenshots/b5.png)
+
+![Logs en tiempo real](Screenshots/b6.png)
 
 ---
 
-## 🎯 Descripción General
-
-Automatización completa del flujo de trabajo para la **descarga, procesamiento y organización de archivos** del sistema SATyS del Comisión Reguladora de Telecomunicaciones (CRT). El sistema:
-
-- Extrae metadatos de los trámites directamente de la web (sin OCR).
-- Consulta el Registro Público de Concesiones (RPC) vía API REST y Fuzzy Matching.
-- Actualiza automáticamente la hoja de cálculo de control `TrámitesCRT.xlsx`.
-- Organiza los archivos descargados en carpetas `/output/` clasificadas por operador.
-- Genera un **Excel consolidado** con los datos de todos los folios procesados.
-
-### 🔄 Flujo Completo del Proceso
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    PROYECTO SATyS                            │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  PARTE 1 — DESCARGA AUTOMÁTICA (Playwright)                 │
-│  ├── Login en https://satys.ift.org.mx/                     │
-│  ├── Búsqueda de folios en Oficialía de Partes              │
-│  ├── Extracción de metadatos del trámite vía web (JS)       │
-│  ├── Descarga en paralelo de todos los archivos asociados   │
-│  │   └── Reintentos por archivo: hasta 3 intentos           │
-│  │   └── Si falla → marcado como ERROR_SERVIDOR (externo)   │
-│  ├── Descompresión de todos los .zip encontrados            │
-│  └── Organización temporal en /descargas/<folio>/           │
-│                                                             │
-│  PARTE 2 — EXTRACCIÓN DE DATOS PDF                          │
-│  ├── Azure AI Document Intelligence (nube, preciso)         │
-│  └── pdfplumber (local, sin internet, como fallback)        │
-│                                                             │
-│  PARTE 3 — BÚSQUEDA EN RPC                                  │
-│  ├── Descarga automática de la BD de Concesiones más nueva  │
-│  ├── Fuzzy Matching inteligente por nombre de operador      │
-│  ├── Búsqueda complementaria vía API REST del RPC           │
-│  └── Construcción de ruta estandarizada por operador        │
-│                                                             │
-│  PARTE 4 — ACTUALIZACIÓN DE EXCEL Y CARPETAS                │
-│  ├── Inserción de resultados en TrámitesCRT.xlsx            │
-│  └── Traslado final a /output/<operador>/ o /output/_sin_operador/
-│                                                             │
-│  EXPORTACIÓN FINAL — EXCEL CONSOLIDADO DE FOLIOS            │
-│  └── Genera/Actualiza output/Folios_Datos_Completos.xlsx    │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## ✅ Comportamiento Clave del Sistema
-
-1. **Metadatos extraídos directamente del SATyS (vía JavaScript):** Los campos `representante_legal`, `id_representante_legal`, `nombre_operador` e `id_solicitante` se obtienen de la página web del trámite mediante un bucle infinito que espera a que los datos carguen. Son campos obligatorios y siempre están presentes en el portal.
-2. **Reintentos de descarga por archivo (3 intentos):** Cada archivo se intenta descargar hasta 3 veces. Si falla en los 3, se marca como `ERROR_SERVIDOR` (problema externo al programa) y el flujo continúa con el siguiente archivo.
-3. **Validación de Identidad del Operador:** Cruza el nombre/ID obtenido en el SATyS contra el padrón del RPC. Si no hay coincidencia confiable, el folio va a `/output/_sin_operador/` para revisión manual.
-4. **Base de Datos RPC Automática:** Al iniciar, el programa verifica si existe una versión más reciente del catálogo de concesiones y lo descarga en segundo plano.
-5. **Excel Consolidado:** Al terminar de procesar, genera o actualiza `output/Folios_Datos_Completos.xlsx` agregando una fila por folio con todos sus metadatos. Si el archivo ya existe, solo se agregan filas nuevas al final.
-
----
-
-## 📁 Estructura del Proyecto
+## 📁 Estructura del proyecto
 
 ```
 Automatizacion-SATyS/
 │
-├── ui_satys.py                  # Interfaz Gráfica (GUI) principal
-├── main_procesar.py             # Orquestador principal (ejecuta Partes 1-4 + Excel)
-├── Parte1_descarga.py           # Automatización web de SATyS (Playwright)
-├── Parte2_extraer.py            # Extracción de datos de PDFs (Azure AI / pdfplumber)
-├── Parte3_rpc.py                # Búsqueda y homologación en RPC (Fuzzy Matching)
-├── Parte4_excel.py              # Escritura en TrámitesCRT.xlsx y organización /output/
-├── generar_excel_folios.py      # Generación del Excel consolidado de folios
-├── merge_retroactive.py         # Utilidad para reprocesar folios anteriores
+├── main_procesar.py                  # Orquestador principal (Partes 1, 3, 4 + Excel consolidado)
+├── automatizar_registros_diario.py   # Monitor diario: detecta registros nuevos y llama a main_procesar.py
+├── Parte1_descarga.py                # Automatización web del SATyS (Playwright)
+├── Parte2_extraer.py                 # Extracción de PDFs (Azure AI / pdfplumber) — no usado en producción
+├── Parte3_rpc.py                     # Búsqueda y homologación en el RPC
+├── Parte4_excel.py                   # Escritura en TrámitesCRT.xlsx y organización de /output/
+├── extraer_registros_documentos.py   # Extrae la tabla "Documentos en Proceso" del SATyS
+├── generar_excel_folios.py           # Generación del Excel consolidado (versión folios)
+├── generar_excel_metadata_json.py    # Generación de output/Folios_Datos_Completos.xlsx desde JSON
+├── buscar_concesionario.py           # Búsqueda exacta en el padrón RPC
+├── descargar_concesiones_rpc.py      # Descarga/actualización del catálogo RPC
+├── login_satys.py                    # Login al SATyS
+├── notificar_email.py                # Notificación por correo al finalizar cada corrida
+├── proceso_lock.py                   # Lock compartido para evitar corridas simultáneas
+├── estado_ejecucion.py               # Escribe logs/estado_actual.json (estado vivo para el panel)
+├── satys_api.py                      # Backend FastAPI del panel web
 │
-├── TrámitesCRT.xlsx             # Hoja de cálculo de control maestro
-├── folios.txt                   # Lista de folios a procesar (uno por línea)
-├── .env.example                 # Variables de entorno (credenciales)
+├── web/
+│   ├── templates/index.html          # Panel web
+│   └── static/                       # CSS y JS del panel
 │
-├── descargas/                   # Carpeta de tránsito (archivos recién descargados)
-│   └── <folio>/
-│       ├── metadata_satys.json          # Metadatos extraídos de la web SATyS
-│       ├── metadata_tramite_nuevo.json  # Metadatos del trámite (API RPC)
-│       ├── metadata_completo.json       # JSON consolidado (resultado final)
-│       └── <archivos descargados>
+├── scripts/
+│   ├── run_satys_diario.sh           # Wrapper de ejecución diaria (usado por systemd)
+│   ├── estado_satys.sh               # Diagnóstico rápido de servicio/timer/estado
+│   └── health_satys.py               # Lee logs/estado_actual.json y valida frescura
 │
-├── output/                      # Destino final: carpetas homologadas y limpias
-│   ├── <id>_<nombre_operador>/  # Carpeta del operador encontrado en RPC
-│   ├── _sin_operador/           # Folios sin coincidencia (requieren revisión manual)
-│   └── Folios_Datos_Completos.xlsx  # Excel consolidado de todos los folios
+├── systemd/
+│   ├── satys-diario.service          # Corrida diaria (oneshot)
+│   ├── satys-diario.timer            # Programación diaria (10:00 AM)
+│   └── satys-api.service             # Servicio del panel web (FastAPI/uvicorn)
 │
-├── base_de_datos_rpc/           # Catálogo de Concesiones RPC descargado
-├── buscar_concesionario/        # Módulo de búsqueda en Excel RPC
-├── extraer_datos/               # Módulo de extracción Azure AI
-├── logs/                        # Logs de ejecución
-└── python-3.11.9-embed-amd64/   # Python portátil (no requiere instalación)
+├── TrámitesCRT.xlsx                  # Hoja de control maestro
+├── requirements-linux.txt            # Dependencias Python para Linux
+│
+├── descargas/<registro>/             # Carpeta de tránsito (archivos recién descargados)
+├── output/                           # Destino final organizado por operador
+│   ├── <id>_<nombre_operador>/
+│   ├── _sin_operador/                # Sin coincidencia en RPC → revisión manual
+│   └── Folios_Datos_Completos.xlsx   # Excel consolidado
+├── registros_diarios/                # Copias históricas de los TXT de registros detectados
+├── base_de_datos_rpc/                # Catálogo de Concesiones RPC descargado
+└── logs/                             # Logs de ejecución y estado_actual.json
+```
+
+Documentación adicional incluida en el repo:
+
+- [`README_BACKEND_LINUX.md`](README_BACKEND_LINUX.md) — instalación, `systemd`, variables de entorno, monitoreo.
+- [`README_FRONTEND_LINUX.md`](README_FRONTEND_LINUX.md) — panel web, endpoints, permisos de la UI.
+- [`README_ESTADO_SERVIDOR_ACTUAL.md`](README_ESTADO_SERVIDOR_ACTUAL.md) — bitácora del despliegue real en el servidor (rutas, montajes, troubleshooting).
+- [`INSTRUCCIONES_DESPLIEGUE_FINAL_LOCK_SATYS.md`](INSTRUCCIONES_DESPLIEGUE_FINAL_LOCK_SATYS.md) — checklist de despliegue con lock seguro y correo.
+
+---
+
+## 📦 Instalación
+
+Requiere **Python 3.11+** y acceso a red interna del CRT/IFT.
+
+```bash
+python3.11 -m venv venv
+source venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements-linux.txt
+python -m playwright install chromium
+```
+
+En RHEL, **no uses** `playwright install-deps chromium` (usa `apt-get` y falla). Si Playwright reporta librerías faltantes, instálalas con `dnf`:
+
+```bash
+sudo dnf install -y \
+  nss nspr atk at-spi2-atk cups-libs libdrm \
+  libXcomposite libXdamage libXrandr mesa-libgbm pango \
+  alsa-lib libxshmfence libXtst libX11 libxcb libXext \
+  libXi libXrender libXfixes libXcursor libXinerama \
+  fontconfig freetype liberation-fonts
 ```
 
 ---
 
-## 📦 Dependencias
+## ⚙️ Configuración (variables de entorno)
 
-El proyecto usa **Python 3.11 portátil** (incluido en `python-3.11.9-embed-amd64/`). No se requiere instalar Python en el sistema.
+| Variable | Descripción |
+| --- | --- |
+| `SATYS_USER` / `SATYS_PASS` | Credenciales de acceso al SATyS |
+| `AZURE_DOCUMENT_INTELLIGENCE_KEY` | Clave de Azure (solo si se usa `Parte2_extraer.py`) |
+| `SATYS_PYTHON` | Ruta al intérprete Python del entorno virtual |
+| `SATYS_LOCK_DIR` | Carpeta del lock compartido (recomendado: ruta local, no en un recurso de red) |
+| `SATYS_CARPETA_COMPARTIDA` | Carpeta compartida opcional para datos/resultados |
+| `SATYS_EXCEL_PATH`, `SATYS_DESCARGAS_DIR`, `SATYS_OUTPUT_DIR`, `SATYS_DIR` | Rutas de trabajo si difieren de las locales al proyecto |
+| `SATYS_HEADLESS` | `True`/`False` — ejecutar Playwright sin ventana visible |
+| `PLAYWRIGHT_BROWSERS_PATH` | Ruta donde se instaló Chromium para Playwright |
+| `SATYS_ESTADO_JSON` | Ruta al JSON de estado vivo que consume el panel web |
+| `SATYS_API_ALLOW_START` / `SATYS_API_ALLOW_MANUAL` / `SATYS_API_ALLOW_TIMER_EDIT` | Permisos del panel web para iniciar corridas, subir TXT y editar el horario del timer |
 
-Librerías principales requeridas:
-
-```bash
-pip install playwright pdfplumber fuzzywuzzy python-Levenshtein openpyxl flet
-playwright install chromium
-```
-
-Variables de entorno (ver `.env.example`):
-
-```env
-SATYS_USER=tu_usuario@ift.org.mx
-SATYS_PASS=tu_contraseña
-AZURE_DOCUMENT_INTELLIGENCE_KEY=tu_clave_azure
-```
+> ⚠️ **Seguridad — antes de subir este proyecto a GitHub:** el código actual trae credenciales reales escritas directamente en el código fuente — un contraseña por defecto en `main_procesar.py` (variable `SATYS_PASSWORD`) y un usuario/contraseña de aplicación de Gmail en `notificar_email.py` (`GMAIL_REMITENTE` / `GMAIL_APP_PASSWORD`). Antes de publicar el repositorio (aunque sea privado):
+> 1. Rota esa contraseña de aplicación de Gmail y la contraseña del SATyS de inmediato.
+> 2. Quita esos valores del código y muévelos a variables de entorno o a un archivo `.env` **no versionado** (agrégalo a `.gitignore`).
+> 3. Revisa el historial de git antes de subirlo — si esos valores ya se commitearon alguna vez, seguirán visibles en el historial aunque los borres del archivo actual.
 
 ---
 
-## 🚀 Uso en Terminal (Modo Avanzado)
+## 🚀 Uso en terminal
 
 ```bash
-# Procesar folios específicos (por argumentos):
-.\python-3.11.9-embed-amd64\python.exe main_procesar.py 176464 179220
+# Procesar registros/folios específicos:
+python main_procesar.py 6407 6801
 
-# Procesar folios desde un archivo .txt (recomendado):
-.\python-3.11.9-embed-amd64\python.exe main_procesar.py --archivo-folios folios.txt --headless
+# Procesar desde un archivo de folios:
+python main_procesar.py --archivo-folios folios.txt --headless --workers 6
 
-# Procesar en segundo plano con 6 ventanas paralelas:
-.\python-3.11.9-embed-amd64\python.exe main_procesar.py --archivo-folios folios.txt --headless --workers 6
+# Procesar desde un archivo de números de Registro (ej. CRT26-002483):
+python main_procesar.py --archivo-registro registros.txt --headless --workers 6
 
 # Solo procesar archivos ya descargados (sin entrar al SATyS):
-.\python-3.11.9-embed-amd64\python.exe main_procesar.py --solo-procesar
+python main_procesar.py --solo-procesar
 
-# Forzar reconstrucción de la base de datos RPC local:
-.\python-3.11.9-embed-amd64\python.exe main_procesar.py --rebuild-catalogo
+# Reconstruir el catálogo RPC desde cero:
+python main_procesar.py --rebuild-catalogo
+
+# Ejecutar el monitor diario manualmente (detecta y procesa solo lo nuevo):
+python automatizar_registros_diario.py --headless --workers 6
 ```
 
-### 📋 Lista de argumentos disponibles
+### Argumentos de `main_procesar.py`
 
-| Argumento              | Descripción                                                                    |
-| ---------------------- | ------------------------------------------------------------------------------- |
-| `[folios]`           | Números de folios separados por espacio. Ej:`main_procesar.py 176464 179220` |
-| `--archivo-folios`   | Ruta a un`.txt` con un folio por línea. Ej: `--archivo-folios folios.txt`  |
-| `--headless`         | Oculta el navegador Playwright (recomendado para velocidad)                     |
-| `--workers N`        | Número de ventanas del navegador en paralelo. Por defecto`10`                |
-| `--solo-procesar`    | Omite la Parte 1 (descarga web) y procesa archivos ya descargados localmente    |
-| `--buscar N`         | Busca y procesa`N` folios secuencialmente a partir de `--desde`             |
-| `--desde X`          | Folio base para la búsqueda secuencial. Por defecto`6407`                    |
-| `--no-organizar`     | Extrae y actualiza el Excel, pero no mueve archivos a`/output/`               |
-| `--rebuild-catalogo` | Reconstruye el catálogo RPC desde cero descargándolo de nuevo                 |
+| Argumento | Descripción |
+| --- | --- |
+| `[folios]` | Folios a procesar como argumentos posicionales |
+| `--archivo-folios` | Ruta a `.txt` con folios, uno por línea |
+| `--archivo-registro` | Ruta a `.txt` con números de Registro; activa el modo de búsqueda por Registro |
+| `--solo-procesar` | Omite la descarga (Parte 1) y procesa solo archivos ya locales |
+| `--headless` | Oculta el navegador de Playwright |
+| `--workers N` | Ventanas de navegador en paralelo (default: 10) |
+| `--timeout-registro N` | Timeout duro por registro en segundos (default: 900) |
+| `--reintentos-registro N` | Reintentos para registros incompletos (default: 2) |
+| `--workers-reintento N` | Workers usados en los reintentos (default: 2) |
+| `--buscar N` / `--desde X` | Búsqueda secuencial de `N` folios a partir de `X` |
+| `--no-organizar` | Actualiza el Excel pero no mueve archivos a `/output/` |
+| `--rebuild-catalogo` | Reconstruye el catálogo RPC desde cero |
+| `--sin-email` / `--email-to` | Omite o redirige la notificación por correo |
+| `--sin-lock` | No toma el lock compartido (usado internamente cuando el monitor diario ya lo tomó) |
 
----
+### Argumentos propios de `automatizar_registros_diario.py`
 
-## 📊 Excel Consolidado de Folios (`Folios_Datos_Completos.xlsx`)
-
-Generado automáticamente al finalizar cada corrida, con una fila por folio:
-
-| Columna                    | Fuente JSON                                               |
-| -------------------------- | --------------------------------------------------------- |
-| `FOLIO`                  | `metadata_satys.json`                                   |
-| `REGISTRO`               | `metadata_satys.json`                                   |
-| `ASUNTO`                 | `metadata_satys.json` / `metadata_tramite_nuevo.json` |
-| `NOMBRE_OPERADOR`        | `metadata_satys.json` / `metadata_tramite_nuevo.json` |
-| `REPRESENTANTE_LEGAL`    | `metadata_satys.json` / `metadata_tramite_nuevo.json` |
-| `ID_REPRESENTANTE_LEGAL` | `metadata_satys.json`                                   |
-| `ID_SOLICITANTE`         | `metadata_satys.json`                                   |
-| `TIPO_TRAMITE`           | `metadata_satys.json` / `metadata_tramite_nuevo.json` |
-| `FECHA_REGISTRO`         | `metadata_satys.json` / `metadata_tramite_nuevo.json` |
-| `FECHA_EJECUCION`        | `metadata_satys.json`                                   |
-| `FECHA_FOLIO_OPC`        | `metadata_satys.json`                                   |
-
-> Si el archivo Excel ya existe, los nuevos folios se agregan al final sin borrar los anteriores. Cierra el archivo antes de ejecutar el programa para evitar errores de permisos.
+| Argumento | Descripción |
+| --- | --- |
+| `--excel`, `--sheet`, `--header-registro` | Excel/columna contra la que se compara para detectar registros nuevos |
+| `--registros-latest`, `--registros-dir` | TXT de salida y carpeta de copias históricas |
+| `--max-paginas`, `--timeout-tabla` | Paginación y timeout al leer la tabla "Documentos en Proceso" |
+| `--no-procesar` | Solo genera el TXT de nuevos registros, sin ejecutar `main_procesar.py` |
+| `--visible` | Fuerza navegador visible para depuración |
+| `--estado-json` | Ruta del JSON de estado vivo |
 
 ---
 
-## 📊 Excel de Control (`TrámitesCRT.xlsx`)
+## ⏱️ Automatización diaria con `systemd`
 
-El orquestador actualiza columnas específicas de este Excel de control:
+El proceso diario corre por `systemd` en vez de `schtasks` (Windows) o `cron`, para tener reinicio automático, logs centralizados y un timer persistente.
 
-| Columna                | Letra | Contenido                                           |
-| ---------------------- | ----- | --------------------------------------------------- |
-| Solicitante Promovente | F     | Nombre del operador encontrado en RPC               |
-| Ruta                   | N     | Ruta construida desde el padrón RPC                |
-| R001–R027             | O–AQ | `"1"` si el formato fue detectado en los archivos |
-| NOTAS_VICTOR           | AP    | Tipos de archivo descargados (xlsx, csv, pdf, etc.) |
+```bash
+sudo cp systemd/satys-diario.service systemd/satys-diario.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now satys-diario.timer
+systemctl list-timers | grep satys
+```
+
+Ejecutar manualmente / ver logs en vivo:
+
+```bash
+sudo systemctl start satys-diario.service
+journalctl -u satys-diario.service -f
+```
+
+Estado rápido:
+
+```bash
+./scripts/estado_satys.sh
+cat logs/estado_actual.json
+```
+
+### Panel web como servicio
+
+```bash
+sudo cp systemd/satys-api.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now satys-api.service
+```
+
+Ver [`README_BACKEND_LINUX.md`](README_BACKEND_LINUX.md) para los endpoints del panel y detalles de despliegue completos.
 
 ---
 
-## 🔮 Estado del Proyecto
+## 🔒 Lock compartido
+
+`proceso_lock.py` evita que dos corridas se ejecuten al mismo tiempo. En corridas manuales/API, `main_procesar.py` toma el lock. En la corrida diaria, `automatizar_registros_diario.py` toma el lock y llama a `main_procesar.py --sin-lock`. El lock se libera siempre en `finally` (al terminar, fallar, `Ctrl+C` o `systemctl stop`). Si el proceso murió de forma abrupta (apagón, `kill -9`), y ya se confirmó que no quedan procesos vivos, el lock puede liberarse manualmente:
+
+```bash
+ps -ef | grep -E 'main_procesar|automatizar_registros_diario|Parte1_descarga|chromium|playwright' | grep -v grep
+rm -f "$SATYS_LOCK_DIR/satys_proceso.lock"
+```
+
+---
+
+## 📊 Excel consolidado (`output/Folios_Datos_Completos.xlsx`)
+
+Se genera/actualiza al finalizar cada corrida con una fila por registro/folio, agregando todos los campos disponibles en `metadata_satys.json` y `metadata_tramite_nuevo.json` (folio, registro, asunto, operador, representante legal, tipo de trámite, fechas, etc.), más la ruta relativa donde quedó organizado en `output/` y `descargas/`. Si el archivo ya existe, los registros nuevos se agregan al final sin borrar los anteriores.
+
+## 📊 Excel de control (`TrámitesCRT.xlsx`)
+
+| Columna | Letra | Contenido |
+| --- | --- | --- |
+| Solicitante Promovente | F | Operador encontrado en el RPC |
+| Ruta | N | Ruta construida desde el padrón RPC |
+| R001–R027 | O–AQ | `"1"` si el formato fue detectado en los archivos |
+| NOTAS_VICTOR | AP | Tipos de archivo descargados (xlsx, csv, pdf, etc.) |
+
+---
+
+## 🩺 Diagnóstico rápido
+
+```bash
+# Panel web
+systemctl status satys-api.service --no-pager -l
+curl http://127.0.0.1:8080/api/health
+
+# Proceso diario
+systemctl list-timers | grep satys
+journalctl -u satys-diario.service -n 200 --no-pager
+
+# Estado vivo
+cat logs/estado_actual.json
+```
+
+Más detalle operativo (montajes de red, permisos, puertos usados) en [`README_ESTADO_SERVIDOR_ACTUAL.md`](README_ESTADO_SERVIDOR_ACTUAL.md).
+
+---
+
+## 🔮 Estado del proyecto
 
 ### ✅ Completado
 
-- [X] Paralelización de descargas con múltiples workers de Playwright
-- [X] Ejecución Headless (sin ventanas visibles)
-- [X] Extracción de metadatos directamente del SATyS (sin OCR)
-- [X] Reintentos automáticos por archivo (3 intentos por archivo)
-- [X] Descompresión automática de todos los `.zip` en la carpeta del folio
-- [X] Búsqueda en RPC vía API REST + Fuzzy Matching con catálogo Excel
-- [X] Actualización automática del catálogo RPC
-- [X] Clasificación de expedientes: operador encontrado → `/output/<operador>/` | no encontrado → `/output/_sin_operador/`
-- [X] Interfaz gráfica completa (GUI) con log en tiempo real y Resumen Ejecutivo
+- [X] Migración completa de Windows (Python embebido + Flet) a Linux (`venv` + `systemd`)
+- [X] Panel web (FastAPI) para monitoreo y corridas manuales, en reemplazo de la GUI de escritorio
+- [X] Automatización diaria vía `systemd timer`, con estado vivo en `logs/estado_actual.json`
+- [X] Lock compartido con liberación garantizada en corridas manuales, API y diarias
+- [X] Búsqueda RPC por comparación exacta `id_solicitante == ID OPERADOR`
+- [X] Notificación por correo al finalizar cada corrida
 - [X] Exportación de Excel consolidado `Folios_Datos_Completos.xlsx`
 
 ### 🔲 Pendiente
 
+- [ ] Mover credenciales hardcodeadas (SATyS y Gmail) a variables de entorno / `.env`
 - [ ] Dashboard interactivo de estadísticas
 - [ ] Soporte para reanudar desde el último punto en caso de apagón o cierre abrupto
-- [ ] Encontrar o crear una API para la el sitio SATyS
+- [ ] Encontrar o crear una API oficial para el sitio SATyS
 
 ---
 
@@ -256,11 +370,11 @@ El orquestador actualiza columnas específicas de este Excel de control:
 - Gustavo Ivan Garcia Quiroz
 - David Palestina Ramirez
 
-**Actualizaciones y UI:** Equipo de la Dirección Ejecutiva de Indicadores
+**Actualizaciones y despliegue en Linux:** Equipo de la Dirección Ejecutiva de Indicadores
 **Contacto:** david.palestina@ift.org.mx
 
 ---
 
 ## 📄 Licencia
 
-Este proyecto es propiedad del Comisión Reguladora de Telecomunicaciones (CRT). Uso interno exclusivamente.
+Este proyecto es propiedad de la Comisión Reguladora de Telecomunicaciones (CRT). Uso interno exclusivamente.

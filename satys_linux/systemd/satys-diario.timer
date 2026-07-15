@@ -2,7 +2,7 @@
 Description=Ejecuta SATyS CRT diario a las 10:00 AM
 
 [Timer]
-OnCalendar=*-*-* 01:00:00
+OnCalendar=*-*-* 10:00:00
 Persistent=true
 Unit=satys-diario.service
 

@@ -125,7 +125,60 @@ def _resolve_log_path_from_resumen(resumen: dict[str, Any]) -> Path | None:
     return None
 
 
+def _resolve_existing_path(value: object) -> Path | None:
+    """Resuelve una ruta guardada en JSON solo si existe y es archivo."""
+    if not value:
+        return None
+    p = Path(str(value))
+    if not p.is_absolute():
+        p = PROJECT_DIR / p
+    try:
+        if p.exists() and p.is_file():
+            return p
+    except Exception:
+        return None
+    return None
+
+
 def _latest_daily_log_path() -> Path | None:
+    """
+    Devuelve el log diario que debe ver la UI.
+
+    Importante: monitor_registros_ultimo.json se actualiza al FINAL de una corrida.
+    Si se lanza una segunda corrida el mismo día, ese resumen puede seguir apuntando
+    al log anterior mientras el nuevo proceso ya está escribiendo otro archivo.
+
+    Por eso el orden correcto es:
+      1) Si estado_actual.json dice running=True, usar el log vivo del estado.
+      2) Si no hay estado vivo, usar el monitor_registros_*.log más reciente por mtime.
+      3) Solo como fallback usar monitor_registros_ultimo.json.
+    """
+    # 1) Corrida viva: estado_actual.json es la fuente de verdad.
+    try:
+        if ESTADO_JSON.exists():
+            estado = json.loads(ESTADO_JSON.read_text(encoding="utf-8"))
+            # automatizar_registros_diario.py escribe la clave "log".
+            for key in ("log", "log_actual", "log_path", "archivo_log"):
+                p = _resolve_existing_path(estado.get(key))
+                if p and estado.get("running") is True:
+                    return p
+    except Exception:
+        pass
+
+    # 2) Usar el archivo .log más reciente. Esto cubre reinicios o segundas
+    # corridas donde el JSON de resumen aún apunta al intento anterior.
+    try:
+        logs = sorted(
+            LOGS_DIR.glob("monitor_registros_*.log"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        if logs:
+            return logs[0]
+    except Exception:
+        pass
+
+    # 3) Fallback histórico.
     if RESUMEN_LATEST.exists():
         try:
             resumen = json.loads(RESUMEN_LATEST.read_text(encoding="utf-8"))
@@ -135,22 +188,18 @@ def _latest_daily_log_path() -> Path | None:
         except Exception:
             pass
 
-    if ESTADO_JSON.exists():
-        try:
+    # 4) Último fallback desde estado, aunque no esté running.
+    try:
+        if ESTADO_JSON.exists():
             estado = json.loads(ESTADO_JSON.read_text(encoding="utf-8"))
-            for key in ("log_actual", "log_path", "archivo_log"):
-                value = estado.get(key)
-                if value:
-                    p = Path(str(value))
-                    if not p.is_absolute():
-                        p = PROJECT_DIR / p
-                    if p.exists() and p.is_file():
-                        return p
-        except Exception:
-            pass
+            for key in ("log", "log_actual", "log_path", "archivo_log"):
+                p = _resolve_existing_path(estado.get(key))
+                if p:
+                    return p
+    except Exception:
+        pass
 
-    logs = sorted(LOGS_DIR.glob("monitor_registros_*.log"), key=lambda p: p.stat().st_mtime, reverse=True)
-    return logs[0] if logs else None
+    return None
 
 
 def _latest_manual_log_path() -> Path | None:
