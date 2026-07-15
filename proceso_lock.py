@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 r"""
 =============================================================
-  proceso_lock.py — Bloqueo (mutex) compartido entre laptops
+  proceso_lock.py — Bloqueo (mutex) compartido entre equipos
 =============================================================
 PROBLEMA QUE RESUELVE:
-  Varias laptops del equipo comparten la misma carpeta de red
-  (por ejemplo Z:\DEI_DATOS\SATyS) y podrían intentar correr el
+  Varias equipos del equipo comparten la misma carpeta de red
+  (por ejemplo /data/satys/Automatizacion-SATyS/.lock) y podrían intentar correr el
   pipeline (main_procesar.py, automatizar_registros_diario.py o
   la UI) al mismo tiempo. Eso puede provocar:
     - Dos sesiones abiertas a la vez en el portal SATyS.
@@ -14,11 +14,11 @@ PROBLEMA QUE RESUELVE:
     - Archivos de /output y /descargas mezclados o pisados a medias.
 
 CÓMO FUNCIONA:
-  Antes de arrancar, cada laptop intenta crear un archivo de
+  Antes de arrancar, cada equipo intenta crear un archivo de
   bloqueo ("satys_proceso.lock") dentro de una carpeta COMPARTIDA
   en red. Si el archivo ya existe y su "latido" (heartbeat) es
-  reciente, se asume que otra laptop está trabajando y se cancela
-  la ejecución con un mensaje claro (quién, en qué laptop, desde
+  reciente, se asume que otra equipo está trabajando y se cancela
+  la ejecución con un mensaje claro (quién, en qué equipo, desde
   cuándo). Si el archivo no existe, o su latido es muy viejo (el
   proceso murió sin limpiar, ej. apagón o cierre forzado), se toma
   el bloqueo con normalidad.
@@ -29,12 +29,12 @@ CÓMO FUNCIONA:
 
 CONFIGURAR LA CARPETA COMPARTIDA (se usa la primera que aplique):
   1. Variable de entorno SATYS_LOCK_DIR, por ejemplo:
-       set SATYS_LOCK_DIR=Z:\DEI_DATOS\SATyS\.lock
+       export SATYS_LOCK_DIR=/data/satys/Automatizacion-SATyS/.lock
   2. Editar "ruta_carpeta_compartida.txt" (junto a este script) y
      escribir ahí la ruta de red, en una sola línea sin "#".
   3. Si no se configura nada, el bloqueo se guarda LOCALMENTE
      (carpeta ".lock_local" dentro del proyecto) y SOLO protege
-     esta laptop — no protege contra las otras 3.
+     esta equipo — no protege contra las otras 3.
 
 USO TÍPICO:
     from proceso_lock import ProcesoLock, LockOcupadoError
@@ -93,7 +93,7 @@ LOCK_STALE_SEG_DEFAULT = 3 * 60 * 60  # 3 horas sin latido => se considera aband
 
 
 class LockOcupadoError(Exception):
-    """Se lanza cuando otra laptop ya tiene el bloqueo activo."""
+    """Se lanza cuando otra equipo ya tiene el bloqueo activo."""
 
 
 def _resolver_carpeta_lock() -> Path:
@@ -133,7 +133,7 @@ def _segundos_desde(iso_texto: str) -> float | None:
 class ProcesoLock:
     """
     Mutex de "un solo proceso SATyS a la vez", compartido entre
-    laptops vía un archivo en una carpeta de red.
+    equipos vía un archivo en una carpeta de red.
 
     Uso:
         lock = ProcesoLock(proceso="main_procesar.py")
@@ -172,8 +172,8 @@ class ProcesoLock:
         edad_seg = info.get("_edad_latido_seg") or 0
         edad_min = int(edad_seg / 60)
         return (
-            f"Ya hay un proceso SATyS corriendo en la laptop de "
-            f"{info.get('usuario', '?')} ({info.get('laptop', '?')}), "
+            f"Ya hay un proceso SATyS corriendo en la equipo de "
+            f"{info.get('usuario', '?')} ({info.get('equipo', '?')}), "
             f"iniciado el {info.get('inicio', '?')} "
             f"(último latido hace {edad_min} min). "
             f"Proceso: {info.get('proceso', '?')}. "
@@ -183,7 +183,7 @@ class ProcesoLock:
     # ── Adquisición ──────────────────────────────────────────────────
     def adquirir(self) -> None:
         """
-        Intenta tomar el bloqueo. Lanza LockOcupadoError si otra laptop
+        Intenta tomar el bloqueo. Lanza LockOcupadoError si otra equipo
         (o este mismo equipo, en otra ejecución) ya lo tiene activo.
 
         Si un proceso ANCESTRO ya tomó el bloqueo (por ejemplo, el
@@ -218,20 +218,20 @@ class ProcesoLock:
                 "token": self.token,
                 "proceso": self.proceso,
                 "usuario": getpass.getuser(),
-                "laptop": socket.gethostname(),
+                "equipo": socket.gethostname(),
                 "pid": os.getpid(),
                 "inicio": _ahora_iso(),
                 "ultimo_latido": _ahora_iso(),
             }
             try:
-                # Creación EXCLUSIVA: falla si otra laptop lo creó justo ahora
+                # Creación EXCLUSIVA: falla si otra equipo lo creó justo ahora
                 # (es la parte más "atómica" de este mecanismo).
                 fd = os.open(str(self.lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
                     json.dump(payload, f, ensure_ascii=False, indent=2)
                 break  # ¡Bloqueo tomado!
             except FileExistsError:
-                time.sleep(0.3 + intento * 0.4)  # otra laptop nos ganó justo ahora
+                time.sleep(0.3 + intento * 0.4)  # otra equipo nos ganó justo ahora
                 continue
         else:
             info_final = self.leer_estado() or ultimo_info_conocido
@@ -243,7 +243,7 @@ class ProcesoLock:
             )
 
         os.environ[TOKEN_ENV_VAR] = self.token
-        os.environ[INFO_ENV_VAR] = f"{payload['usuario']}@{payload['laptop']}"
+        os.environ[INFO_ENV_VAR] = f"{payload['usuario']}@{payload['equipo']}"
         self._iniciar_heartbeat()
         atexit.register(self.liberar)
 

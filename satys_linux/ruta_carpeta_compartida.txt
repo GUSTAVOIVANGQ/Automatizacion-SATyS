@@ -1,8 +1,0 @@
-# Ruta opcional para lock/sincronización compartida.
-# En el servidor Linux se recomienda usar rutas Linux absolutas.
-# Preferir variable de entorno en systemd:
-#   SATYS_LOCK_DIR=/data/satys/Automatizacion-SATyS/.lock
-#   SATYS_CARPETA_COMPARTIDA=/data/satys/compartido
-#
-# Deja este archivo sin rutas activas para que proceso_lock use .lock_local
-# o la ruta definida por SATYS_LOCK_DIR.

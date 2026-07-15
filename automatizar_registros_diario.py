@@ -11,13 +11,13 @@ Objetivo:
   3. Lee TrámitesCRT.xlsx y toma como evidencia la columna cuyo encabezado es 1711.
   4. Genera registros.txt SOLO con registros nuevos no encontrados en Excel.
   5. Ejecuta main_procesar.py --archivo-registro registros.txt.
-  6. Guarda logs, resumen JSON y muestra notificación de Windows cuando es posible.
+  6. Guarda logs, resumen JSON y estado vivo para monitoreo.
 
-Uso manual recomendado:
-  .\python-3.11.9-embed-amd64\python.exe automatizar_registros_diario.py --headless --workers 6
+Uso manual recomendado en Linux/RHEL:
+  /data/satys/venv/bin/python automatizar_registros_diario.py --headless --workers 6
 
-Primera prueba visible:
-  .\python-3.11.9-embed-amd64\python.exe automatizar_registros_diario.py --visible --workers 1
+Primera prueba visible en una estación con navegador:
+  python automatizar_registros_diario.py --visible --workers 1
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ import os
 import re
 import subprocess
 import sys
+import signal
 import time
 import traceback
 from datetime import datetime
@@ -35,6 +36,7 @@ from pathlib import Path
 from typing import Iterable
 
 from proceso_lock import ProcesoLock, LockOcupadoError
+from estado_ejecucion import EstadoEjecucion
 
 try:
     import notificar_email as _email_mod
@@ -45,7 +47,7 @@ except Exception:
 REGISTRO_RE = re.compile(r"\b[A-Z]{2,8}\d{2}-\d{3,}\b", re.IGNORECASE)
 
 PROJECT_DIR = Path(__file__).resolve().parent
-PYTHON_EXE_DEFAULT = PROJECT_DIR / "python-3.11.9-embed-amd64" / "python.exe"
+PYTHON_EXE_DEFAULT = Path(os.getenv("SATYS_PYTHON", sys.executable))
 EXTRAER_SCRIPT_DEFAULT = PROJECT_DIR / "extraer_registros_documentos.py"
 MAIN_SCRIPT_DEFAULT = PROJECT_DIR / "main_procesar.py"
 EXCEL_DEFAULT = PROJECT_DIR / "TrámitesCRT.xlsx"
@@ -193,8 +195,15 @@ def cargar_registros_procesados_excel(excel_path: Path, sheet_name: str, header_
     return procesados, info
 
 
-def ejecutar_comando(cmd: list[str], cwd: Path, log_path: Path, titulo: str) -> int:
-    """Ejecuta un comando mostrando y guardando stdout/stderr en un log."""
+def ejecutar_comando(
+    cmd: list[str],
+    cwd: Path,
+    log_path: Path,
+    titulo: str,
+    estado: EstadoEjecucion | None = None,
+    etapa: str = "",
+) -> int:
+    """Ejecuta un comando mostrando/guardando salida y actualizando estado vivo."""
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("a", encoding="utf-8", errors="replace") as log_file:
         separador = "=" * 90
@@ -205,6 +214,9 @@ def ejecutar_comando(cmd: list[str], cwd: Path, log_path: Path, titulo: str) -> 
 
         print(f"\n{separador}\n{titulo}\n{separador}")
         print("CMD:", " ".join(str(x) for x in cmd))
+
+        if estado is not None:
+            estado.actualizar(stage=etapa or titulo, comando=" ".join(str(x) for x in cmd))
 
         proc = subprocess.Popen(
             [str(x) for x in cmd],
@@ -218,12 +230,18 @@ def ejecutar_comando(cmd: list[str], cwd: Path, log_path: Path, titulo: str) -> 
         )
 
         assert proc.stdout is not None
+        ultima_actualizacion_estado = 0.0
         for line in proc.stdout:
             print(line, end="")
             log_file.write(line)
             log_file.flush()
+            if estado is not None and time.time() - ultima_actualizacion_estado >= 5:
+                estado.actualizar(stage=etapa or titulo, ultima_linea=line.strip()[:500])
+                ultima_actualizacion_estado = time.time()
 
         rc = proc.wait()
+        if estado is not None:
+            estado.actualizar(stage=f"{etapa or titulo}: terminado", return_code=rc)
         log_file.write(f"\n[{titulo}] return_code={rc}\n")
         log_file.flush()
         print(f"\n[{titulo}] return_code={rc}")
@@ -267,7 +285,7 @@ def construir_parser() -> argparse.ArgumentParser:
         description="Monitor diario: extrae Registros SATyS, compara contra TrámitesCRT.xlsx y procesa solo nuevos."
     )
     parser.add_argument("--python", dest="python_exe", type=Path, default=PYTHON_EXE_DEFAULT,
-                        help="Ruta al python.exe portable.")
+                        help="Ruta al intérprete Python. Default: sys.executable o SATYS_PYTHON.")
     parser.add_argument("--extraer-script", type=Path, default=EXTRAER_SCRIPT_DEFAULT,
                         help="Ruta a extraer_registros_documentos.py.")
     parser.add_argument("--main-script", type=Path, default=MAIN_SCRIPT_DEFAULT,
@@ -304,6 +322,10 @@ def construir_parser() -> argparse.ArgumentParser:
                         help="Solo genera TXT de nuevos registros; no ejecuta main_procesar.py.")
     parser.add_argument("--sin-notificacion", action="store_true",
                         help="No intenta mostrar notificación de Windows.")
+    parser.add_argument("--sin-email", action="store_true",
+                        help="No envía correo al finalizar; útil para pruebas o despliegue inicial.")
+    parser.add_argument("--estado-json", type=Path, default=LOG_DIR_DEFAULT / "estado_actual.json",
+                        help="Archivo JSON de estado vivo para dashboard/monitoreo.")
     return parser
 
 
@@ -318,6 +340,7 @@ def main() -> int:
     log_path = args.logs_dir / f"monitor_registros_{fecha}.log"
     resumen_json = args.logs_dir / f"monitor_registros_{fecha}.json"
     resumen_latest = args.logs_dir / "monitor_registros_ultimo.json"
+    estado = EstadoEjecucion(args.estado_json, proceso="automatizar_registros_diario.py")
 
     registros_satys_hist = args.registros_dir / f"registros_satys_{fecha}.txt"
     registros_nuevos_hist = args.registros_dir / f"registros_nuevos_{fecha}.txt"
@@ -342,12 +365,38 @@ def main() -> int:
         "errores": [],
     }
 
+    estado.actualizar(
+        running=True,
+        stage="inicializando",
+        log=str(log_path),
+        resumen=str(resumen_json),
+        resumen_latest=str(resumen_latest),
+        workers=args.workers,
+        timeout_registro_segundos=args.timeout_registro,
+    )
+
     # ──── Bloqueo compartido: evita que 2+ laptops corran el monitor a la vez ────
     # Cubre también a extraer_registros_documentos.py y main_procesar.py, que se
     # lanzan como subprocesos y heredan este mismo bloqueo automáticamente.
     lock = ProcesoLock(proceso="automatizar_registros_diario.py")
     try:
+        estado.actualizar(stage="tomando_lock")
         lock.adquirir()
+
+        def _salir_limpiamente(signum, frame):
+            try:
+                lock.liberar()
+            finally:
+                estado.finalizar(ok=False, mensaje=f"Proceso detenido por señal {signum}")
+                raise SystemExit(128 + signum)
+
+        try:
+            signal.signal(signal.SIGTERM, _salir_limpiamente)
+            signal.signal(signal.SIGINT, _salir_limpiamente)
+        except Exception:
+            pass
+
+        estado.actualizar(stage="lock_adquirido")
     except LockOcupadoError as exc:
         # No es un error real del monitor: simplemente otra laptop ya está
         # trabajando. Se omite esta corrida sin marcarla como fallo.
@@ -367,6 +416,7 @@ def main() -> int:
             str(exc),
             habilitado=not args.sin_notificacion,
         )
+        estado.finalizar(ok=True, mensaje=resumen["mensaje"], omitido_por_bloqueo=True)
         return 0
 
     try:
@@ -388,7 +438,10 @@ def main() -> int:
             "--modo-anios", "todos",
         ]
         cmd_extraer.append("--headless" if headless else "--visible")
-        rc_extraer = ejecutar_comando(cmd_extraer, PROJECT_DIR, log_path, "1) EXTRAER REGISTROS DESDE SATyS")
+        rc_extraer = ejecutar_comando(
+            cmd_extraer, PROJECT_DIR, log_path, "1) EXTRAER REGISTROS DESDE SATyS",
+            estado=estado, etapa="extrayendo_registros_satys"
+        )
         resumen["return_code_extraer"] = rc_extraer
         if rc_extraer != 0:
             raise RuntimeError(f"extraer_registros_documentos.py terminó con código {rc_extraer}")
@@ -408,11 +461,17 @@ def main() -> int:
             raise RuntimeError("No se extrajo ningún Registro desde SATyS. Revisa login, red CRT o selectores de tabla.")
 
         # 2) Leer evidencia Excel, columna 1711.
+        estado.actualizar(stage="leyendo_excel_control", excel=str(args.excel))
         procesados_excel, excel_info = cargar_registros_procesados_excel(
             args.excel, args.sheet, args.header_registro
         )
         resumen["excel_info"] = excel_info
 
+        estado.actualizar(
+            stage="comparando_registros",
+            total_registros_satys=len(registros_satys),
+            total_procesados_excel=len(procesados_excel),
+        )
         # 3) Comparar y guardar nuevos.
         nuevos_excel = [registro for registro in registros_satys if registro not in procesados_excel]
 
@@ -461,6 +520,15 @@ def main() -> int:
         resumen["total_nuevos_excel"] = len(nuevos_excel)
         resumen["total_incompletos_reintento"] = len(incompletos_en_excel)
         resumen["registros_nuevos"] = nuevos
+        estado.actualizar(
+            stage="comparacion_lista",
+            total_registros_satys=len(registros_satys),
+            total_procesados_excel=len(procesados_excel),
+            total_nuevos=len(nuevos),
+            total_nuevos_excel=len(nuevos_excel),
+            total_incompletos_reintento=len(incompletos_en_excel),
+            registros_nuevos_preview=nuevos[:30],
+        )
 
         print("\n" + "=" * 90)
         print("RESULTADO DE COMPARACIÓN")
@@ -483,6 +551,7 @@ def main() -> int:
                 f"Se revisaron {len(registros_satys)} registros; todos existen en TrámitesCRT.xlsx.",
                 habilitado=not args.sin_notificacion,
             )
+            estado.finalizar(ok=True, mensaje=resumen["mensaje"], total_registros_satys=len(registros_satys), total_nuevos=0)
             return 0
 
         # 4) Ejecutar main_procesar.py por Registro.
@@ -494,6 +563,7 @@ def main() -> int:
                 f"{len(nuevos)} registro(s) nuevo(s). TXT: {args.registros_latest.name}",
                 habilitado=not args.sin_notificacion,
             )
+            estado.finalizar(ok=True, mensaje=resumen["mensaje"], total_nuevos=len(nuevos), no_procesar=True)
             return 0
 
         cmd_main = [
@@ -504,11 +574,16 @@ def main() -> int:
             "--timeout-registro", str(args.timeout_registro),
             "--reintentos-registro", str(args.reintentos_registro),
             "--workers-reintento", str(args.workers_reintento),
+            "--sin-lock",
         ]
         if headless:
             cmd_main.append("--headless")
 
-        rc_main = ejecutar_comando(cmd_main, PROJECT_DIR, log_path, "2) PROCESAR REGISTROS NUEVOS")
+        estado.actualizar(stage="procesando_registros_nuevos", total_nuevos=len(nuevos))
+        rc_main = ejecutar_comando(
+            cmd_main, PROJECT_DIR, log_path, "2) PROCESAR REGISTROS NUEVOS",
+            estado=estado, etapa="procesando_registros_nuevos"
+        )
         resumen["return_code_main"] = rc_main
 
         fallidos_latest = PROJECT_DIR / "registros_fallidos" / "registros_fallidos_latest.txt"
@@ -528,12 +603,21 @@ def main() -> int:
         )
 
         # ── Notificación por correo electrónico ──────────────────────────────
-        if _EMAIL_DISPONIBLE:
-            # main_procesar.py guarda el log en descargas/procesamiento_log_registros.json
-            log_json_path = PROJECT_DIR / "descargas" / "procesamiento_log_registros.json"
-            _email_mod.enviar_desde_log_json(log_json_path)
+        # main_procesar.py ya envía el correo final con resultados correctos y
+        # rutas de salida (Folios_Datos_Completos.xlsx, output/, descargas/ y
+        # TrámitesCRT.xlsx). No enviamos un segundo correo aquí para evitar duplicados.
+        if args.sin_email:
+            print("\nℹ️  Correo deshabilitado por --sin-email.")
         else:
-            print("\n⚠️  Módulo notificar_email no disponible; correo no enviado.")
+            print("\nℹ️  La notificación de resultados la envía main_procesar.py al finalizar.")
+
+        estado.finalizar(
+            ok=rc_main == 0,
+            mensaje=resumen["mensaje"],
+            total_nuevos=len(nuevos),
+            total_fallidos_controlados=len(fallidos),
+            return_code_main=rc_main,
+        )
         # ─────────────────────────────────────────────────────────────────────
 
         return rc_main
@@ -550,7 +634,7 @@ def main() -> int:
             habilitado=not args.sin_notificacion,
         )
         # Correo de aviso de fallo
-        if _EMAIL_DISPONIBLE:
+        if _EMAIL_DISPONIBLE and not args.sin_email:
             _email_mod.enviar_notificacion(
                 total_registros=resumen.get("total_nuevos", 0),
                 exitosos=0,
@@ -559,9 +643,15 @@ def main() -> int:
                 registros=[],
                 fecha_ejecucion=resumen.get("fecha_ejecucion"),
             )
+        estado.finalizar(ok=False, mensaje=str(exc), errores=resumen.get("errores", []), traceback=resumen.get("traceback", ""))
         return 1
 
     finally:
+        try:
+            lock.liberar()
+            print("🔓 Lock compartido liberado al finalizar automatizar_registros_diario.py.")
+        except Exception:
+            pass
         try:
             resumen["fecha_fin"] = datetime.now().isoformat()
             resumen_json.write_text(json.dumps(resumen, ensure_ascii=False, indent=2), encoding="utf-8")
