@@ -180,20 +180,21 @@ sudo dnf install -y \
 
 ## ⚙️ Configuración (variables de entorno)
 
-| Variable | Descripción |
-| --- | --- |
-| `SATYS_USER` / `SATYS_PASS` | Credenciales de acceso al SATyS |
-| `AZURE_DOCUMENT_INTELLIGENCE_KEY` | Clave de Azure (solo si se usa `Parte2_extraer.py`) |
-| `SATYS_PYTHON` | Ruta al intérprete Python del entorno virtual |
-| `SATYS_LOCK_DIR` | Carpeta del lock compartido (recomendado: ruta local, no en un recurso de red) |
-| `SATYS_CARPETA_COMPARTIDA` | Carpeta compartida opcional para datos/resultados |
-| `SATYS_EXCEL_PATH`, `SATYS_DESCARGAS_DIR`, `SATYS_OUTPUT_DIR`, `SATYS_DIR` | Rutas de trabajo si difieren de las locales al proyecto |
-| `SATYS_HEADLESS` | `True`/`False` — ejecutar Playwright sin ventana visible |
-| `PLAYWRIGHT_BROWSERS_PATH` | Ruta donde se instaló Chromium para Playwright |
-| `SATYS_ESTADO_JSON` | Ruta al JSON de estado vivo que consume el panel web |
+| Variable                                                                                | Descripción                                                                          |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `SATYS_USER` / `SATYS_PASS`                                                         | Credenciales de acceso al SATyS                                                       |
+| `AZURE_DOCUMENT_INTELLIGENCE_KEY`                                                     | Clave de Azure (solo si se usa`Parte2_extraer.py`)                                  |
+| `SATYS_PYTHON`                                                                        | Ruta al intérprete Python del entorno virtual                                        |
+| `SATYS_LOCK_DIR`                                                                      | Carpeta del lock compartido (recomendado: ruta local, no en un recurso de red)        |
+| `SATYS_CARPETA_COMPARTIDA`                                                            | Carpeta compartida opcional para datos/resultados                                     |
+| `SATYS_EXCEL_PATH`, `SATYS_DESCARGAS_DIR`, `SATYS_OUTPUT_DIR`, `SATYS_DIR`      | Rutas de trabajo si difieren de las locales al proyecto                               |
+| `SATYS_HEADLESS`                                                                      | `True`/`False` — ejecutar Playwright sin ventana visible                         |
+| `PLAYWRIGHT_BROWSERS_PATH`                                                            | Ruta donde se instaló Chromium para Playwright                                       |
+| `SATYS_ESTADO_JSON`                                                                   | Ruta al JSON de estado vivo que consume el panel web                                  |
 | `SATYS_API_ALLOW_START` / `SATYS_API_ALLOW_MANUAL` / `SATYS_API_ALLOW_TIMER_EDIT` | Permisos del panel web para iniciar corridas, subir TXT y editar el horario del timer |
 
 > ⚠️ **Seguridad — antes de subir este proyecto a GitHub:** el código actual trae credenciales reales escritas directamente en el código fuente — un contraseña por defecto en `main_procesar.py` (variable `SATYS_PASSWORD`) y un usuario/contraseña de aplicación de Gmail en `notificar_email.py` (`GMAIL_REMITENTE` / `GMAIL_APP_PASSWORD`). Antes de publicar el repositorio (aunque sea privado):
+>
 > 1. Rota esa contraseña de aplicación de Gmail y la contraseña del SATyS de inmediato.
 > 2. Quita esos valores del código y muévelos a variables de entorno o a un archivo `.env` **no versionado** (agrégalo a `.gitignore`).
 > 3. Revisa el historial de git antes de subirlo — si esos valores ya se commitearon alguna vez, seguirán visibles en el historial aunque los borres del archivo actual.
@@ -224,33 +225,33 @@ python automatizar_registros_diario.py --headless --workers 6
 
 ### Argumentos de `main_procesar.py`
 
-| Argumento | Descripción |
-| --- | --- |
-| `[folios]` | Folios a procesar como argumentos posicionales |
-| `--archivo-folios` | Ruta a `.txt` con folios, uno por línea |
-| `--archivo-registro` | Ruta a `.txt` con números de Registro; activa el modo de búsqueda por Registro |
-| `--solo-procesar` | Omite la descarga (Parte 1) y procesa solo archivos ya locales |
-| `--headless` | Oculta el navegador de Playwright |
-| `--workers N` | Ventanas de navegador en paralelo (default: 10) |
-| `--timeout-registro N` | Timeout duro por registro en segundos (default: 900) |
-| `--reintentos-registro N` | Reintentos para registros incompletos (default: 2) |
-| `--workers-reintento N` | Workers usados en los reintentos (default: 2) |
-| `--buscar N` / `--desde X` | Búsqueda secuencial de `N` folios a partir de `X` |
-| `--no-organizar` | Actualiza el Excel pero no mueve archivos a `/output/` |
-| `--rebuild-catalogo` | Reconstruye el catálogo RPC desde cero |
-| `--sin-email` / `--email-to` | Omite o redirige la notificación por correo |
-| `--sin-lock` | No toma el lock compartido (usado internamente cuando el monitor diario ya lo tomó) |
+| Argumento                        | Descripción                                                                         |
+| -------------------------------- | ------------------------------------------------------------------------------------ |
+| `[folios]`                     | Folios a procesar como argumentos posicionales                                       |
+| `--archivo-folios`             | Ruta a`.txt` con folios, uno por línea                                            |
+| `--archivo-registro`           | Ruta a`.txt` con números de Registro; activa el modo de búsqueda por Registro    |
+| `--solo-procesar`              | Omite la descarga (Parte 1) y procesa solo archivos ya locales                       |
+| `--headless`                   | Oculta el navegador de Playwright                                                    |
+| `--workers N`                  | Ventanas de navegador en paralelo (default: 10)                                      |
+| `--timeout-registro N`         | Timeout duro por registro en segundos (default: 900)                                 |
+| `--reintentos-registro N`      | Reintentos para registros incompletos (default: 2)                                   |
+| `--workers-reintento N`        | Workers usados en los reintentos (default: 2)                                        |
+| `--buscar N` / `--desde X`   | Búsqueda secuencial de`N` folios a partir de `X`                                |
+| `--no-organizar`               | Actualiza el Excel pero no mueve archivos a`/output/`                              |
+| `--rebuild-catalogo`           | Reconstruye el catálogo RPC desde cero                                              |
+| `--sin-email` / `--email-to` | Omite o redirige la notificación por correo                                         |
+| `--sin-lock`                   | No toma el lock compartido (usado internamente cuando el monitor diario ya lo tomó) |
 
 ### Argumentos propios de `automatizar_registros_diario.py`
 
-| Argumento | Descripción |
-| --- | --- |
-| `--excel`, `--sheet`, `--header-registro` | Excel/columna contra la que se compara para detectar registros nuevos |
-| `--registros-latest`, `--registros-dir` | TXT de salida y carpeta de copias históricas |
-| `--max-paginas`, `--timeout-tabla` | Paginación y timeout al leer la tabla "Documentos en Proceso" |
-| `--no-procesar` | Solo genera el TXT de nuevos registros, sin ejecutar `main_procesar.py` |
-| `--visible` | Fuerza navegador visible para depuración |
-| `--estado-json` | Ruta del JSON de estado vivo |
+| Argumento                                       | Descripción                                                             |
+| ----------------------------------------------- | ------------------------------------------------------------------------ |
+| `--excel`, `--sheet`, `--header-registro` | Excel/columna contra la que se compara para detectar registros nuevos    |
+| `--registros-latest`, `--registros-dir`     | TXT de salida y carpeta de copias históricas                            |
+| `--max-paginas`, `--timeout-tabla`          | Paginación y timeout al leer la tabla "Documentos en Proceso"           |
+| `--no-procesar`                               | Solo genera el TXT de nuevos registros, sin ejecutar`main_procesar.py` |
+| `--visible`                                   | Fuerza navegador visible para depuración                                |
+| `--estado-json`                               | Ruta del JSON de estado vivo                                             |
 
 ---
 
@@ -308,12 +309,12 @@ Se genera/actualiza al finalizar cada corrida con una fila por registro/folio, a
 
 ## 📊 Excel de control (`TrámitesCRT.xlsx`)
 
-| Columna | Letra | Contenido |
-| --- | --- | --- |
-| Solicitante Promovente | F | Operador encontrado en el RPC |
-| Ruta | N | Ruta construida desde el padrón RPC |
-| R001–R027 | O–AQ | `"1"` si el formato fue detectado en los archivos |
-| NOTAS_VICTOR | AP | Tipos de archivo descargados (xlsx, csv, pdf, etc.) |
+| Columna                | Letra | Contenido                                           |
+| ---------------------- | ----- | --------------------------------------------------- |
+| Solicitante Promovente | F     | Operador encontrado en el RPC                       |
+| Ruta                   | N     | Ruta construida desde el padrón RPC                |
+| R001–R027             | O–AQ | `"1"` si el formato fue detectado en los archivos |
+| NOTAS_VICTOR           | AP    | Tipos de archivo descargados (xlsx, csv, pdf, etc.) |
 
 ---
 
@@ -371,7 +372,7 @@ Más detalle operativo (montajes de red, permisos, puertos usados) en [`README_E
 - David Palestina Ramirez
 
 **Actualizaciones y despliegue en Linux:** Equipo de la Dirección Ejecutiva de Indicadores
-**Contacto:** david.palestina@ift.org.mx
+**Contacto:** david.palestina@crt.gob.mx
 
 ---
 
