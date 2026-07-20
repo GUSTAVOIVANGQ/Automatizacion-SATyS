@@ -1,0 +1,33 @@
+{
+  "satys": {
+    "usuario": "usuario_satys",
+    "password": "password_satys"
+  },
+  "gmail": {
+    "remitente": "cuenta@gmail.com",
+    "app_password": "app_password_sin_espacios",
+    "enabled": true,
+    "from_name": "Sistema SATyS DEI",
+    "destinatarios": [
+      "gustavo.garcia@crt.gob.mx",
+      "david.palestina@crt.gob.mx",
+      "ivan.paredes@crt.gob.mx",
+      "antonio.sandoval@crt.gob.mx",
+      "brandon.gonzalez@crt.gob.mx"
+    ],
+    "cc": [],
+    "bcc": []
+  },
+  "rutas": {
+    "descargas": "descargas",
+    "output": "output",
+    "excel": "TrámitesCRT.xlsx",
+    "carpeta_compartida": "/depi/DEI_DATOS/SATyS"
+  },
+  "procesamiento": {
+    "workers": 10,
+    "timeout_registro": 900,
+    "reintentos_registro": 2,
+    "workers_reintento": 2
+  }
+}
