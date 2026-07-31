@@ -50,6 +50,11 @@ from configuracion_local import (
 )
 from estado_descargas import carpeta_tiene_descarga_real, registro_esta_completo
 from sincronizacion_depi import sincronizar_salidas
+from rutas_salida import (
+    carpeta_sin_operador,
+    destino_sin_operador,
+    ruta_relativa_sin_operador,
+)
 
 DESCARGA_BASE = ruta_configurada("descargas", "descargas")
 OUTPUT_BASE = ruta_configurada("output", "output")
@@ -388,6 +393,7 @@ def procesar_folio(
     registro_val = ""
     id_solicitante = ""  # Campo clave para búsqueda exacta en RPC
     tipo_tramite = ""
+    folio_opc = ""
     fecha_limite = ""  # Plazo de atención (solo existe en metadata_tramite_nuevo.json)
 
     if meta_path.exists():
@@ -401,6 +407,7 @@ def procesar_folio(
                 registro_val = meta.get("registro", "")
                 id_solicitante = meta.get("id_solicitante", "")  # ID para lookup exacto
                 tipo_tramite = meta.get("tipo_tramite", "")
+                folio_opc = str(meta.get("folio_opc", "") or "").strip()
         except Exception as e:
             log.warning("⚠️  No se pudo leer metadatos de %s: %s", meta_path, e)
 
@@ -425,6 +432,8 @@ def procesar_folio(
                     tipo_tramite = meta_tn.get("tipo_tramite", "")
                 if not fecha_registro:
                     fecha_registro = meta_tn.get("fecha_registro", "")
+                if not folio_opc:
+                    folio_opc = str(meta_tn.get("folio_opc", "") or "").strip()
         except Exception as e:
             log.warning("⚠️  No se pudo leer metadatos de %s: %s", meta_tramite_nuevo_path, e)
 
@@ -468,6 +477,7 @@ def procesar_folio(
     resultado["imagen_sello"] = None
     resultado["fecha_sello"] = fecha_registro
     resultado["fuente_metadatos"] = "satys_json"
+    resultado["folio_opc"] = folio_opc
 
     # Tipos de archivo descargados
     nota_victor = obtener_nota_victor(carpeta)
@@ -595,9 +605,12 @@ def procesar_folio(
         print(f"\n   ⚠️  PORCENTAJE DE EXACTITUD (ID exacto): {score_exactitud:.2f}%")
         print(f"      id_solicitante usado    : {id_solicitante or 'N/A'}")
         print("      ID OPERADOR en catálogo : NO ENCONTRADO")
-        print("      Resultado               : _sin_operador / revisión manual")
+        print(f"      Resultado               : {carpeta_sin_operador(folio_opc)} / revisión manual")
 
     nombre_final = resultado.get("nombre_operador") or ""
+    ruta_revision_manual = ruta_relativa_sin_operador(folio_id, folio_opc)
+    destino_revision_manual = destino_sin_operador(OUTPUT_BASE, folio_id, folio_opc)
+    resultado["carpeta_revision_manual"] = carpeta_sin_operador(folio_opc)
 
     # ──── PARTE 4: Actualizar Excel ────
     log.info("📊 [PARTE 4] Actualizando Excel...")
@@ -618,7 +631,7 @@ def procesar_folio(
         ruta_salida=(
             rpc_resultado.get("ruta", "")
             if rpc_resultado and rpc_resultado.get("ok")
-            else str(Path("_sin_operador") / folio_id).replace("/", "\\")
+            else ruta_revision_manual
         ),
     )
     resultado["excel_ok"] = excel_ok
@@ -633,9 +646,10 @@ def procesar_folio(
                 resultado["organizado_ok"] = True
                 resultado["output_dir"] = str(destino)
         else:
-            # Sin operador o coincidencia insuficiente → copiar carpeta a output\_sin_operador\{folio_id}
-            # Usa rglob para copiar recursivamente (incluye archivos en subcarpetas de ZIPs extraídos)
-            sin_op_dir = OUTPUT_BASE / "_sin_operador" / folio_id
+            # Sin operador o coincidencia insuficiente. Los folios OPC que
+            # empiezan con CORREO-2408 se separan en output/sin_operador_CORREO.
+            # Usa rglob para copiar recursivamente (incluye archivos en subcarpetas de ZIPs extraídos).
+            sin_op_dir = destino_revision_manual
             sin_op_dir.mkdir(parents=True, exist_ok=True)
             archivos_copiados = []
             for archivo in carpeta.rglob("*"):
@@ -656,7 +670,10 @@ def procesar_folio(
                 log.info("📂 Folio %s copiado a: %s (%d archivos)",
                          folio, sin_op_dir, len(archivos_copiados))
             else:
-                log.warning("⚠️  Folio %s: no se copiaron archivos a _sin_operador", folio)
+                log.warning(
+                    "⚠️  Folio %s: no se copiaron archivos a %s",
+                    folio, resultado["carpeta_revision_manual"],
+                )
 
     return resultado
 

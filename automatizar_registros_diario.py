@@ -23,7 +23,6 @@ Primera prueba visible en una estación con navegador:
 from __future__ import annotations
 
 import argparse
-import io
 import json
 import os
 import re
@@ -35,12 +34,6 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable
-
-# Forzar UTF-8 en consola Windows (evita UnicodeEncodeError con emojis y tildes)
-if hasattr(sys.stdout, "buffer") and getattr(sys.stdout, 'encoding', '') != 'utf-8':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-if hasattr(sys.stderr, "buffer") and getattr(sys.stderr, 'encoding', '') != 'utf-8':
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 from proceso_lock import ProcesoLock, LockOcupadoError
 from estado_ejecucion import EstadoEjecucion
@@ -60,6 +53,7 @@ PROJECT_DIR = Path(__file__).resolve().parent
 PYTHON_EXE_DEFAULT = Path(os.getenv("SATYS_PYTHON", sys.executable))
 EXTRAER_SCRIPT_DEFAULT = PROJECT_DIR / "extraer_registros_documentos.py"
 MAIN_SCRIPT_DEFAULT = PROJECT_DIR / "main_procesar.py"
+RECONCILIAR_SCRIPT_DEFAULT = PROJECT_DIR / "reconciliar_metadata_global.py"
 EXCEL_DEFAULT = ruta_configurada("excel", "TrámitesCRT.xlsx")
 REGISTROS_LATEST_DEFAULT = PROJECT_DIR / "registros.txt"
 REGISTROS_DIR_DEFAULT = PROJECT_DIR / "registros_diarios"
@@ -71,6 +65,13 @@ WORKERS_DEFAULT = int(PROCESAMIENTO_CFG.get("workers", 10))
 TIMEOUT_REGISTRO_DEFAULT = int(PROCESAMIENTO_CFG.get("timeout_registro", 900))
 REINTENTOS_REGISTRO_DEFAULT = int(PROCESAMIENTO_CFG.get("reintentos_registro", 2))
 WORKERS_REINTENTO_DEFAULT = int(PROCESAMIENTO_CFG.get("workers_reintento", 2))
+TIMEOUT_TABLA_DEFAULT = 120
+INTENTOS_ANIO_EXTRACCION_DEFAULT = 3
+INTENTOS_PAGINA_EXTRACCION_DEFAULT = 3
+# Reintentos exclusivos de la etapa inicial de consulta a SATyS. No modifican
+# los reintentos por Registro de main_procesar.py.
+REINTENTOS_EXTRACCION_DEFAULT = max(0, int(PROCESAMIENTO_CFG.get("reintentos_extraccion", 2)))
+ESPERA_REINTENTO_EXTRACCION_DEFAULT = 0
 
 
 def normalizar_registro(valor: object) -> str:
@@ -263,6 +264,252 @@ def ejecutar_comando(
         return rc
 
 
+class ExtraccionSatysAgotada(RuntimeError):
+    """Error con el historial de todos los intentos de extracción agotados."""
+
+    def __init__(self, mensaje: str, historial: list[dict]):
+        super().__init__(mensaje)
+        self.historial = historial
+
+
+def limpiar_salida_extraccion(output_path: Path) -> None:
+    """Elimina la salida de un intento anterior para evitar aceptar datos obsoletos."""
+    candidatos = (
+        output_path,
+        output_path.with_suffix(output_path.suffix + ".json"),
+    )
+    for candidato in candidatos:
+        try:
+            candidato.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def validar_resumen_extractor(output_path: Path, registros: list[str]) -> dict:
+    """Valida el certificado JSON del extractor contra el TXT publicado."""
+    resumen_path = output_path.with_suffix(output_path.suffix + ".json")
+    resultado = {
+        "ok": False,
+        "path": str(resumen_path),
+        "vacio_confirmado": False,
+        "error": "",
+        "resumen": None,
+    }
+    if not resumen_path.exists():
+        resultado["error"] = "falta el resumen JSON del extractor"
+        return resultado
+    try:
+        resumen = json.loads(resumen_path.read_text(encoding="utf-8-sig", errors="replace"))
+    except Exception as exc:
+        resultado["error"] = f"resumen JSON ilegible: {exc}"
+        return resultado
+    resultado["resumen"] = resumen
+    if resumen.get("estado") != "COMPLETO" or resumen.get("integridad") != "VALIDADA":
+        resultado["error"] = (
+            f"estado/integridad no válidos: estado={resumen.get('estado')!r}, "
+            f"integridad={resumen.get('integridad')!r}"
+        )
+        return resultado
+    if int(resumen.get("total_registros", -1)) != len(registros):
+        resultado["error"] = (
+            f"TXT y resumen no coinciden: TXT={len(registros)}, "
+            f"resumen={resumen.get('total_registros')!r}"
+        )
+        return resultado
+
+    por_anio = resumen.get("por_anio")
+    if not isinstance(por_anio, list) or not por_anio:
+        resultado["error"] = "el resumen no contiene detalle por año"
+        return resultado
+    estados_validos = {"ENCONTRADOS_COMPLETOS", "VACIO_CONFIRMADO"}
+    total_filas = 0
+    todos_vacios = True
+    for item in por_anio:
+        estado = item.get("estado")
+        if estado not in estados_validos:
+            resultado["error"] = f"año {item.get('anio')}: estado indeterminado {estado!r}"
+            return resultado
+        total = int(item.get("total_reportado_satys") or 0)
+        filas = int(item.get("filas_leidas") or 0)
+        guardados = int(item.get("total_guardados_anio") or 0)
+        invalidas = int(item.get("filas_invalidas") or 0)
+        if invalidas != 0:
+            resultado["error"] = f"año {item.get('anio')}: {invalidas} fila(s) inválida(s)"
+            return resultado
+        if estado == "ENCONTRADOS_COMPLETOS":
+            todos_vacios = False
+            if total <= 0 or filas != total or guardados <= 0:
+                resultado["error"] = (
+                    f"año {item.get('anio')}: conciliación incompleta "
+                    f"total={total}, filas={filas}, guardados={guardados}"
+                )
+                return resultado
+        else:
+            if total != 0 or filas != 0 or guardados != 0:
+                resultado["error"] = (
+                    f"año {item.get('anio')}: VACIO_CONFIRMADO inconsistente "
+                    f"total={total}, filas={filas}, guardados={guardados}"
+                )
+                return resultado
+        total_filas += filas
+
+    if int(resumen.get("total_filas_satys", -1)) != total_filas:
+        resultado["error"] = (
+            f"total_filas_satys inconsistente: resumen={resumen.get('total_filas_satys')!r}, "
+            f"suma={total_filas}"
+        )
+        return resultado
+    vacio_declarado = bool(resumen.get("vacio_confirmado"))
+    if vacio_declarado != todos_vacios:
+        resultado["error"] = (
+            f"bandera vacio_confirmado inconsistente: declarada={vacio_declarado}, calculada={todos_vacios}"
+        )
+        return resultado
+    if todos_vacios and registros:
+        resultado["error"] = "el resumen confirma vacío pero el TXT contiene registros"
+        return resultado
+    if not todos_vacios and not registros:
+        resultado["error"] = "el resumen reporta filas pero el TXT quedó vacío"
+        return resultado
+
+    resultado["ok"] = True
+    resultado["vacio_confirmado"] = todos_vacios
+    return resultado
+
+
+def extraer_registros_satys_con_reintentos(
+    *,
+    cmd_extraer: list[str],
+    output_path: Path,
+    cwd: Path,
+    log_path: Path,
+    estado: EstadoEjecucion | None,
+    reintentos: int,
+    espera_segundos: int,
+) -> tuple[list[str], list[dict]]:
+    """
+    Ejecuta la extracción hasta obtener un resultado certificado y conciliado.
+
+    Cada intento lanza un proceso nuevo de extraer_registros_documentos.py. Ese
+    proceso abre su propio navegador y siempre lo cierra en su bloque ``finally``;
+    por ello cada reintento empieza con un navegador limpio.
+
+    Se reintenta cuando:
+      * el extractor termina con código distinto de cero;
+      * falta el resumen JSON de integridad; o
+      * TXT y resumen no concilian.
+
+    Un TXT vacío solo es válido si el resumen declara VACIO_CONFIRMADO para todos
+    los años. ``reintentos=2`` significa un máximo de tres intentos totales. Una
+    vez que el resultado queda certificado, el flujo regresa al procesamiento sin alterar
+    Parte 1, Parte 2, Parte 3, Parte 4 ni sus reintentos por Registro.
+    """
+    reintentos = max(0, int(reintentos))
+    espera_segundos = max(0, int(espera_segundos))
+    total_intentos = reintentos + 1
+    historial: list[dict] = []
+
+    for numero_intento in range(1, total_intentos + 1):
+        limpiar_salida_extraccion(output_path)
+        titulo = (
+            "1) EXTRAER REGISTROS DESDE SATyS "
+            f"(intento {numero_intento}/{total_intentos})"
+        )
+        inicio = datetime.now().isoformat()
+        if estado is not None:
+            estado.actualizar(
+                stage="extrayendo_registros_satys",
+                intento_extraccion=numero_intento,
+                total_intentos_extraccion=total_intentos,
+            )
+
+        rc = ejecutar_comando(
+            cmd_extraer,
+            cwd,
+            log_path,
+            titulo,
+            estado=estado,
+            etapa="extrayendo_registros_satys",
+        )
+        registros = leer_registros_txt(output_path) if rc == 0 else []
+        validacion = validar_resumen_extractor(output_path, registros) if rc == 0 else {
+            "ok": False, "vacio_confirmado": False, "error": "el extractor terminó con error"
+        }
+        motivo = "ok"
+        if rc != 0:
+            motivo = f"extractor terminó con código {rc}"
+        elif not validacion.get("ok"):
+            motivo = f"certificado de integridad inválido: {validacion.get('error')}"
+        elif validacion.get("vacio_confirmado"):
+            motivo = "VACIO_CONFIRMADO"
+
+        detalle = {
+            "intento": numero_intento,
+            "total_intentos": total_intentos,
+            "fecha_inicio": inicio,
+            "fecha_fin": datetime.now().isoformat(),
+            "return_code": rc,
+            "total_registros": len(registros),
+            "vacio_confirmado": bool(validacion.get("vacio_confirmado")),
+            "integridad_ok": bool(validacion.get("ok")),
+            "error_integridad": validacion.get("error", ""),
+            "resultado": motivo,
+        }
+        historial.append(detalle)
+
+        if rc == 0 and validacion.get("ok"):
+            if registros:
+                print(
+                    f"✅ Extracción SATyS válida en intento {numero_intento}/{total_intentos}: "
+                    f"{len(registros)} Registro(s), integridad conciliada."
+                )
+            else:
+                print(
+                    f"✅ Extracción SATyS válida en intento {numero_intento}/{total_intentos}: "
+                    "cero Registros confirmado por DataTables y certificado JSON."
+                )
+            return registros, historial
+
+        aviso = (
+            f"⚠️  Extracción SATyS no válida en intento {numero_intento}/{total_intentos}: "
+            f"{motivo}."
+        )
+        print(aviso)
+        with log_path.open("a", encoding="utf-8", errors="replace") as log_file:
+            log_file.write("\n" + aviso + "\n")
+
+        if numero_intento < total_intentos:
+            if estado is not None:
+                estado.actualizar(
+                    stage="esperando_reintento_extraccion_satys",
+                    intento_extraccion=numero_intento,
+                    siguiente_intento=numero_intento + 1,
+                    espera_segundos=espera_segundos,
+                    motivo_reintento=motivo,
+                )
+            if espera_segundos:
+                print(
+                    f"   El navegador del intento anterior ya terminó. "
+                    f"Nuevo intento en {espera_segundos} segundo(s)..."
+                )
+                time.sleep(espera_segundos)
+            else:
+                print(
+                    "   El navegador del intento anterior ya terminó. "
+                    "Iniciando el siguiente intento de inmediato..."
+                )
+
+    ultimo = historial[-1] if historial else {}
+    raise ExtraccionSatysAgotada(
+        "No fue posible obtener Registros desde SATyS después de "
+        f"{total_intentos} intento(s). Último resultado: "
+        f"{ultimo.get('resultado', 'sin resultado')}; "
+        f"return_code={ultimo.get('return_code', 'N/D')}; "
+        f"registros={ultimo.get('total_registros', 0)}.",
+        historial,
+    )
+
+
 def ps_quote(text: str) -> str:
     return "'" + text.replace("'", "''") + "'"
 
@@ -306,6 +553,34 @@ def sincronizar_estado_diario_depi() -> None:
     for error in resultado.errores:
         print(f"⚠️  Sincronización diaria DEPI: {error}")
 
+
+def ejecutar_reconciliacion_global(
+    *,
+    python_exe: Path,
+    script: Path,
+    excel: Path,
+    log_path: Path,
+    estado: EstadoEjecucion,
+    sin_backup: bool = False,
+) -> int:
+    """Reconcilia siempre el Excel maestro desde todos los metadata JSON."""
+    cmd = [
+        str(python_exe),
+        str(script),
+        "--excel", str(excel),
+        "--resumen-json", str(LOG_DIR_DEFAULT / "reconciliacion_global_ultimo.json"),
+    ]
+    if sin_backup:
+        cmd.append("--sin-backup")
+    return ejecutar_comando(
+        cmd,
+        PROJECT_DIR,
+        log_path,
+        "3) RECONCILIAR TRÁMITESCRT DESDE TODOS LOS METADATA",
+        estado=estado,
+        etapa="reconciliando_excel_global",
+    )
+
 def construir_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Monitor diario: extrae Registros SATyS, compara contra TrámitesCRT.xlsx y procesa solo nuevos."
@@ -316,6 +591,10 @@ def construir_parser() -> argparse.ArgumentParser:
                         help="Ruta a extraer_registros_documentos.py.")
     parser.add_argument("--main-script", type=Path, default=MAIN_SCRIPT_DEFAULT,
                         help="Ruta a main_procesar.py.")
+    parser.add_argument("--reconciliar-script", type=Path, default=RECONCILIAR_SCRIPT_DEFAULT,
+                        help="Ruta a reconciliar_metadata_global.py.")
+    parser.add_argument("--sin-reconciliacion-global", action="store_true",
+                        help="Desactiva la reconciliación completa de TrámitesCRT.xlsx; solo diagnóstico.")
     parser.add_argument("--excel", type=Path, default=EXCEL_DEFAULT,
                         help="Ruta a TrámitesCRT.xlsx.")
     parser.add_argument("--sheet", default=SHEET_DEFAULT,
@@ -336,14 +615,22 @@ def construir_parser() -> argparse.ArgumentParser:
                         help="Reintentos automáticos solo para registros incompletos. 2 = hasta 3 intentos totales.")
     parser.add_argument("--workers-reintento", type=int, default=WORKERS_REINTENTO_DEFAULT,
                         help="Workers usados en reintentos de registros fallidos/incompletos. Default: 2.")
+    parser.add_argument("--reintentos-extraccion", type=int, default=REINTENTOS_EXTRACCION_DEFAULT,
+                        help="Reintentos adicionales solo para extraer la lista inicial desde SATyS. 2 = hasta 3 intentos totales.")
+    parser.add_argument("--espera-reintento-extraccion", type=int, default=ESPERA_REINTENTO_EXTRACCION_DEFAULT,
+                        help="Segundos de espera entre intentos de extracción SATyS. Default: 0 (reintento inmediato).")
     parser.add_argument("--headless", action="store_true", default=True,
                         help="Ejecuta Playwright sin navegador visible. Default: activo.")
     parser.add_argument("--visible", action="store_true",
                         help="Fuerza navegador visible para depuración; desactiva --headless.")
     parser.add_argument("--max-paginas", type=int, default=100,
                         help="Máximo de páginas DataTables al extraer registros.")
-    parser.add_argument("--timeout-tabla", type=int, default=60,
-                        help="Tiempo máximo en segundos para esperar que cargue la tabla de Documentos en Proceso.")
+    parser.add_argument("--timeout-tabla", type=int, default=TIMEOUT_TABLA_DEFAULT,
+                        help="Tiempo máximo por año/página para esperar al menos un Registro. Default: 120 segundos.")
+    parser.add_argument("--intentos-anio-extraccion", type=int, default=INTENTOS_ANIO_EXTRACCION_DEFAULT,
+                        help="Intentos totales por año antes de fallar. Default: 3.")
+    parser.add_argument("--intentos-pagina-extraccion", type=int, default=INTENTOS_PAGINA_EXTRACCION_DEFAULT,
+                        help="Intentos para confirmar el avance de cada página. Default: 3.")
     parser.add_argument("--no-procesar", action="store_true",
                         help="Solo genera TXT de nuevos registros; no ejecuta main_procesar.py.")
     parser.add_argument("--sin-notificacion", action="store_true",
@@ -378,7 +665,11 @@ def main() -> int:
         "timeout_registro_segundos": args.timeout_registro,
         "reintentos_registro": args.reintentos_registro,
         "workers_reintento": args.workers_reintento,
+        "reintentos_extraccion": args.reintentos_extraccion,
+        "espera_reintento_extraccion_segundos": args.espera_reintento_extraccion,
         "timeout_tabla_segundos": args.timeout_tabla,
+        "intentos_anio_extraccion": args.intentos_anio_extraccion,
+        "intentos_pagina_extraccion": args.intentos_pagina_extraccion,
         "paths": {
             "project_dir": str(PROJECT_DIR),
             "excel": str(args.excel),
@@ -461,18 +752,30 @@ def main() -> int:
             "--separador", "linea",
             "--max-paginas", str(args.max_paginas),
             "--timeout-tabla", str(args.timeout_tabla),
+            "--intentos-anio", str(args.intentos_anio_extraccion),
+            "--intentos-pagina", str(args.intentos_pagina_extraccion),
             "--modo-anios", "todos",
         ]
         cmd_extraer.append("--headless" if headless else "--visible")
-        rc_extraer = ejecutar_comando(
-            cmd_extraer, PROJECT_DIR, log_path, "1) EXTRAER REGISTROS DESDE SATyS",
-            estado=estado, etapa="extrayendo_registros_satys"
-        )
-        resumen["return_code_extraer"] = rc_extraer
-        if rc_extraer != 0:
-            raise RuntimeError(f"extraer_registros_documentos.py terminó con código {rc_extraer}")
-
-        registros_satys = leer_registros_txt(registros_satys_hist)
+        try:
+            registros_satys, intentos_extraccion = extraer_registros_satys_con_reintentos(
+                cmd_extraer=cmd_extraer,
+                output_path=registros_satys_hist,
+                cwd=PROJECT_DIR,
+                log_path=log_path,
+                estado=estado,
+                reintentos=args.reintentos_extraccion,
+                espera_segundos=args.espera_reintento_extraccion,
+            )
+        except ExtraccionSatysAgotada as exc:
+            resumen["intentos_extraccion_satys"] = exc.historial
+            resumen["total_intentos_extraccion_satys"] = len(exc.historial)
+            if exc.historial:
+                resumen["return_code_extraer"] = exc.historial[-1]["return_code"]
+            raise
+        resumen["intentos_extraccion_satys"] = intentos_extraccion
+        resumen["total_intentos_extraccion_satys"] = len(intentos_extraccion)
+        resumen["return_code_extraer"] = intentos_extraccion[-1]["return_code"]
         resumen["total_registros_satys"] = len(registros_satys)
         resumen["primeros_registros_satys"] = registros_satys[:15]
         resumen_extraer_path = registros_satys_hist.with_suffix(registros_satys_hist.suffix + ".json")
@@ -483,8 +786,18 @@ def main() -> int:
                 )
             except Exception as exc:
                 resumen["errores"].append(f"No se pudo leer resumen del extractor: {exc}")
-        if not registros_satys:
-            raise RuntimeError("No se extrajo ningún Registro desde SATyS. Revisa login, red CRT o selectores de tabla.")
+        vacio_confirmado_satys = bool(
+            isinstance(resumen.get("extraccion_satys"), dict)
+            and resumen["extraccion_satys"].get("estado") == "COMPLETO"
+            and resumen["extraccion_satys"].get("integridad") == "VALIDADA"
+            and resumen["extraccion_satys"].get("vacio_confirmado")
+        )
+        resumen["vacio_confirmado_satys"] = vacio_confirmado_satys
+        if not registros_satys and not vacio_confirmado_satys:
+            raise RuntimeError(
+                "El TXT quedó vacío sin una confirmación auditable de SATyS. "
+                "Se trata como error indeterminado, no como cero registros."
+            )
 
         # 2) Leer evidencia Excel, columna 1711.
         estado.actualizar(stage="leyendo_excel_control", excel=str(args.excel))
@@ -561,29 +874,75 @@ def main() -> int:
             print("Nuevos:", ", ".join(nuevos[:50]) + ("..." if len(nuevos) > 50 else ""))
 
         if not nuevos:
-            resumen["ok"] = True
-            resumen["mensaje"] = "No hay registros nuevos. No se ejecutó main_procesar.py."
+            rc_reconciliacion = 0
+            if not args.sin_reconciliacion_global:
+                rc_reconciliacion = ejecutar_reconciliacion_global(
+                    python_exe=args.python_exe,
+                    script=args.reconciliar_script,
+                    excel=args.excel,
+                    log_path=log_path,
+                    estado=estado,
+                )
+            resumen["return_code_reconciliacion_global"] = rc_reconciliacion
+            resumen["ok"] = rc_reconciliacion == 0
+            if vacio_confirmado_satys:
+                base_mensaje = "SATyS confirmó cero registros."
+                mensaje_notificacion = "SATyS confirmó cero registros en todos los años consultados."
+            else:
+                base_mensaje = "No hay registros nuevos."
+                mensaje_notificacion = (
+                    f"Se revisaron {len(registros_satys)} registros; "
+                    "todos existen en TrámitesCRT.xlsx."
+                )
+            resumen["mensaje"] = (
+                f"{base_mensaje} Reconciliación global de TrámitesCRT.xlsx: código {rc_reconciliacion}."
+            )
             notificar_windows(
                 "SATyS CRT — sin registros nuevos",
-                f"Se revisaron {len(registros_satys)} registros; todos existen en TrámitesCRT.xlsx.",
+                mensaje_notificacion,
                 habilitado=not args.sin_notificacion,
             )
-            estado.finalizar(ok=True, mensaje=resumen["mensaje"], total_registros_satys=len(registros_satys), total_nuevos=0)
+            estado.finalizar(
+                ok=rc_reconciliacion == 0,
+                mensaje=resumen["mensaje"],
+                total_registros_satys=len(registros_satys),
+                total_nuevos=0,
+                return_code_reconciliacion_global=rc_reconciliacion,
+            )
             sincronizar_estado_diario_depi()
-            return 0
+            return rc_reconciliacion
 
         # 4) Ejecutar main_procesar.py por Registro.
         if args.no_procesar:
-            resumen["ok"] = True
-            resumen["mensaje"] = "Se generó TXT de nuevos registros, pero no se procesó por --no-procesar."
+            rc_reconciliacion = 0
+            if not args.sin_reconciliacion_global:
+                rc_reconciliacion = ejecutar_reconciliacion_global(
+                    python_exe=args.python_exe,
+                    script=args.reconciliar_script,
+                    excel=args.excel,
+                    log_path=log_path,
+                    estado=estado,
+                )
+            resumen["return_code_reconciliacion_global"] = rc_reconciliacion
+            resumen["ok"] = rc_reconciliacion == 0
+            resumen["mensaje"] = (
+                "Se generó TXT de nuevos registros, pero no se procesó por --no-procesar. "
+                f"Reconciliación global: código {rc_reconciliacion}."
+            )
             notificar_windows(
                 "SATyS CRT — registros nuevos detectados",
                 f"{len(nuevos)} registro(s) nuevo(s). TXT: {args.registros_latest.name}",
                 habilitado=not args.sin_notificacion,
             )
-            estado.finalizar(ok=True, mensaje=resumen["mensaje"], total_nuevos=len(nuevos), no_procesar=True)
+            estado.finalizar(
+                ok=rc_reconciliacion == 0,
+                mensaje=resumen["mensaje"],
+                total_nuevos=len(nuevos),
+                no_procesar=True,
+                return_code_reconciliacion_global=rc_reconciliacion,
+            )
             sincronizar_estado_diario_depi()
-            return 0
+            return rc_reconciliacion
 
         cmd_main = [
             str(args.python_exe),
@@ -605,14 +964,27 @@ def main() -> int:
         )
         resumen["return_code_main"] = rc_main
 
+        rc_reconciliacion = 0
+        if not args.sin_reconciliacion_global:
+            rc_reconciliacion = ejecutar_reconciliacion_global(
+                python_exe=args.python_exe,
+                script=args.reconciliar_script,
+                excel=args.excel,
+                log_path=log_path,
+                estado=estado,
+                sin_backup=(rc_main == 0),
+            )
+        resumen["return_code_reconciliacion_global"] = rc_reconciliacion
+        rc_final = rc_main if rc_main != 0 else rc_reconciliacion
+
         fallidos_latest = PROJECT_DIR / "registros_fallidos" / "registros_fallidos_latest.txt"
         fallidos = leer_registros_txt(fallidos_latest) if fallidos_latest.exists() else []
         resumen["registros_fallidos_controlados"] = fallidos
         resumen["total_fallidos_controlados"] = len(fallidos)
-        resumen["ok"] = rc_main == 0
+        resumen["ok"] = rc_final == 0
         resumen["mensaje"] = (
             f"Procesados {len(nuevos)} registro(s) nuevo(s). Código main_procesar.py: {rc_main}. "
-            f"Fallidos controlados: {len(fallidos)}."
+            f"Reconciliación global: {rc_reconciliacion}. Fallidos controlados: {len(fallidos)}."
         )
 
         notificar_windows(
@@ -631,16 +1003,17 @@ def main() -> int:
             print("\nℹ️  La notificación de resultados la envía main_procesar.py al finalizar.")
 
         estado.finalizar(
-            ok=rc_main == 0,
+            ok=rc_final == 0,
             mensaje=resumen["mensaje"],
             total_nuevos=len(nuevos),
             total_fallidos_controlados=len(fallidos),
             return_code_main=rc_main,
+            return_code_reconciliacion_global=rc_reconciliacion,
         )
         # ─────────────────────────────────────────────────────────────────────
         sincronizar_estado_diario_depi()
 
-        return rc_main
+        return rc_final
 
     except Exception as exc:
         resumen["ok"] = False

@@ -27,6 +27,8 @@ try:
 except ImportError as exc:
     raise RuntimeError("Falta openpyxl. Instala con: python -m pip install openpyxl") from exc
 
+from rutas_salida import destino_sin_operador, folio_opc_desde_metadata
+
 log = logging.getLogger("SATyS-ExcelMetadata")
 
 JSON_NAMES = ("metadata_satys.json", "metadata_tramite_nuevo.json")
@@ -86,7 +88,12 @@ def _descargas_from_result(resultado: dict[str, Any], descargas_base: Path) -> P
     return descargas_base / str(folio_id or "")
 
 
-def _output_from_result(resultado: dict[str, Any], output_base: Path) -> Path:
+def _output_from_result(
+    resultado: dict[str, Any],
+    output_base: Path,
+    meta_satys: dict[str, Any] | None = None,
+    meta_tn: dict[str, Any] | None = None,
+) -> Path:
     for key in ("output_dir", "sin_operador_dir"):
         val = resultado.get(key)
         if val:
@@ -95,7 +102,8 @@ def _output_from_result(resultado: dict[str, Any], output_base: Path) -> Path:
     if isinstance(rpc, dict) and rpc.get("ok") and rpc.get("ruta"):
         return output_base / str(rpc["ruta"]).replace("\\", "/")
     folio_id = resultado.get("folio_id") or resultado.get("registro") or resultado.get("folio")
-    return output_base / "_sin_operador" / str(folio_id or "")
+    folio_opc = resultado.get("folio_opc") or folio_opc_desde_metadata(meta_satys, meta_tn)
+    return destino_sin_operador(output_base, folio_id, folio_opc)
 
 
 def _scan_descargas(descargas_base: Path) -> list[dict[str, Any]]:
@@ -161,7 +169,7 @@ def generar_excel_metadata_json(
         registro = _registro_from(meta_satys, meta_tn, resultado.get("registro") or resultado.get("folio_id") or carpeta.name)
         folio = _folio_from(meta_satys, meta_tn, resultado.get("folio") or carpeta.name)
         rpc = resultado.get("rpc_resultado") if isinstance(resultado.get("rpc_resultado"), dict) else {}
-        output_dir = _output_from_result(resultado, output_base)
+        output_dir = _output_from_result(resultado, output_base, meta_satys, meta_tn)
 
         filas.append({
             "registro": registro,

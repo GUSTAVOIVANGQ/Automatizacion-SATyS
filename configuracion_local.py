@@ -70,4 +70,4 @@ def ruta_configurada(clave: str, default: str | Path) -> Path:
 
 
 def carpeta_compartida() -> Path:
-    return ruta_configurada("carpeta_compartida", "/depi/DEI_DATOS/SATyS")
+    return ruta_configurada("carpeta_compartida", "/depi/dgp/SATyS")

@@ -46,12 +46,13 @@ def _primero(row: dict[str, Any], *keys: str) -> Any:
 
 
 def _ruta_desde_output(value: Any) -> str:
-    r"""Convierte ``\output\...`` a la ruta relativa guardada en el maestro."""
+    r"""Convierte una ruta absoluta o ``\output\...`` a la ruta del maestro."""
     text = _texto(value).replace("/", "\\")
-    text = text.lstrip("\\")
-    if text.lower().startswith("output\\"):
-        text = text[len("output\\"):]
-    return text
+    partes = [parte for parte in text.split("\\") if parte]
+    indices_output = [i for i, parte in enumerate(partes) if parte.lower() == "output"]
+    if indices_output:
+        partes = partes[indices_output[-1] + 1:]
+    return "\\".join(partes)
 
 
 def _headers(ws) -> dict[str, int]:

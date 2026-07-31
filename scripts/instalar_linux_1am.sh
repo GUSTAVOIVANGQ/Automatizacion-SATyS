@@ -17,7 +17,7 @@ Opciones:
   --venv-dir RUTA          Entorno virtual. Default: <base>/venv.
   --browsers-dir RUTA      Chromium Playwright. Default: <base>/playwright-browsers.
   --lock-dir RUTA          Lock local. Default: <base>/.lock.
-  --depi-dir RUTA          Destino compartido. Default: /depi/DEI_DATOS/SATyS.
+  --depi-dir RUTA          Destino compartido. Default: /depi/dgp/SATyS.
   --timezone ZONA          Zona del timer. Default: America/Mexico_City.
   --hour HH:MM             Hora diaria. Default: 01:00.
   --install-api            Instala la UI/API (valor predeterminado).
@@ -43,7 +43,7 @@ APP_USER="${SUDO_USER:-}"
 VENV_DIR=""
 BROWSERS_DIR=""
 LOCK_DIR=""
-DEPI_DIR="/depi/DEI_DATOS/SATyS"
+DEPI_DIR="/depi/dgp/SATyS"
 TIMEZONE="America/Mexico_City"
 RUN_HOUR="01:00"
 INSTALL_API=1
@@ -163,6 +163,18 @@ fi
 
 DEPI_PARENT="$(dirname "$DEPI_DIR")"
 
+# No se permite crear/copiar sobre /depi si el CIFS real no está montado.
+mountpoint -q "$DEPI_PARENT" || {
+  echo "ERROR: $DEPI_PARENT no es un punto de montaje activo. Revisa /etc/fstab o el montaje CIFS." >&2
+  exit 1
+}
+mkdir -p "$DEPI_DIR"
+chown "$APP_USER:$APP_GROUP" "$DEPI_DIR" 2>/dev/null || true
+runuser -u "$APP_USER" -- test -w "$DEPI_DIR" || {
+  echo "ERROR: $APP_USER no puede escribir en $DEPI_DIR." >&2
+  exit 1
+}
+
 cat > /etc/systemd/system/satys-diario.service <<EOF_SERVICE
 [Unit]
 Description=SATyS CRT - revisión y procesamiento diario (máximo una corrida por fecha)
@@ -184,7 +196,7 @@ Environment=SATYS_LOCK_DIR=$LOCK_DIR
 Environment=SATYS_DAILY_GUARD_DIR=$PROJECT_DIR/runs/daily_guard
 Environment=PLAYWRIGHT_BROWSERS_PATH=$BROWSERS_DIR
 Environment=SATYS_SYNC_EXCEL_CADA_FILA=0
-ExecStartPre=/usr/bin/test -d $DEPI_DIR
+ExecStartPre=/usr/bin/mountpoint -q $DEPI_PARENT
 ExecStartPre=/usr/bin/test -w $DEPI_DIR
 ExecStart=/usr/bin/bash $PROJECT_DIR/scripts/run_satys_diario.sh
 TimeoutStartSec=infinity

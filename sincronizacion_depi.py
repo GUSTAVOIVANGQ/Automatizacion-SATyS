@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -23,6 +24,41 @@ NOMBRES_EXCLUIDOS = frozenset({
     "configuracion_local.json",
     "sesion_guardada.json",
 })
+
+
+def _montaje_real_para(path: Path) -> Path | None:
+    """Devuelve el ancestro montado más cercano, incluso si ``path`` no existe."""
+    actual = Path(path)
+    while not actual.exists() and actual != actual.parent:
+        actual = actual.parent
+    for candidato in (actual, *actual.parents):
+        try:
+            if os.path.ismount(candidato):
+                return candidato
+        except OSError:
+            continue
+    return None
+
+
+def validar_destino_compartido(destino_raiz: Path) -> str | None:
+    """Evita escribir en el disco local cuando el CIFS bajo /depi no está montado."""
+    destino_raiz = Path(destino_raiz)
+    exigir = os.getenv("SATYS_REQUIRE_SHARED_MOUNT", "1").strip() != "0"
+    if not exigir or not destino_raiz.is_absolute():
+        return None
+    try:
+        bajo_depi = destino_raiz == Path("/depi") or Path("/depi") in destino_raiz.parents
+    except Exception:
+        bajo_depi = str(destino_raiz).startswith("/depi/")
+    if not bajo_depi:
+        return None
+    montaje = _montaje_real_para(destino_raiz)
+    if montaje is None or montaje == Path("/"):
+        return (
+            f"El recurso compartido para {destino_raiz} no está montado; "
+            "se cancela la sincronización para no escribir en /depi local."
+        )
+    return None
 
 
 @dataclass
@@ -91,6 +127,11 @@ def sincronizar_salidas(
     project_dir = Path(project_dir)
     destino_raiz = Path(destino_raiz)
     resultado = ResultadoSincronizacion()
+
+    error_montaje = validar_destino_compartido(destino_raiz)
+    if error_montaje:
+        resultado.errores.append(error_montaje)
+        return resultado
 
     try:
         destino_raiz.mkdir(parents=True, exist_ok=True)
