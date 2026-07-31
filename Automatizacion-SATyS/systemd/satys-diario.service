@@ -1,0 +1,29 @@
+[Unit]
+Description=SATyS CRT - revisión y procesamiento diario (máximo una corrida por fecha)
+After=network-online.target remote-fs.target
+Wants=network-online.target remote-fs.target
+RequiresMountsFor=/depi/dgp
+
+[Service]
+Type=oneshot
+User=gustavo.garcia
+Group=wheel
+WorkingDirectory=/data/gustavo.garcia/satys/Automatizacion-SATyS
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONIOENCODING=utf-8
+Environment=TZ=America/Mexico_City
+Environment=SATYS_PROJECT_DIR=/data/gustavo.garcia/satys/Automatizacion-SATyS
+Environment=SATYS_PYTHON=/data/gustavo.garcia/satys/venv/bin/python
+Environment=SATYS_LOCK_DIR=/data/gustavo.garcia/satys/.lock
+Environment=SATYS_DAILY_GUARD_DIR=/data/gustavo.garcia/satys/Automatizacion-SATyS/runs/daily_guard
+Environment=PLAYWRIGHT_BROWSERS_PATH=/data/gustavo.garcia/satys/playwright-browsers
+Environment=SATYS_SYNC_EXCEL_CADA_FILA=0
+ExecStartPre=/usr/bin/mountpoint -q /depi/dgp
+ExecStartPre=/usr/bin/test -w /depi/dgp
+ExecStart=/usr/bin/bash /data/gustavo.garcia/satys/Automatizacion-SATyS/scripts/run_satys_diario.sh
+TimeoutStartSec=infinity
+Restart=no
+KillMode=control-group
+UMask=0077
+StandardOutput=journal
+StandardError=journal

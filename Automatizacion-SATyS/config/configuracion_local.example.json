@@ -1,0 +1,30 @@
+{
+  "satys": {
+    "usuario": "USUARIO_SATYS",
+    "password": "CAMBIAR_EN_SERVIDOR"
+  },
+  "gmail": {
+    "remitente": "CORREO_REMITENTE",
+    "app_password": "CAMBIAR_EN_SERVIDOR",
+    "enabled": false,
+    "from_name": "Sistema SATyS DEI",
+    "destinatarios": [],
+    "cc": [],
+    "bcc": []
+  },
+  "rutas": {
+    "descargas": "descargas",
+    "output": "output",
+    "excel": "TrámitesCRT.xlsx",
+    "carpeta_compartida": "/depi/dgp/DEI_DATOS/SATyS"
+  },
+  "procesamiento": {
+    "workers": 10,
+    "timeout_registro": 900,
+    "reintentos_registro": 2,
+    "workers_reintento": 2,
+    "reintentos_extraccion": 2,
+    "timeout_tabla": 120,
+    "espera_reintento_extraccion": 0
+  }
+}

@@ -1,0 +1,16 @@
+VALIDACION REPARACION id_solicitante - 2026-07-17
+
+[OK] reparar_id_solicitante.py compila con Python.
+[OK] Parte1_descarga.py compila con los flags --forzar-registros y --solo-metadatos-id.
+[OK] satys_api.py compila y publica los 3 endpoints de reparación.
+[OK] web/static/app.js pasa node --check.
+[OK] scripts/instalar_linux_1am.sh pasa bash -n.
+[OK] Todos los IDs usados por app.js existen en index.html.
+[OK] Prueba simulada: 2 registros vacíos fueron reparados y checkpoint final correcto.
+[OK] Prueba simulada de reanudación: 1 registro completado fue omitido y solo se repitió el registro interrumpido.
+[NO EJECUTADO] Prueba real contra el portal SATyS; requiere acceso desde el servidor Linux.
+[OK] Opción backend/UI para forzar descarga completa; el valor predeterminado evita duplicar documentos.
+Actualización documental y operativa:
+- README.md y APLICAR_PARCHE_REANUDACION_ID.md documentan la ruta DEPI canónica.
+- La UI inicia satys-diario.service con systemctl --no-block.
+- El reparador permanece manual y sin timer.

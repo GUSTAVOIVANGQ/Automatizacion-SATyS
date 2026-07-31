@@ -1,0 +1,34 @@
+VALIDACIÓN DE LA CORRECCIÓN — 2026-07-17
+========================================
+
+Archivos comparados:
+- TrámitesCRT(6).xlsx
+- Folios_Datos_Completos.xlsx
+
+Antes:
+- Registros únicos en Folios_Datos_Completos.xlsx: 1369
+- Registros únicos en TrámitesCRT.xlsx: 1364
+- Registros faltantes: 5
+- Filas fantasma simples: 13
+- Rutas vacías en filas con Registro: 301
+
+Registros recuperados:
+- CRT26-002479
+- CRT26-006346
+- CRT26-012075
+- CRT26-014473
+- CRT26-027349
+
+Después en TrámitesCRT_reparado.xlsx:
+- Registros únicos: 1369
+- Registros faltantes respecto al consolidado: 0
+- Registros duplicados: 0
+- Filas fantasma simples: 0
+- Rutas vacías: 0
+
+Validaciones de código:
+- Compilación Python: correcta
+- Sintaxis Bash: correcta
+- Prueba de descubrimiento de carpetas: no procesa 10563/10563(1) como registros
+- Timer diario: 01:00 America/Mexico_City
+- UI/API: instalación predeterminada mediante wrapper /usr/local/sbin/satys-api-start

@@ -1,0 +1,11 @@
+NO INCLUIDOS PARA EVITAR FILTRACIÓN O PÉRDIDA DE DATOS:
+- credenciales reales dentro de config/configuracion_local.json (el archivo incluido solo contiene marcadores)
+- sesion_guardada.json
+- TrámitesCRT.xlsx productivo
+- logs/
+- runs/
+- descargas/
+- output/
+- registros_diarios/
+
+Conserve esos archivos desde el servidor actual al actualizar o migrar.
