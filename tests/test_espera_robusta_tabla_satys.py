@@ -52,6 +52,28 @@ class EsperaRobustaTablaSatysTest(unittest.TestCase):
             "emptyConfirmed": False,
         }
 
+    @staticmethod
+    def estado_folios(*, folios=None, info="Mostrando 0 a 0 de 0 tramites", has_next=False):
+        folios = list(folios or [])
+        return {
+            "folios": folios,
+            "info": info,
+            "hasNext": has_next,
+            "found": True,
+            "ready": True,
+            "activePage": 1,
+            "recordsDisplay": len(folios),
+            "recordsTotal": len(folios),
+            "pageStart": 0,
+            "pageEnd": len(folios),
+            "pages": 1,
+            "draw": 1,
+            "dataTableReady": True,
+            "realRowCount": len(folios),
+            "invalidFolioCount": 0,
+            "zeroUi": not folios,
+        }
+
     def test_no_acepta_cero_y_continua_hasta_aparecer_un_registro(self):
         clock = FakeClock()
         page = FakePage(clock)
@@ -270,6 +292,54 @@ class EsperaRobustaTablaSatysTest(unittest.TestCase):
         self.assertEqual(extraer.call_count, 2)
         reabrir.assert_called_once_with(page)
         obtener.assert_not_called()
+
+    def test_internos_concilia_folios_y_duplicados_de_una_bandeja(self):
+        page = object()
+        estado = self.estado_folios(
+            folios=["148326", "148326"],
+            info="Mostrando 1 a 2 de 2 tramites",
+        )
+        with patch.object(extractor, "seleccionar_bandeja_internos"), \
+             patch.object(extractor, "cambiar_mostrar_a_100", return_value=True), \
+             patch.object(extractor, "esperar_tabla_folios_lista", return_value=estado):
+            detalle = extractor.extraer_folios_bandeja_internos(
+                page,
+                "En proceso",
+                max_paginas=100,
+                timeout_ms=120_000,
+            )
+
+        self.assertEqual(detalle["estado"], "ENCONTRADOS_COMPLETOS")
+        self.assertEqual(detalle["filas_leidas"], 2)
+        self.assertEqual(detalle["folios"], ["148326"])
+        self.assertEqual(detalle["duplicados_internos"], 1)
+
+    def test_internos_deduplica_folio_repetido_entre_bandejas(self):
+        detalles = []
+        for indice, bandeja in enumerate(extractor.BANDEJAS_INTERNOS):
+            folios = ["190823"] if indice < 2 else []
+            detalles.append({
+                "bandeja": bandeja,
+                "estado": "ENCONTRADOS_COMPLETOS" if folios else "VACIO_CONFIRMADO",
+                "folios": folios,
+                "total_reportado_satys": len(folios),
+                "filas_leidas": len(folios),
+                "folios_unicos": len(folios),
+                "duplicados_internos": 0,
+                "filas_invalidas": 0,
+                "paginas_leidas": 1 if folios else 0,
+                "primera_info": "",
+                "ultima_info": "",
+            })
+
+        with patch.object(extractor, "navegar_a_internos_ift", return_value=True), \
+             patch.object(extractor, "extraer_folios_bandeja_internos", side_effect=detalles):
+            resumen = extractor.extraer_folios_internos(object())
+
+        self.assertEqual(resumen["folios"], ["190823"])
+        self.assertEqual(resumen["total_folios"], 1)
+        self.assertEqual(resumen["total_filas_satys"], 2)
+        self.assertEqual(resumen["duplicados_entre_bandejas"], 1)
 
 
 if __name__ == "__main__":

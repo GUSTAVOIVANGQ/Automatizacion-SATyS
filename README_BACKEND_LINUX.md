@@ -1,3 +1,5 @@
+> **Compatibilidad legacy:** para instalaciones nuevas usa `QUICKSTART_PORTABLE.md`. Este documento describe el flujo nativo `venv + systemd`.
+
 # SATyS CRT — Backend Linux listo para despliegue
 
 Este paquete deja el backend separado de la UI. El proceso diario corre por `systemd` a la 01:00 AM (America/Mexico_City) y escribe estado vivo en `logs/estado_actual.json` para que después el frontend FastAPI/HTML lo consulte.
@@ -6,7 +8,7 @@ Este paquete deja el backend separado de la UI. El proceso diario corre por `sys
 
 - Se conserva el flujo central: SATyS → comparar contra `TrámitesCRT.xlsx` columna `1711` → generar `registros.txt` → ejecutar `main_procesar.py`.
 - Se reemplazó el Python embebido de Windows por `sys.executable` / `SATYS_PYTHON`.
-- Se eliminó la ruta `Z:\...`; la sincronización usa `/depi/DEI_DATOS/SATyS` desde `config/configuracion_local.json`.
+- Se eliminó la ruta `Z:\...`; la sincronización usa `/depi/dgp/DEI_DATOS/SATyS` desde `config/configuracion_local.json`.
 - Parte2_extraer.py queda fuera del flujo de producción; el procesamiento usa metadatos SATyS/JSON local, Parte 3 RPC y Parte 4 Excel.
 - Se agregó `estado_ejecucion.py`, que escribe `logs/estado_actual.json` durante la ejecución.
 - Se agregó `satys_api.py`, backend FastAPI mínimo para el futuro frontend.
@@ -112,11 +114,11 @@ sudo systemctl enable --now satys-api.service
 Endpoints:
 
 ```text
-GET  /api/health
-GET  /api/estado
-GET  /api/resumen/ultimo
+GET  /api/v1/health
+GET  /api/v1/estado
+GET  /api/v1/resumen/ultimo
 GET  /api/log/ultimo?tail=300
-POST /api/proceso/iniciar   # deshabilitado salvo SATYS_API_ALLOW_START=1
+POST /api/v1/proceso/iniciar   # deshabilitado salvo SATYS_API_ALLOW_START=1
 ```
 
 Esta API no incluye frontend. El frontend se puede construir después con HTML/Bootstrap/JS consumiendo esos endpoints.
@@ -129,7 +131,7 @@ Credenciales, rutas y concurrencia se leen desde:
 config/configuracion_local.json
 ```
 
-La configuración de producción es `workers=10`, `timeout_registro=900`, `reintentos_registro=2` y `workers_reintento=2`. La carpeta compartida es `/depi/DEI_DATOS/SATyS`.
+La configuración de producción es `workers=10`, `timeout_registro=900`, `reintentos_registro=2` y `workers_reintento=2`. La carpeta compartida es `/depi/dgp/DEI_DATOS/SATyS`.
 
 Las variables `SATYS_PYTHON` y `SATYS_LOCK_DIR` se mantienen únicamente para localizar el entorno virtual y el lock de proceso.
 
@@ -182,7 +184,7 @@ Se sirve desde `satys_api.py` en la ruta `/`.
 Prueba manual:
 
 ```bash
-/data/gustavo.garcia/satys/venv/bin/uvicorn satys_api:app --host 0.0.0.0 --port 8080
+/data/gustavo.garcia/satys/venv/bin/uvicorn satys_api:app --host 127.0.0.1 --port 8080
 ```
 
 Abrir:

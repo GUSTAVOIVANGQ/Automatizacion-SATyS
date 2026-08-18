@@ -25,12 +25,14 @@ import json
 import zipfile
 import logging
 import argparse
+import hashlib
 import threading
 import concurrent.futures
 import subprocess
 import tempfile
 import signal
 import uuid
+import unicodedata
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_result, before_sleep_log
 from logging.handlers import RotatingFileHandler
 
@@ -66,7 +68,7 @@ if hasattr(sys.stderr, "buffer") and getattr(sys.stderr, 'encoding', '') != 'utf
 USUARIO, PASSWORD = credenciales_satys()
 BASE_URL      = os.getenv("SATYS_BASE_URL", "https://satys.ift.org.mx/")
 DESCARGA_BASE = ruta_configurada("descargas", "descargas")
-SESION_FILE   = Path(__file__).resolve().parent / "sesion_guardada.json"
+SESION_FILE   = Path(os.getenv("SATYS_SESION_FILE", str(Path(__file__).resolve().parent / "sesion_guardada.json")))
 
 # False = ver el navegador (recomendado para depurar)
 # True  = sin ventana (modo produccion)
@@ -85,6 +87,7 @@ _PROCESAMIENTO_CFG = configuracion_procesamiento()
 TIMEOUT_REGISTRO = int(_PROCESAMIENTO_CFG.get("timeout_registro", 900))
 REINTENTOS_REGISTRO = int(_PROCESAMIENTO_CFG.get("reintentos_registro", 2))  # 2 = 3 intentos totales
 WORKERS_REINTENTO_REGISTRO = int(_PROCESAMIENTO_CFG.get("workers_reintento", 2))
+INTERNOS_WORKERS_DEFAULT = int(_PROCESAMIENTO_CFG.get("internos_workers", 6))
 REGISTROS_FALLIDOS_DIR = Path(__file__).resolve().parent / "registros_fallidos"
 
 # Retransmisión de logs descriptivos de cada proceso hijo al log principal.
@@ -101,6 +104,25 @@ API_LOG_PATH = Path("debug") / "api_log.jsonl"
 
 # Folios a procesar (se normalizan automaticamente)
 FOLIOS_DEFAULT = ["6407", "6801", "6802"]
+
+# Bandejas del flujo "Administracion solicitudes +TyS/SIGEDO/Internos IFT".
+# Se procesan en orden y se guardan aisladas bajo descargas/internos/.
+BANDEJAS_INTERNOS_DEFAULT = [
+    "Recibidos",
+    "En proceso",
+    "Copias Marcadas",
+    "Atendidos",
+    "Ultimos Movimientos",
+    "Fuera de tiempo",
+]
+INTERNOS_BANDEJA_IDS = {
+    "recibidos": "1",
+    "en proceso": "2",
+    "copias marcadas": "3",
+    "atendidos": "4",
+    "ultimos movimientos": "5",
+    "fuera de tiempo": "6",
+}
 # ============================================================
 
 # Configurar Logging con RotatingFileHandler
@@ -378,6 +400,31 @@ def _retry_if_both_none(res):
 def _return_both_none(retry_state):
     return None, None
 
+
+def _cerrar_paginas_emergentes(context, page_principal, motivo: str = "descarga") -> int:
+    """Cierra pestañas auxiliares sin tocar la página principal del worker."""
+    cerradas = 0
+    try:
+        paginas = list(context.pages)
+    except Exception:
+        return 0
+
+    for pagina in paginas:
+        if pagina is page_principal:
+            continue
+        try:
+            if pagina.is_closed():
+                continue
+            pagina.close(run_before_unload=False)
+            cerradas += 1
+        except Exception as exc:
+            log.debug("[POPUP-CLOSE] No se pudo cerrar una pestaña auxiliar: %s", exc)
+
+    if cerradas:
+        log.info("[POPUP-CLOSE] %d pestaña(s) auxiliar(es) cerrada(s) tras %s.", cerradas, motivo)
+    return cerradas
+
+
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), retry=retry_if_result(_retry_if_both_none), retry_error_callback=_return_both_none)
 def _click_y_esperar_descarga(page, context, boton_ver_doc):
     dl_obj = None
@@ -387,17 +434,19 @@ def _click_y_esperar_descarga(page, context, boton_ver_doc):
     page.on("download", on_dl)
     context.on("page", on_pg)
     try:
-        boton_ver_doc.click()
-    except Exception:
-        boton_ver_doc.click(force=True)
-    import time
-    start_t = time.time()
-    while time.time() - start_t < (TIMEOUT_DL / 1000.0):
-        if dl_obj or np_obj:
-            break
-        page.wait_for_timeout(200)
-    page.remove_listener("download", on_dl)
-    context.remove_listener("page", on_pg)
+        try:
+            boton_ver_doc.click()
+        except Exception:
+            boton_ver_doc.click(force=True)
+        import time
+        start_t = time.time()
+        while time.time() - start_t < (TIMEOUT_DL / 1000.0):
+            if dl_obj or np_obj:
+                break
+            page.wait_for_timeout(200)
+    finally:
+        page.remove_listener("download", on_dl)
+        context.remove_listener("page", on_pg)
     return dl_obj, np_obj
 
 
@@ -559,12 +608,37 @@ def _esperar_sin_spinner(page, timeout_ms: int = 30_000) -> bool:
         "#loadingModal[style*='display: block']",
         ".modal-backdrop",
     ]
+    patrones_texto = [
+        re.compile(r"^\s*Cargando\.{0,3}\s*$", re.I),
+        re.compile(r"Cargando\.{0,3}", re.I),
+    ]
     inicio = time.time()
     limite = timeout_ms / 1000
 
     while (time.time() - inicio) < limite:
         hay_spinner = False
+        # Internos usa #pantalla-carga y reemplaza el Map nativo de JavaScript,
+        # lo que rompe los selectores de texto de Playwright en esta vista.
+        try:
+            estado_dom = page.evaluate(
+                """() => {
+                    const visibles = [
+                        document.querySelector('#pantalla-carga'),
+                        document.querySelector('.dataTables_processing')
+                    ].filter(Boolean).some(el => {
+                        const s = getComputedStyle(el);
+                        return s.display !== 'none' && s.visibility !== 'hidden'
+                            && el.getAttribute('aria-hidden') !== 'true';
+                    });
+                    return visibles ? 'VISIBLE' : 'OCULTO';
+                }"""
+            )
+            hay_spinner = estado_dom == "VISIBLE"
+        except Exception:
+            pass
         for sel in selectores_spinner:
+            if hay_spinner:
+                break
             try:
                 loc = page.locator(sel)
                 if loc.count() > 0 and loc.first.is_visible():
@@ -572,6 +646,22 @@ def _esperar_sin_spinner(page, timeout_ms: int = 30_000) -> bool:
                     break
             except Exception:
                 pass
+        if not hay_spinner:
+            for pat in patrones_texto:
+                try:
+                    loc = page.locator("body *").filter(has_text=pat)
+                    for idx in range(min(loc.count(), 5)):
+                        try:
+                            item = loc.nth(idx)
+                            if item.is_visible() and pat.search(item.inner_text(timeout=500) or ""):
+                                hay_spinner = True
+                                break
+                        except Exception:
+                            continue
+                    if hay_spinner:
+                        break
+                except Exception:
+                    pass
         if not hay_spinner:
             return True
         page.wait_for_timeout(500)
@@ -672,18 +762,34 @@ def login(page) -> bool:
         with page.expect_navigation(timeout=TIMEOUT_NAV):
             page.click("button[type='submit'], input[type='submit'], a:has-text('Ingresar'), button:has-text('Entrar')")
 
-        # Verificar dashboard
-        try:
-            page.wait_for_selector("text=Tablero de Control", timeout=10_000)
+        # Verificar una señal autenticada. Algunas cuentas aterrizan en el
+        # menú principal sin renderizar todavía el texto "Tablero de Control".
+        autenticado = False
+        limite_confirmacion = time.monotonic() + 10
+        while time.monotonic() < limite_confirmacion:
+            texto_body = page.locator("body").inner_text(timeout=5_000)
+            texto_normalizado = "".join(
+                char for char in unicodedata.normalize("NFD", texto_body)
+                if unicodedata.category(char) != "Mn"
+            )
+            texto_normalizado = re.sub(r"\s+", " ", texto_normalizado).lower()
+            autenticado = (
+                "tablero de control" in texto_normalizado
+                or "administracion solicitudes +tys/sigedo/internos ift" in texto_normalizado
+            )
+            if autenticado:
+                break
+            page.wait_for_timeout(500)
+
+        if autenticado:
             log.info("[OK] Sesion iniciada correctamente")
             return True
-        except PWTimeout:
-            if "login" in page.url.lower():
-                log.error("[ERROR] Credenciales invalidas o error en el portal")
-                screenshot(page, "error_login")
-                return False
-            log.warning("[WARN] Tablero no encontrado tras login, asumiendo exito...")
-            return True
+        if "login" in page.url.lower():
+            log.error("[ERROR] Credenciales invalidas o error en el portal")
+            screenshot(page, "error_login")
+            return False
+        log.warning("[WARN] Tablero no encontrado tras login, asumiendo exito...")
+        return True
 
     except Exception as e:
         log.error("[ERROR] Fallo critico en login: %s", e)
@@ -1812,8 +1918,6 @@ def descargar_archivos(context, page, folio: str, carpeta: Path) -> tuple:
                                     break
                                 page.wait_for_timeout(200)
 
-                            page.remove_listener("download", on_dl)
-                            context.remove_listener("page", on_pg)
                             log.info("     [DL-WAIT] Resultado eventos: download=%s popup=%s archivo=%s", bool(dl_obj), bool(np_obj), nombre_previo)
 
                             if dl_obj:
@@ -1901,6 +2005,21 @@ def descargar_archivos(context, page, folio: str, carpeta: Path) -> tuple:
                         except Exception as _e_click:
                             log.warning("     [REINTENTO %d/%d] Error en clic: %s — %s",
                                         _intento_archivo, MAX_INTENTOS_ARCHIVO, nombre_previo, _e_click)
+
+                        finally:
+                            try:
+                                page.remove_listener("download", on_dl)
+                            except Exception:
+                                pass
+                            try:
+                                context.remove_listener("page", on_pg)
+                            except Exception:
+                                pass
+                            _cerrar_paginas_emergentes(
+                                context,
+                                page,
+                                motivo=f"descarga de {nombre_previo}",
+                            )
 
                         if _intento_archivo < MAX_INTENTOS_ARCHIVO:
                             page.wait_for_timeout(3_000)  # Esperar antes del siguiente reintento
@@ -3467,8 +3586,11 @@ def extraer_metadatos_tramite_nuevo(page, folio: str, carpeta: Path) -> dict:
         "plazo_atencion": "",
         "origen": "",
         "solicitante": "",
+        "concesionario": "",
+        "promovente": "",
         "nombre_operador": "",
         "representante_legal": "",
+        "info_adicional": "",
         "asunto": "",
         "descripcion": "",
         "registro": "",
@@ -3597,11 +3719,12 @@ def extraer_metadatos_tramite_nuevo(page, folio: str, carpeta: Path) -> dict:
                 "Trámite": "tipo_tramite",
                 "Folio": "folio",
                 "Solicitante": "nombre_operador",
-                "Promovente": "representante_legal",
+                "Promovente": "promovente",
                 "Representante": "representante_legal",
                 "Concesionario": "nombre_operador",
                 "Asunto": "asunto",
                 "Info. adicional": "asunto",
+                "Info adicional": "info_adicional",
                 "Descripci": "descripcion",
                 "Fecha de recepción": "fecha_registro",
                 "Fecha de folio OPC": "fecha_ejecucion",
@@ -3694,6 +3817,13 @@ def extraer_metadatos_tramite_nuevo(page, folio: str, carpeta: Path) -> dict:
                     log.info("[ALT-META] Registro extraído del encabezado: %s", registro_hdr)
             except Exception as e:
                 log.warning("[ALT-META] No se pudo extraer Registro del encabezado: %s", e)
+
+        if meta.get("nombre_operador") and not meta.get("concesionario"):
+            meta["concesionario"] = meta["nombre_operador"]
+        if meta.get("promovente") and not meta.get("representante_legal"):
+            meta["representante_legal"] = meta["promovente"]
+        if meta.get("info_adicional") and not meta.get("asunto"):
+            meta["asunto"] = meta["info_adicional"]
 
         # Guardar archivo
         out_path = carpeta / "metadata_tramite_nuevo.json"
@@ -4227,6 +4357,12 @@ def descargar_via_documentos_anexos(context, page, folio: str, carpeta: Path) ->
                             "fuente": "DOCUMENTOS_ANEXOS",
                         })
                         continue
+                    finally:
+                        _cerrar_paginas_emergentes(
+                            context,
+                            page,
+                            motivo=f"documento anexo {nombre_doc}",
+                        )
 
                 if descargado:
                     extraidos = extraer_zip_si_aplica(dest, carpeta)
@@ -4359,6 +4495,1157 @@ def descargar_via_documentos_anexos_con_fallback(
         screenshot(page, f"alt_error_{folio}")
 
     return resultados, meta_tramite
+
+
+# ============================================================
+#  FLUJO NUEVO: ADMINISTRACION SOLICITUDES +TYS/SIGEDO/INTERNOS IFT
+# ============================================================
+
+REGISTRO_INTERNO_RE = re.compile(r"\b[A-Z]{2,6}\d{2}-\d{3,}\b", re.I)
+
+
+def _unique_preserve_order(items: list[str]) -> list[str]:
+    vistos = set()
+    resultado = []
+    for item in items:
+        texto = str(item or "").strip()
+        key = texto.lower()
+        if not texto or key in vistos:
+            continue
+        vistos.add(key)
+        resultado.append(texto)
+    return resultado
+
+
+def _cargar_objetivos_internos(path: Path) -> list[dict]:
+    """Load [{bandeja, folio}] targets produced by the daily inventory."""
+    data = json.loads(path.read_text(encoding="utf-8-sig"))
+    raw_items = data.get("objetivos", []) if isinstance(data, dict) else data
+    if not isinstance(raw_items, list):
+        raise ValueError("El JSON de objetivos Internos no contiene una lista valida.")
+
+    objetivos = []
+    vistos = set()
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+        bandeja = str(item.get("bandeja") or "").strip()
+        folio = str(item.get("folio") or "").strip()
+        key = (bandeja.lower(), folio)
+        if bandeja and re.fullmatch(r"\d{1,15}", folio) and key not in vistos:
+            vistos.add(key)
+            objetivos.append({"bandeja": bandeja, "folio": folio})
+    return objetivos
+
+
+def _slug_internos(texto: str) -> str:
+    texto = (texto or "sin_bandeja").strip().lower()
+    reemplazos = {
+        " ": "_",
+        "/": "_",
+        "\\": "_",
+        "+": "plus",
+    }
+    for src, dst in reemplazos.items():
+        texto = texto.replace(src, dst)
+    texto = re.sub(r"[^a-z0-9_.-]+", "_", texto)
+    texto = re.sub(r"_+", "_", texto).strip("._-")
+    return texto or "sin_bandeja"
+
+
+def _firma_texto(texto: str) -> str:
+    return hashlib.sha1((texto or "").encode("utf-8", errors="replace")).hexdigest()
+
+
+def _normalizar_registro_interno(valor: str) -> str:
+    m = REGISTRO_INTERNO_RE.search(str(valor or "").upper())
+    return m.group(0).upper() if m else str(valor or "").strip()
+
+
+def _click_texto_visible(page, patron: re.Pattern, descripcion: str, timeout_ms: int = TIMEOUT_NAV) -> bool:
+    """Click robusto por texto en enlaces/botones visibles."""
+    raices = []
+    try:
+        raices.append(page.locator("nav, .sidebar, aside").first)
+    except Exception:
+        pass
+    raices.append(page)
+
+    for root in raices:
+        for selector in ("a, button", "li a, li button", "span"):
+            try:
+                locs = root.locator(selector).filter(has_text=patron)
+                count = locs.count()
+            except Exception:
+                continue
+            for idx in range(count):
+                loc = locs.nth(idx)
+                try:
+                    loc.wait_for(state="visible", timeout=min(timeout_ms, 5_000))
+                    loc.scroll_into_view_if_needed()
+                    loc.click()
+                    log.info("[INT-NAV] Click en %s", descripcion)
+                    return True
+                except Exception:
+                    continue
+    # Fallback DOM para las vistas que cargan el Map heredado de SATyS. El
+    # resultado es texto plano para evitar la serializacion de objetos rota.
+    try:
+        pattern_js = json.dumps(patron.pattern)
+        flags_js = json.dumps("i" if patron.flags & re.I else "")
+        selector_js = json.dumps(
+            "nav a, nav button, .sidebar a, .sidebar button, "
+            "aside a, aside button, a, button"
+        )
+        texto = page.evaluate(
+            f"""() => {{
+                const rx = new RegExp({pattern_js}, {flags_js});
+                const visible = el => {{
+                    const s = getComputedStyle(el);
+                    return s.display !== 'none' && s.visibility !== 'hidden'
+                        && el.offsetParent !== null;
+                }};
+                const candidatos = Array.from(document.querySelectorAll({selector_js}))
+                    .filter(visible)
+                    .filter(el => rx.test((el.innerText || el.textContent || '').trim()))
+                    .sort((a, b) => (a.innerText || '').length - (b.innerText || '').length);
+                if (!candidatos.length) return '';
+                const el = candidatos[0];
+                const texto = (el.innerText || el.textContent || '').trim();
+                el.scrollIntoView({{block: 'center'}});
+                el.click();
+                return texto || 'OK';
+            }}"""
+        )
+        if texto:
+            log.info("[INT-NAV] Click en %s", descripcion)
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _normalizar_nombre_internos(valor: str) -> str:
+    texto = unicodedata.normalize("NFD", str(valor or ""))
+    texto = "".join(ch for ch in texto if unicodedata.category(ch) != "Mn")
+    return re.sub(r"\s+", " ", texto).strip().lower()
+
+
+def _esperar_estado_bandeja_internos(
+    page,
+    tab_id: str | None = None,
+    timeout_ms: int = 60_000,
+) -> bool:
+    """Espera el tablero Internos sin usar el motor de selectores de Playwright."""
+    inicio = time.time()
+    limite = timeout_ms / 1000
+    ultimo_estado = ""
+    while (time.time() - inicio) < limite:
+        try:
+            tab_expr = json.dumps(str(tab_id)) if tab_id else "null"
+            ultimo_estado = page.evaluate(
+                f"""() => {{
+                    const ids = ['1', '2', '3', '4', '5', '6'];
+                    if (!ids.every(id => document.getElementById(id))) return 'SIN_TABS';
+                    const contador = id => {{
+                        const span = document.getElementById(id).querySelector('span');
+                        const texto = (span?.textContent || '').replace(/[,\s]/g, '');
+                        return /^\d+$/.test(texto) ? Number(texto) : null;
+                    }};
+                    if (!ids.every(id => contador(id) !== null)) return 'SIN_CONTADORES';
+                    const overlay = document.querySelector('#pantalla-carga');
+                    if (overlay) {{
+                        const s = getComputedStyle(overlay);
+                        if (s.display !== 'none' && s.visibility !== 'hidden') return 'CARGANDO';
+                    }}
+                    const processing = document.querySelector('.dataTables_processing');
+                    if (processing) {{
+                        const s = getComputedStyle(processing);
+                        if (s.display !== 'none' && s.visibility !== 'hidden') return 'CARGANDO';
+                    }}
+                    const wanted = {tab_expr};
+                    if (wanted) {{
+                        const tab = document.getElementById(wanted);
+                        if (!tab || !tab.disabled) return 'TAB_NO_ACTIVA';
+                        const esperado = contador(wanted);
+                        const textoPagina = document.body.innerText || '';
+                        const coincidencias = Array.from(textoPagina.matchAll(
+                            /Mostrando\s+\d+\s+a\s+\d+\s+de\s+([\d,.]+)\s+tr[aá]mites/gi
+                        ));
+                        const totalTabla = coincidencias.length
+                            ? Number(coincidencias[coincidencias.length - 1][1].replace(/[,\.]/g, ''))
+                            : null;
+                        if (totalTabla !== esperado) return 'ESPERANDO_TOTAL';
+                        if (esperado > 0) {{
+                            const filas = Array.from(document.querySelectorAll('table tbody tr'));
+                            const hayDatos = filas.some(tr => {{
+                                const texto = (tr.innerText || tr.textContent || '').trim().toLowerCase();
+                                return texto && !texto.includes('sin datos');
+                            }});
+                            if (!hayDatos) return 'ESPERANDO_FILAS';
+                        }}
+                    }}
+                    return 'LISTO';
+                }}"""
+            ) or ""
+            if ultimo_estado == "LISTO":
+                return True
+        except Exception:
+            ultimo_estado = "CONTEXTO_CAMBIANDO"
+        page.wait_for_timeout(400)
+
+    log.warning(
+        "[INT-WAIT] El tablero no termino de cargar en %.0fs (estado=%s).",
+        limite,
+        ultimo_estado or "desconocido",
+    )
+    return False
+
+
+def _click_submenu_internos_dom(page) -> bool:
+    """Pulsa el sub-menu exacto; evita el clic ambiguo del acordeon padre."""
+    try:
+        resultado = page.evaluate(
+            """() => {
+                const norm = texto => (texto || '').normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/\s+/g, ' ').trim().toLowerCase();
+                const esperado = '+tys/sigedo/internos ift';
+                const candidato = Array.from(document.querySelectorAll('a, button'))
+                    .find(el => norm(el.innerText || el.textContent) === esperado
+                        && el.offsetParent !== null);
+                if (!candidato) return 'NO_VISIBLE';
+                candidato.scrollIntoView({block: 'center'});
+                candidato.click();
+                return 'CLICK';
+            }"""
+        )
+        if resultado == "CLICK":
+            log.info("[INT-NAV] Click DOM en sub-menu +TyS/SIGEDO/Internos IFT")
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def navegar_a_internos_ift(page) -> bool:
+    """
+    Abre el tablero:
+      Administracion solicitudes +TyS/SIGEDO/Internos IFT
+      -> +TyS/SIGEDO/Internos IFT
+    """
+    log.info("[INT-NAV] Navegando a Administracion solicitudes +TyS/SIGEDO/Internos IFT...")
+    try:
+        _esperar_sin_spinner(page, timeout_ms=20_000)
+        sidebar = page.locator("nav, .sidebar, aside").first
+        sidebar.wait_for(state="visible", timeout=TIMEOUT_NAV)
+
+        submenu_directo = _click_submenu_internos_dom(page)
+
+        admin_patterns = [
+            re.compile(r"Administraci.n\s+solicitudes.*Internos\s+IFT", re.I),
+            re.compile(r"Administraci.n\s+solicitudes.*\+TyS", re.I),
+            re.compile(r"solicitudes\s+\+TyS\s*/\s*SIGEDO\s*/\s*Internos", re.I),
+        ]
+        admin_ok = submenu_directo
+        if not admin_ok:
+            for pat in admin_patterns:
+                if _click_texto_visible(page, pat, "menu Administracion solicitudes", TIMEOUT_NAV):
+                    admin_ok = True
+                    break
+        if not admin_ok:
+            log.warning("[INT-NAV] No se pudo confirmar click en menu principal; se intentara sub-menu directo.")
+
+        try:
+            page.wait_for_timeout(600)
+            page.wait_for_selector("a:has-text('Internos IFT'), button:has-text('Internos IFT')", timeout=8_000)
+        except Exception:
+            pass
+
+        submenu_patterns = [
+            re.compile(r"^\s*\+?\s*TyS\s*/\s*SIGEDO\s*/\s*Internos\s+IFT\s*$", re.I),
+            re.compile(r"\+TyS\s*/\s*SIGEDO\s*/\s*Internos\s+IFT", re.I),
+        ]
+        submenu_ok = submenu_directo
+        if not submenu_ok:
+            submenu_ok = _click_submenu_internos_dom(page)
+        for pat in submenu_patterns:
+            if submenu_ok:
+                break
+            try:
+                locs = page.locator("a, button").filter(has_text=pat)
+                count = locs.count()
+            except Exception:
+                count = 0
+            for idx in range(count):
+                loc = locs.nth(idx)
+                try:
+                    texto = loc.inner_text(timeout=1_000)
+                except Exception:
+                    texto = ""
+                # Evita volver a pulsar el acordeon principal cuando el subitem existe.
+                if count > 1 and re.search(r"Administraci.n\s+solicitudes", texto, re.I):
+                    continue
+                try:
+                    loc.wait_for(state="visible", timeout=5_000)
+                    loc.scroll_into_view_if_needed()
+                    loc.click()
+                    submenu_ok = True
+                    log.info("[INT-NAV] Click en sub-menu +TyS/SIGEDO/Internos IFT")
+                    break
+                except Exception:
+                    continue
+            if submenu_ok:
+                break
+
+        if not submenu_ok:
+            for pat in submenu_patterns:
+                if _click_texto_visible(
+                    page,
+                    pat,
+                    "sub-menu +TyS/SIGEDO/Internos IFT",
+                    TIMEOUT_NAV,
+                ):
+                    submenu_ok = True
+                    break
+
+        if not submenu_ok:
+            log.error("[INT-NAV] No se encontro sub-menu '+TyS/SIGEDO/Internos IFT'.")
+            screenshot(page, "internos_submenu_no_encontrado")
+            return False
+
+        try:
+            page.wait_for_load_state("domcontentloaded", timeout=TIMEOUT_NAV)
+        except PWTimeout:
+            pass
+        if _esperar_estado_bandeja_internos(page, timeout_ms=60_000):
+            log.info("[INT-NAV] Tablero Internos IFT cargado.")
+            return True
+        log.warning("[INT-NAV] El tablero Internos no termino de cargar.")
+        screenshot(page, "internos_tablero_timeout")
+        return False
+        _esperar_sin_spinner(page, timeout_ms=30_000)
+
+        for sel in (
+            "text=Recibidos",
+            "text=En proceso",
+            "text=En Proceso",
+            "text=Tramites",
+            "text=TrÃ¡mites",
+        ):
+            try:
+                page.wait_for_selector(sel, timeout=15_000)
+                log.info("[INT-NAV] Tablero Internos IFT cargado.")
+                return True
+            except PWTimeout:
+                continue
+
+        log.warning("[INT-NAV] Tablero Internos no confirmado, se continuara con cautela.")
+        screenshot(page, "internos_tablero_dudoso")
+        return True
+    except Exception as exc:
+        log.error("[INT-NAV] Error navegando a Internos IFT: %s", exc)
+        screenshot(page, "internos_nav_error")
+        return False
+
+
+def seleccionar_bandeja_internos(page, bandeja: str) -> bool:
+    """Activa una bandeja por el ID fijo que publica el tablero Internos."""
+    log.info("[INT-TAB] Activando bandeja '%s'...", bandeja)
+    tab_id = INTERNOS_BANDEJA_IDS.get(_normalizar_nombre_internos(bandeja))
+    if not tab_id:
+        log.warning("[INT-TAB] Bandeja no reconocida: '%s'.", bandeja)
+        return False
+    try:
+        resultado = page.evaluate(
+            """(id) => {
+                const target = document.getElementById(id);
+                if (!target) return 'NO_EXISTE';
+                if (target.disabled) return 'ACTIVA';
+                target.scrollIntoView({block: 'center', inline: 'center'});
+                target.click();
+                return 'CLICK';
+            }""",
+            tab_id,
+        ) or ""
+        if resultado == "NO_EXISTE" or not resultado:
+            log.warning("[INT-TAB] No se encontro la bandeja '%s'.", bandeja)
+            screenshot(page, f"internos_bandeja_no_encontrada_{_slug_internos(bandeja)}")
+            return False
+        if not _esperar_estado_bandeja_internos(page, tab_id=tab_id, timeout_ms=90_000):
+            screenshot(page, f"internos_bandeja_timeout_{_slug_internos(bandeja)}")
+            return False
+        log.info("[INT-TAB] Bandeja '%s' lista.", bandeja)
+        return True
+    except Exception as exc:
+        log.error("[INT-TAB] Error seleccionando bandeja '%s': %s", bandeja, exc)
+        return False
+
+
+def _seleccionar_bandeja_internos_legacy(page, bandeja: str) -> bool:
+    log.info("[INT-TAB] Activando bandeja '%s'...", bandeja)
+    try:
+        resultado = page.evaluate(
+            r"""
+            (wantedRaw) => {
+              const visible = el => {
+                const style = window.getComputedStyle(el);
+                return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null;
+              };
+              const norm = txt => (txt || '').normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+              const wanted = norm(wantedRaw);
+              const candidates = Array.from(document.querySelectorAll('a, button, [role="tab"]'))
+                .filter(visible)
+                .map(el => {
+                  const raw = norm(el.innerText || el.textContent || '');
+                  const label = raw.replace(/\s+[\d,.]+\s*$/, '').trim();
+                  const inTabs = !!el.closest('.nav-tabs, .nav-pills, [role="tablist"]');
+                  return {el, label, score: (inTabs ? 1000 : 0) - raw.length};
+                })
+                .filter(item => item.label === wanted)
+                .sort((a, b) => b.score - a.score);
+              if (!candidates.length) return {ok: false};
+              const target = candidates[0].el;
+              const parent = target.closest('li, [role="presentation"]');
+              const alreadyActive = target.disabled || target.getAttribute('aria-selected') === 'true'
+                || target.classList.contains('active') || !!parent?.classList.contains('active');
+              target.scrollIntoView({block: 'center', inline: 'center'});
+              if (!alreadyActive) target.click();
+              return {ok: true, alreadyActive};
+            }
+            """,
+            bandeja,
+        ) or {}
+        if not resultado.get("ok"):
+            log.warning("[INT-TAB] No se encontro la bandeja '%s'.", bandeja)
+            screenshot(page, f"internos_bandeja_no_encontrada_{_slug_internos(bandeja)}")
+            return False
+
+        if not resultado.get("alreadyActive"):
+            page.wait_for_function(
+                r"""
+                (wantedRaw) => {
+                  const visible = el => {
+                    const style = window.getComputedStyle(el);
+                    return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null;
+                  };
+                  const norm = txt => (txt || '').normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+                  const wanted = norm(wantedRaw);
+                  return Array.from(document.querySelectorAll('a, button, [role="tab"]'))
+                    .filter(visible)
+                    .some(el => {
+                      const label = norm(el.innerText || el.textContent || '')
+                        .replace(/\s+[\d,.]+\s*$/, '').trim();
+                      const parent = el.closest('li, [role="presentation"]');
+                      return label === wanted && (
+                        el.disabled || el.getAttribute('aria-selected') === 'true'
+                        || el.classList.contains('active') || !!parent?.classList.contains('active')
+                      );
+                    });
+                }
+                """,
+                arg=bandeja,
+                timeout=TIMEOUT_NAV,
+            )
+            page.wait_for_timeout(300)
+            _esperar_sin_spinner(page, timeout_ms=30_000)
+        try:
+            page.wait_for_selector("table, input[type='search'], .dataTables_wrapper", timeout=15_000)
+        except Exception:
+            pass
+        log.info("[INT-TAB] Bandeja '%s' lista.", bandeja)
+        return True
+    except Exception as exc:
+        log.error("[INT-TAB] Error seleccionando bandeja '%s': %s", bandeja, exc)
+        return False
+
+
+def configurar_mostrar_100_internos(page, etiqueta: str = "tramites") -> bool:
+    """Cambia el selector visible 'Mostrar 10 tramites/documentos' a 100."""
+    try:
+        elegido = page.evaluate(
+            r"""
+            (etiqueta) => {
+                const visible = el => {
+                    if (!el) return false;
+                    const style = window.getComputedStyle(el);
+                    return style.display !== 'none' && style.visibility !== 'hidden' && !el.hidden;
+                };
+                const norm = txt => (txt || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+                const selects = Array.from(document.querySelectorAll('select')).filter(visible);
+                const candidatos = [];
+                for (const sel of selects) {
+                    const options = Array.from(sel.options || []);
+                    const opt100 = options.find(op => (op.value || op.textContent || '').trim() === '100');
+                    if (!opt100) continue;
+                    const hasYears = options.some(op => /\b20\d{2}\b/.test(`${op.value || ''} ${op.textContent || ''}`));
+                    if (hasYears) continue;
+                    let ctx = '';
+                    let p = sel;
+                    for (let i = 0; i < 5 && p; i++, p = p.parentElement) ctx += ' ' + (p.textContent || '');
+                    const ctxNorm = norm(ctx);
+                    const score = (ctxNorm.includes('mostrar') ? 100 : 0)
+                        + (ctxNorm.includes(norm(etiqueta)) ? 80 : 0)
+                        + (ctxNorm.includes('tramite') ? 40 : 0)
+                        + (ctxNorm.includes('documento') ? 40 : 0);
+                    candidatos.push({sel, opt100, score});
+                }
+                candidatos.sort((a, b) => b.score - a.score);
+                if (!candidatos.length) return null;
+                const {sel, opt100} = candidatos[0];
+                if (sel.value !== opt100.value) {
+                    sel.value = opt100.value;
+                    opt100.selected = true;
+                    sel.dispatchEvent(new Event('input', {bubbles: true}));
+                    sel.dispatchEvent(new Event('change', {bubbles: true}));
+                }
+                return opt100.value || opt100.textContent || '100';
+            }
+            """,
+            etiqueta,
+        )
+        if elegido:
+            log.info("[INT-CFG] Selector Mostrar cambiado/verificado a %s (%s).", elegido, etiqueta)
+            _esperar_sin_spinner(page, timeout_ms=20_000)
+            try:
+                page.wait_for_function(
+                    "() => { const p = document.querySelector('.dataTables_processing'); "
+                    "return !p || p.style.display === 'none' || p.style.display === ''; }",
+                    timeout=8_000,
+                )
+            except Exception:
+                page.wait_for_timeout(800)
+            return True
+    except Exception as exc:
+        log.warning("[INT-CFG] No se pudo cambiar Mostrar 100 (%s): %s", etiqueta, exc)
+    return False
+
+
+def _fila_sin_datos(texto: str) -> bool:
+    t = (texto or "").strip().lower()
+    return not t or "no hay" in t or "no data" in t or "sin datos" in t or "sin resultados" in t
+
+
+def _extraer_datos_fila_internos(fila) -> dict:
+    try:
+        data_raw = fila.evaluate(
+            r"""
+            (row) => {
+                const clean = txt => (txt || '').replace(/\s+/g, ' ').trim();
+                const table = row.closest('table');
+                const headers = table
+                    ? Array.from(table.querySelectorAll('thead th')).map(th => clean(th.textContent))
+                    : [];
+                const cells = Array.from(row.querySelectorAll('td')).map(td => clean(td.textContent));
+                const columnas = {};
+                cells.forEach((value, idx) => {
+                    const header = headers[idx] || `col_${idx + 1}`;
+                    columnas[header] = value;
+                });
+                return JSON.stringify({headers, cells, columnas});
+            }
+            """
+        ) or "{}"
+        data = json.loads(data_raw)
+    except Exception:
+        data = {}
+
+    columnas = data.get("columnas") or {}
+    meta = {"folio": "", "tipo_tramite": "", "texto_fila": ""}
+    try:
+        meta["texto_fila"] = fila.inner_text()
+    except Exception:
+        pass
+
+    for header, value in columnas.items():
+        h = str(header or "").lower()
+        v = str(value or "").strip()
+        if not v:
+            continue
+        if "tipo" in h:
+            meta["tipo_tramite"] = v
+            continue
+        if "folio" in h and not meta["folio"]:
+            meta["folio"] = v
+        elif ("tipo" in h and "tram" in h) or h.strip() in {"tramite", "trÃ¡mite"}:
+            meta["tipo_tramite"] = v
+    return meta
+
+
+def _encontrar_boton_revisar(fila):
+    try:
+        controles = fila.locator("a, button, input[type='button'], input[type='submit']")
+        for idx in range(controles.count()):
+            loc = controles.nth(idx)
+            try:
+                texto = (loc.inner_text(timeout=500) or "").strip()
+            except Exception:
+                try:
+                    texto = (loc.input_value(timeout=500) or "").strip()
+                except Exception:
+                    texto = ""
+            try:
+                titulo = loc.get_attribute("title") or ""
+                clases = loc.get_attribute("class") or ""
+                html = loc.inner_html(timeout=500) or ""
+            except Exception:
+                titulo = clases = html = ""
+            marca = f"{texto} {titulo} {clases} {html}".lower()
+            if "revisar" in marca or "fa-eye" in marca or "glyphicon-eye-open" in marca:
+                loc.wait_for(state="visible", timeout=2_000)
+                return loc
+    except Exception:
+        pass
+
+    selectores = [
+        "input[value*='Revisar']",
+        "a[title*='Revisar']",
+        "button[title*='Revisar']",
+        "a.btn-success, button.btn-success",
+        "a[class*='success'], button[class*='success']",
+    ]
+    for sel in selectores:
+        try:
+            loc = fila.locator(sel).first
+            if loc.count() > 0:
+                loc.wait_for(state="visible", timeout=2_000)
+                return loc
+        except Exception:
+            continue
+    return None
+
+
+def _carpeta_internos_para(bandeja: str, identificador: str, firma: str, usadas: set[str]) -> Path:
+    base = DESCARGA_BASE / "internos" / _slug_internos(bandeja)
+    safe = _sanitizar_nombre_carpeta(identificador or f"tramite_{firma[:8]}")
+    carpeta = base / safe
+    key = str(carpeta).lower()
+    if key in usadas:
+        carpeta = base / f"{safe}_{firma[:8]}"
+        key = str(carpeta).lower()
+    if carpeta.exists():
+        meta_path = carpeta / "metadata_satys.json"
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
+        except Exception:
+            meta = {}
+        if meta.get("satys_internos_signature") and meta.get("satys_internos_signature") != firma:
+            carpeta = base / f"{safe}_{firma[:8]}"
+            key = str(carpeta).lower()
+    usadas.add(key)
+    carpeta.mkdir(parents=True, exist_ok=True)
+    return carpeta
+
+
+def _actualizar_metadata_internos(
+    carpeta: Path,
+    bandeja: str,
+    firma: str,
+    row_meta: dict,
+    meta: dict,
+    resultados: list,
+) -> dict:
+    meta_final = dict(meta or {})
+    for key, value in (row_meta or {}).items():
+        if value and not meta_final.get(key):
+            meta_final[key] = value
+    if meta_final.get("nombre_operador") and not meta_final.get("concesionario"):
+        meta_final["concesionario"] = meta_final["nombre_operador"]
+    if meta_final.get("concesionario") and not meta_final.get("nombre_operador"):
+        meta_final["nombre_operador"] = meta_final["concesionario"]
+    if meta_final.get("promovente") and not meta_final.get("representante_legal"):
+        meta_final["representante_legal"] = meta_final["promovente"]
+
+    folio = str(meta_final.get("folio") or row_meta.get("folio") or "").strip()
+    folio_tabla_internos = str(row_meta.get("folio") or "").strip()
+    registro = _normalizar_registro_interno(meta_final.get("registro") or folio)
+    if registro:
+        meta_final["registro"] = registro
+    if folio:
+        meta_final["folio"] = folio
+    if folio_tabla_internos:
+        meta_final["folio_tabla_internos"] = folio_tabla_internos
+
+    meta_final.update({
+        "satys_flujo": "internos",
+        "bandeja_internos": bandeja,
+        "satys_internos_signature": firma,
+        "fuente_descarga": "DOCUMENTOS_ANEXOS",
+        "fecha_proceso": datetime.now().isoformat(),
+        "total_archivos_encontrados": len(resultados),
+        "total_archivos_ok": sum(1 for r in resultados if r.get("ok")),
+    })
+
+    carpeta.mkdir(parents=True, exist_ok=True)
+    for nombre in ("metadata_tramite_nuevo.json", "metadata_satys.json"):
+        with open(carpeta / nombre, "w", encoding="utf-8") as f:
+            json.dump(meta_final, f, ensure_ascii=False, indent=2)
+    return meta_final
+
+
+def _volver_a_bandeja_internos(page, bandeja: str) -> bool:
+    try:
+        if not navegar_a_internos_ift(page):
+            return False
+        if not seleccionar_bandeja_internos(page, bandeja):
+            return False
+        configurar_mostrar_100_internos(page, "tramites")
+        return True
+    except Exception as exc:
+        log.warning("[INT-BACK] No se pudo volver a bandeja '%s': %s", bandeja, exc)
+        return False
+
+
+def procesar_bandeja_internos(
+    context,
+    page,
+    bandeja: str,
+    max_pasadas: int = 10_000,
+    folios_objetivo: list[str] | None = None,
+) -> list:
+    """Procesa todas las filas visibles/paginadas de una bandeja de Internos IFT."""
+    resultados_bandeja = []
+    procesadas: set[str] = set()
+    carpetas_usadas: set[str] = set()
+    objetivos = {
+        str(folio or "").strip()
+        for folio in (folios_objetivo or [])
+        if re.fullmatch(r"\d{1,15}", str(folio or "").strip())
+    }
+    objetivos_encontrados: set[str] = set()
+
+    if not seleccionar_bandeja_internos(page, bandeja):
+        return resultados_bandeja
+    configurar_mostrar_100_internos(page, "tramites")
+
+    pasadas = 0
+    while pasadas < max_pasadas:
+        if objetivos and objetivos.issubset(objetivos_encontrados):
+            break
+        pasadas += 1
+        _esperar_sin_spinner(page, timeout_ms=30_000)
+
+        try:
+            page.wait_for_selector("table tbody tr", timeout=15_000)
+        except PWTimeout:
+            log.warning("[INT-LOOP] Sin filas detectables en '%s'.", bandeja)
+            break
+
+        filas = page.locator("table tbody tr")
+        total_filas = filas.count()
+        abrio_fila = False
+
+        for idx in range(total_filas):
+            fila = filas.nth(idx)
+            try:
+                texto_fila = fila.inner_text().strip()
+            except Exception:
+                continue
+            if _fila_sin_datos(texto_fila):
+                continue
+
+            row_meta = _extraer_datos_fila_internos(fila)
+            folio_fila = str(row_meta.get("folio") or "").strip()
+            if objetivos and folio_fila not in objetivos:
+                continue
+
+            firma = _firma_texto(f"{bandeja}|{texto_fila}")
+            if firma in procesadas:
+                continue
+
+            boton = _encontrar_boton_revisar(fila)
+            if boton is None:
+                log.warning("[INT-LOOP] Fila sin boton Revisar en '%s': %s", bandeja, texto_fila[:120])
+                procesadas.add(firma)
+                continue
+
+            identificador = row_meta.get("folio") or f"tramite_{firma[:8]}"
+            carpeta = _carpeta_internos_para(bandeja, identificador, firma, carpetas_usadas)
+
+            log.info(
+                "[INT-REVISAR] Bandeja=%s folio=%s carpeta=%s",
+                bandeja,
+                identificador,
+                carpeta,
+            )
+            try:
+                boton.scroll_into_view_if_needed()
+                try:
+                    boton.click()
+                except Exception:
+                    boton.click(force=True)
+                try:
+                    page.wait_for_load_state("domcontentloaded", timeout=TIMEOUT_DETALLE)
+                except PWTimeout:
+                    pass
+                _esperar_sin_spinner(page, timeout_ms=30_000)
+
+                for sel in (
+                    "text=DETALLE DE LA SOLICITUD",
+                    "text=DATOS DEL TRAMITE",
+                    "text=DATOS DEL TRÃMITE",
+                    "text=DOCUMENTOS ANEXOS",
+                ):
+                    try:
+                        page.wait_for_selector(sel, timeout=8_000)
+                        break
+                    except PWTimeout:
+                        continue
+
+                meta = extraer_metadatos_tramite_nuevo(page, identificador, carpeta)
+                meta = _actualizar_metadata_internos(carpeta, bandeja, firma, row_meta, meta, [])
+
+                folio_descarga = str(meta.get("folio") or identificador or firma[:8])
+                res = descargar_via_documentos_anexos(context, page, folio_descarga, carpeta)
+                for item in res:
+                    item.setdefault("fuente", "DOCUMENTOS_ANEXOS")
+                    item["bandeja_internos"] = bandeja
+                    item.setdefault("registro", meta.get("registro") or folio_descarga)
+                    item.setdefault("carpeta", str(carpeta))
+
+                meta = _actualizar_metadata_internos(carpeta, bandeja, firma, row_meta, meta, res)
+                guardar_metadata_completo(
+                    folio_descarga,
+                    folio_descarga,
+                    carpeta,
+                    meta,
+                    meta,
+                    res,
+                    "INTERNOS_DOCUMENTOS_ANEXOS",
+                )
+                descomprimir_todos_zips_en_carpeta(carpeta)
+
+                if res:
+                    resultados_bandeja.extend(res)
+                else:
+                    resultados_bandeja.append({
+                        "folio": folio_descarga,
+                        "archivo": f"SIN_ARCHIVOS_{folio_descarga}",
+                        "tipo": "N/A",
+                        "ruta": "",
+                        "tamano_kb": 0,
+                        "ok": False,
+                        "fuente": "INTERNOS_DOCUMENTOS_ANEXOS",
+                        "bandeja_internos": bandeja,
+                        "registro": meta.get("registro") or folio_descarga,
+                        "carpeta": str(carpeta),
+                    })
+
+                procesadas.add(firma)
+                if folio_fila:
+                    objetivos_encontrados.add(folio_fila)
+                abrio_fila = True
+            except Exception as exc:
+                log.error("[INT-ERROR] Error procesando fila de '%s': %s", bandeja, exc)
+                screenshot(page, f"internos_error_{_slug_internos(bandeja)}_{firma[:8]}")
+                procesadas.add(firma)
+                if folio_fila:
+                    objetivos_encontrados.add(folio_fila)
+                resultados_bandeja.append({
+                    "folio": folio_fila or identificador,
+                    "archivo": f"ERROR_INTERNO_{folio_fila or identificador}",
+                    "tipo": "N/A",
+                    "ruta": "",
+                    "tamano_kb": 0,
+                    "ok": False,
+                    "fuente": "INTERNOS_DOCUMENTOS_ANEXOS",
+                    "bandeja_internos": bandeja,
+                    "registro": "",
+                    "carpeta": str(carpeta),
+                    "error": str(exc),
+                })
+            finally:
+                _cerrar_paginas_emergentes(
+                    context,
+                    page,
+                    motivo=f"folio Internos {identificador}",
+                )
+                if not _volver_a_bandeja_internos(page, bandeja):
+                    log.warning("[INT-BACK] Reintento de navegacion a Internos tras detalle.")
+                    navegar_a_internos_ift(page)
+                    seleccionar_bandeja_internos(page, bandeja)
+                    configurar_mostrar_100_internos(page, "tramites")
+
+            if abrio_fila:
+                break
+
+        if abrio_fila:
+            continue
+
+        mostrado_hasta, total = _parsear_paginacion(page)
+        if total > 0:
+            log.info("[INT-PAGE] Bandeja '%s': mostrando %d de %d tramites.", bandeja, mostrado_hasta, total)
+        if total > 0 and mostrado_hasta < total and _avanzar_pagina_datatables(page):
+            continue
+        if _avanzar_pagina_datatables(page):
+            continue
+        break
+
+    for folio_faltante in sorted(objetivos - objetivos_encontrados):
+        resultados_bandeja.append({
+            "folio": folio_faltante,
+            "archivo": f"FOLIO_INTERNO_NO_ENCONTRADO_{folio_faltante}",
+            "tipo": "N/A",
+            "ruta": "",
+            "tamano_kb": 0,
+            "ok": False,
+            "fuente": "INTERNOS_INVENTARIO",
+            "bandeja_internos": bandeja,
+            "registro": "",
+            "carpeta": "",
+        })
+
+    log.info(
+        "[INT-OK] Bandeja '%s' finalizada: %d fila(s) revisada(s), %d resultado(s).",
+        bandeja,
+        len(procesadas),
+        len(resultados_bandeja),
+    )
+    return resultados_bandeja
+
+
+def _validar_sesion_internos() -> bool:
+    """Valida o renueva una sola vez la sesion que clonaran los workers."""
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=HEADLESS, slow_mo=0 if HEADLESS else 50)
+        try:
+            context_args = {
+                "accept_downloads": True,
+                "viewport": {"width": 1400, "height": 900},
+                "locale": "es-MX",
+            }
+            if SESION_FILE.exists():
+                context_args["storage_state"] = str(SESION_FILE)
+            context = browser.new_context(**context_args)
+            page = context.new_page()
+            page.set_default_timeout(TIMEOUT_NAV)
+
+            login_requerido = True
+            if SESION_FILE.exists():
+                try:
+                    page.goto(
+                        urljoin(BASE_URL, "Sarccontroller"),
+                        wait_until="domcontentloaded",
+                        timeout=TIMEOUT_NAV,
+                    )
+                    url_actual = page.url.lower()
+                    login_requerido = (
+                        "login" in url_actual
+                        or "verifylogin" in url_actual
+                        or page.locator("input[type='password']").count() > 0
+                    )
+                    if not login_requerido:
+                        log.info("[INT-SESION] Sesion activa lista para los workers.")
+                except Exception as exc:
+                    log.warning("[INT-SESION] Error validando sesion guardada: %s", exc)
+
+            if login_requerido:
+                if not login(page):
+                    return False
+                with _sesion_lock:
+                    context.storage_state(path=SESION_FILE)
+                log.info("[INT-SESION] Sesion renovada para los workers.")
+            return True
+        finally:
+            browser.close()
+
+
+def _resultado_error_bandeja_internos(bandeja: str, codigo: str, detalle: str) -> list[dict]:
+    return [{
+        "folio": "",
+        "archivo": codigo,
+        "tipo": "ERROR",
+        "ruta": detalle[:240],
+        "tamano_kb": 0,
+        "ok": False,
+        "fuente": "INTERNOS_WORKER",
+        "bandeja_internos": bandeja,
+        "registro": "",
+        "carpeta": "",
+        "error": detalle,
+    }]
+
+
+def _worker_bandeja_internos(
+    bandeja: str,
+    folios_objetivo: list[str] | None = None,
+) -> tuple[str, list]:
+    """Procesa una bandeja en un Playwright y Chromium independientes."""
+    tname = threading.current_thread().name
+    log.info("[INT-W:%s] Iniciando bandeja '%s'.", tname, bandeja)
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(
+                headless=HEADLESS,
+                slow_mo=0 if HEADLESS else 50,
+            )
+            try:
+                context_args = {
+                    "accept_downloads": True,
+                    "viewport": {"width": 1400, "height": 900},
+                    "locale": "es-MX",
+                }
+                if SESION_FILE.exists():
+                    context_args["storage_state"] = str(SESION_FILE)
+                context = browser.new_context(**context_args)
+                habilitar_api_discovery(context)
+                page = context.new_page()
+                page.set_default_timeout(TIMEOUT_NAV)
+                page.goto(
+                    urljoin(BASE_URL, "Sarccontroller"),
+                    wait_until="domcontentloaded",
+                    timeout=TIMEOUT_NAV,
+                )
+                url_actual = page.url.lower()
+                en_login = (
+                    "login" in url_actual
+                    or "verifylogin" in url_actual
+                    or page.locator("input[type='password']").count() > 0
+                )
+                if en_login:
+                    detalle = "La sesion clonada expiro antes de iniciar la bandeja."
+                    log.error("[INT-W:%s] %s Bandeja=%s", tname, detalle, bandeja)
+                    return bandeja, _resultado_error_bandeja_internos(
+                        bandeja,
+                        "ERROR_SESION_WORKER",
+                        detalle,
+                    )
+                if not navegar_a_internos_ift(page):
+                    detalle = "No se pudo abrir el tablero Internos IFT."
+                    return bandeja, _resultado_error_bandeja_internos(
+                        bandeja,
+                        "ERROR_TABLERO_WORKER",
+                        detalle,
+                    )
+
+                resultados = procesar_bandeja_internos(
+                    context,
+                    page,
+                    bandeja,
+                    folios_objetivo=folios_objetivo,
+                )
+                ok = sum(1 for item in resultados if item.get("ok"))
+                log.info(
+                    "[INT-W:%s] Bandeja '%s' terminada: %d OK / %d resultado(s).",
+                    tname,
+                    bandeja,
+                    ok,
+                    len(resultados),
+                )
+                return bandeja, resultados
+            finally:
+                browser.close()
+    except Exception as exc:
+        log.exception("[INT-W:%s] Error fatal en bandeja '%s'.", tname, bandeja)
+        return bandeja, _resultado_error_bandeja_internos(
+            bandeja,
+            "ERROR_WORKER_BANDEJA",
+            str(exc),
+        )
+
+
+def descargar_internos_ift(
+    bandejas: list[str] | None = None,
+    objetivos: list[dict] | None = None,
+    workers: int | None = None,
+) -> list:
+    """Descarga bandejas de Internos en navegadores independientes y paralelos."""
+    objetivos = objetivos or []
+    objetivos_por_bandeja: dict[str, list[str]] = {}
+    nombres_bandeja: dict[str, str] = {}
+    for item in objetivos:
+        bandeja = str(item.get("bandeja") or "").strip()
+        folio = str(item.get("folio") or "").strip()
+        if not bandeja or not re.fullmatch(r"\d{1,15}", folio):
+            continue
+        key = bandeja.lower()
+        nombres_bandeja.setdefault(key, bandeja)
+        objetivos_por_bandeja.setdefault(key, []).append(folio)
+
+    if objetivos_por_bandeja:
+        bandejas = [nombres_bandeja[key] for key in objetivos_por_bandeja]
+    else:
+        bandejas = _unique_preserve_order(bandejas or BANDEJAS_INTERNOS_DEFAULT)
+    if not bandejas:
+        return []
+
+    workers_configurados = INTERNOS_WORKERS_DEFAULT if workers is None else int(workers)
+    if workers_configurados < 0:
+        raise ValueError("internos_workers no puede ser negativo")
+    workers_activos = len(bandejas) if workers_configurados == 0 else min(
+        max(1, workers_configurados),
+        len(bandejas),
+    )
+
+    try:
+        sesion_lista = _validar_sesion_internos()
+    except Exception as exc:
+        log.exception("[INT-MAIN] Fallo preparando la sesion para los workers.")
+        return _resultado_error_bandeja_internos(
+            "Sesion",
+            "ERROR_PREPARACION_SESION_INTERNOS",
+            str(exc),
+        )
+
+    if not sesion_lista:
+        log.error("[INT-MAIN] No se pudo preparar la sesion para los workers.")
+        return _resultado_error_bandeja_internos(
+            "Sesion",
+            "ERROR_SESION_INTERNOS",
+            "No se pudo iniciar o validar la sesion SATyS.",
+        )
+
+    log.info(
+        "[INT-MAIN] Paralelismo por bandeja: %d navegador(es) para %d bandeja(s).",
+        workers_activos,
+        len(bandejas),
+    )
+    resultados_por_bandeja: dict[str, list] = {}
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=workers_activos,
+        thread_name_prefix="SATyS-Internos",
+    ) as executor:
+        futures = {
+            executor.submit(
+                _worker_bandeja_internos,
+                bandeja,
+                objetivos_por_bandeja.get(bandeja.lower()),
+            ): bandeja
+            for bandeja in bandejas
+        }
+        completadas = 0
+        for future in concurrent.futures.as_completed(futures):
+            bandeja = futures[future]
+            completadas += 1
+            try:
+                bandeja_resultado, resultados = future.result()
+            except Exception as exc:
+                bandeja_resultado = bandeja
+                resultados = _resultado_error_bandeja_internos(
+                    bandeja,
+                    "EXCEPCION_WORKER_BANDEJA",
+                    str(exc),
+                )
+            resultados_por_bandeja[bandeja_resultado.lower()] = resultados
+            log.info(
+                "[INT-CONC] [%d/%d] Bandeja '%s' completada.",
+                completadas,
+                len(bandejas),
+                bandeja,
+            )
+
+    todos_resultados = []
+    for bandeja in bandejas:
+        todos_resultados.extend(resultados_por_bandeja.get(bandeja.lower(), []))
+
+    carpeta_resumen = DESCARGA_BASE / "internos"
+    try:
+        guardar_resumen_global(todos_resultados, carpeta_resumen)
+    except Exception as exc:
+        log.warning("[INT] No se pudo guardar resumen global de Internos: %s", exc)
+    return todos_resultados
 
 
 def guardar_metadata_completo(
@@ -5026,6 +6313,14 @@ def main():
                         help="Reconsulta metadata_satys.json sin volver a descargar documentos asociados.")
     parser.add_argument("--no-relay-worker-logs", action="store_true",
                         help="No retransmitir al log principal los logs detallados de cada registro. Útil solo si quieres logs más cortos.")
+    parser.add_argument("--internos", action="store_true",
+                        help="Procesa Administracion solicitudes +TyS/SIGEDO/Internos IFT por bandejas completas.")
+    parser.add_argument("--internos-bandejas", nargs="+", default=None,
+                        help="Bandejas de Internos IFT a procesar. Default: las seis bandejas del tablero.")
+    parser.add_argument("--internos-workers", type=int, default=INTERNOS_WORKERS_DEFAULT,
+                        help="Navegadores paralelos para Internos. Default configurable; 0 usa uno por bandeja.")
+    parser.add_argument("--internos-objetivos", type=Path, default=None,
+                        help="JSON con pares bandeja/folio; limita la descarga a los Folios nuevos indicados.")
     parser.add_argument("--_registro-worker", type=str, default="", help=argparse.SUPPRESS)
     parser.add_argument("--_registro-raw", type=str, default="", help=argparse.SUPPRESS)
     parser.add_argument("--_resultado-json", type=str, default="", help=argparse.SUPPRESS)
@@ -5051,6 +6346,33 @@ def main():
             (args._registro_raw or args._registro_worker).strip(),
             resultado_path,
         )
+
+    if args.internos:
+        print("\n+" + "-" * 68 + "+")
+        print("|" + "  SATyS - DESCARGA INTERNOS IFT  ".center(68) + "|")
+        print("+" + "-" * 68 + "+")
+        print(f"|  Modo: {'HEADLESS' if HEADLESS else 'VISIBLE (GUI)'}".ljust(69) + "|")
+        print("+" + "-" * 68 + "+\n")
+        objetivos_int = []
+        if args.internos_objetivos:
+            objetivos_int = _cargar_objetivos_internos(args.internos_objetivos)
+            if not objetivos_int:
+                log.info("[INT-MAIN] El archivo de objetivos Internos esta vacio; no hay descargas pendientes.")
+                return 0
+        bandejas = _unique_preserve_order(args.internos_bandejas or BANDEJAS_INTERNOS_DEFAULT)
+        if args.internos_workers < 0:
+            parser.error("--internos-workers debe ser 0 o un entero positivo")
+        log.info("[INT-MAIN] Bandejas Internos a procesar: %s", ", ".join(bandejas))
+        todos_int = descargar_internos_ift(
+            bandejas,
+            objetivos=objetivos_int,
+            workers=args.internos_workers,
+        )
+        generar_reporte(todos_int)
+        ok_int = sum(1 for r in todos_int if r.get("ok"))
+        err_int = len(todos_int) - ok_int
+        log.info("[INT-MAIN] Internos finalizado: %d OK | %d error(es).", ok_int, err_int)
+        return 0 if err_int == 0 else 2
 
     print("\n+" + "-" * 68 + "+")
     print("|" + "  SATyS - DESCARGA AUTOMATICA DE ARCHIVOS (PARTE 1)  ".center(68) + "|")

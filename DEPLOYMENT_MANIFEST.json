@@ -1,0 +1,580 @@
+{
+  "product": "Automatizacion-SATyS",
+  "version": "2026.08.17-portable-oci-api-v1-8082",
+  "git_commit": "unknown",
+  "created_utc": "2026-08-17T22:41:15.859250+00:00",
+  "contains_secrets": false,
+  "file_count": 114,
+  "files": [
+    {
+      "path": ".dockerignore",
+      "bytes": 339,
+      "sha256": "753a56e7e1053e493e2fbe66110a6a7e71c6fb51809c4d7a37bd3083e9b933fa"
+    },
+    {
+      "path": ".env.example",
+      "bytes": 770,
+      "sha256": "4b375b8a8d759471298fd02a5caf811397596b7febdcbe6c276d20d7fc936ecf"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "bytes": 1381,
+      "sha256": "460c3b6198a6febf04d81e92054e8c333902dd4eedc307e4e2a8890ae4988677"
+    },
+    {
+      "path": ".gitignore",
+      "bytes": 491,
+      "sha256": "cb3fe7578988567e356c5afd750952ca792dcbeddf1e2549e612b19cc8481221"
+    },
+    {
+      "path": ".python-version",
+      "bytes": 5,
+      "sha256": "49a506dd32096b010d75205acf3430c9ae6c40351888129499e5a5e487126c93"
+    },
+    {
+      "path": "ARCHIVOS_NO_INCLUIDOS.txt",
+      "bytes": 447,
+      "sha256": "4f7deb3b4c154b9a5ef647a28720a5ae4bb788c0e989d36cb9ac8ef39fb859fd"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 2694,
+      "sha256": "46c7f08259b55d88e882dadd7e6e0d3ebe975e7b050a1409510b6e64499e6cb1"
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "bytes": 2320,
+      "sha256": "090331726944d17be2644ec8327ad2946f3ca1f02448cd60794e0130675b761c"
+    },
+    {
+      "path": "CORRECCION_EJECUCION_UNICA_20260720.md",
+      "bytes": 2124,
+      "sha256": "2893f88c55fb8559c0b8fb0ddb75b085977d129589a9fe0af20e6894a68edea1"
+    },
+    {
+      "path": "DESPLIEGUE_1AM.md",
+      "bytes": 2223,
+      "sha256": "2690e0481081c0e4126fb2739b09a4252bf264f4f0c3f09bba3fe6475cf08de3"
+    },
+    {
+      "path": "DESPLIEGUE_INPLACE_SRVMBcudaqa01.md",
+      "bytes": 582,
+      "sha256": "74bc353cf536f22cd470463e81ac6c4c2e50b431b4d6a2cc5f3bf2431454422b"
+    },
+    {
+      "path": "DESPLIEGUE_LINUX_V3.md",
+      "bytes": 785,
+      "sha256": "39120726991ce5e4de6fe12d91201232b36cd6cd0d7d72a819283121d6b2ec4f"
+    },
+    {
+      "path": "DESPLIEGUE_NUEVO.md",
+      "bytes": 2514,
+      "sha256": "cca5fcdad0b0db973adee74d5bfa8c136ec645fbe12ce9c4e5385ee7646444c3"
+    },
+    {
+      "path": "Dockerfile",
+      "bytes": 1363,
+      "sha256": "6a7cd8d9ff6befb035a4fb4b177d154837313ded62168358cc943b8563d56920"
+    },
+    {
+      "path": "INSTRUCCIONES_DESPLIEGUE_EMAIL_SATYS.md",
+      "bytes": 609,
+      "sha256": "f06f24c933339606dbbdb52a45c9a20c5af8e576b0bb303731753b23d712999e"
+    },
+    {
+      "path": "INSTRUCCIONES_DESPLIEGUE_FINAL_LOCK_SATYS.md",
+      "bytes": 4940,
+      "sha256": "3cf7014675a5753909d45d19ab0e91ef5a45fd689d4a5ca398175638f57361d6"
+    },
+    {
+      "path": "LEEME_PRIMERO_DESPLIEGUE.md",
+      "bytes": 898,
+      "sha256": "20a3412afff9b8130edba1071352644d35a69fee785fecb1cb92a03db760e74f"
+    },
+    {
+      "path": "Parte1_descarga.py",
+      "bytes": 310363,
+      "sha256": "3ea1202b8a34c45b9e991686fe0e3a335508e3a2fd5e83adaa8187012b5bcc1e"
+    },
+    {
+      "path": "Parte2_extraer.py",
+      "bytes": 2252,
+      "sha256": "999ac86a10186a11a460d361dbb4a3277a77034ea8e3f2cbbdaa32943e559604"
+    },
+    {
+      "path": "Parte3_rpc.py",
+      "bytes": 18736,
+      "sha256": "7bc1f602abc46776e067d35ad3b81a151f4ba8578fa99dce79ae7f890f7d40ad"
+    },
+    {
+      "path": "Parte4_excel.py",
+      "bytes": 24489,
+      "sha256": "b2c8c9562a7516539f9c84e363d4ef585ecd6a009de974036d787279a26d8204"
+    },
+    {
+      "path": "QUICKSTART_PORTABLE.md",
+      "bytes": 2368,
+      "sha256": "c3b2a62e2942a43128d707aae18364b6014e6aac9f186ec31509514f5a30a0c4"
+    },
+    {
+      "path": "README.md",
+      "bytes": 26050,
+      "sha256": "64921115a4a1d93c5679c3d6f25a51203d4031471c62aa087d04d80ce60e7204"
+    },
+    {
+      "path": "README_BACKEND_LINUX.md",
+      "bytes": 5266,
+      "sha256": "e5eae1625c79b20ef56e7df28c4f4ca9a30c8142187f46b616f9cb8c878b9c5d"
+    },
+    {
+      "path": "README_ESTADO_SERVIDOR_ACTUAL.md",
+      "bytes": 12878,
+      "sha256": "efe4354ac8767de03e44e62a39363575f1e4f2b7f2b13f9acad759b45a74f09c"
+    },
+    {
+      "path": "README_FRONTEND_LINUX.md",
+      "bytes": 4166,
+      "sha256": "46699a8136c25bda89fa25c18a3ff995bdfaeee5cded0f8c51de89f293bce62e"
+    },
+    {
+      "path": "README_PROYECTO_COMPLETO_20260730.md",
+      "bytes": 1543,
+      "sha256": "df6cc4f61dee2e10ab55fbe1dfe84e7a81e168341e24782deb6dd871366e74cf"
+    },
+    {
+      "path": "RELEASE_20260720_RUN_ONCE_DAILY.md",
+      "bytes": 595,
+      "sha256": "b9c1af5f19ef8d62abc37bcca312db55292a7ea40f9b078e9aafd895e9e1dd54"
+    },
+    {
+      "path": "RELEASE_20260814_INTERNOS_IFT.md",
+      "bytes": 5665,
+      "sha256": "8da7005b6c72b4dbf3ffa56f101271749d940c0acbe28d02553f370489b6642c"
+    },
+    {
+      "path": "VERSION",
+      "bytes": 36,
+      "sha256": "a0aea80f6db794efff30f5c13dc7c9cbedf31368d4ee4e12ce99abd9bbf4ac22"
+    },
+    {
+      "path": "api_models.py",
+      "bytes": 3085,
+      "sha256": "36932e3b9d8445271ae5fad433ae00ed0be89ca71e449ee652805435c05f7191"
+    },
+    {
+      "path": "automatizar_registros_diario.py",
+      "bytes": 57318,
+      "sha256": "150929d673e954a759131154908e15171136259b5f6b0fb2a7523afecb28e4f4"
+    },
+    {
+      "path": "buscar_concesionario.py",
+      "bytes": 12289,
+      "sha256": "2754de065ff042aa8a45c141e2871fb8af0c98d20f442309a4da7a465695cafd"
+    },
+    {
+      "path": "config/configuracion_local.example.json",
+      "bytes": 695,
+      "sha256": "3ce56fe92c7ea103a08df32d2ba9732166ab9b8ef4eede0a2ad53b761e3314cc"
+    },
+    {
+      "path": "config/configuracion_local.json.PLANTILLA",
+      "bytes": 695,
+      "sha256": "3ce56fe92c7ea103a08df32d2ba9732166ab9b8ef4eede0a2ad53b761e3314cc"
+    },
+    {
+      "path": "configuracion_local.py",
+      "bytes": 4372,
+      "sha256": "d974d363ed50321090e7180f1a97db614646fb7b6a68fcde9c3801bc07cd08e1"
+    },
+    {
+      "path": "deploy/nginx-satys.conf",
+      "bytes": 926,
+      "sha256": "e27a6c2959dc9bd331417c0f803ca99734c030b3866d79adf98f8a692b73a599"
+    },
+    {
+      "path": "deploy/satys.env.example",
+      "bytes": 392,
+      "sha256": "62bc1f5b3f986c5488559cb3deaad899a0e496d25e527f327917cc1a7fe68352"
+    },
+    {
+      "path": "deploy/srvmbcudaqa01.env.example",
+      "bytes": 724,
+      "sha256": "3cfc187c0c5dc59051a480bff31f84902c9a2289926389f7c96c7d38d830ddaa"
+    },
+    {
+      "path": "descargar_concesiones_rpc.py",
+      "bytes": 11603,
+      "sha256": "d7e2ea38aa26c164e2bb1de4a67cb3ff489f44cb5f3506fbeb5fa240a7c3b7f9"
+    },
+    {
+      "path": "docker-compose.yml",
+      "bytes": 2160,
+      "sha256": "1b1d89b38779752477feff6f0ed53eca51acae224f477514b1cc1af284c2cae0"
+    },
+    {
+      "path": "docs/API.md",
+      "bytes": 13874,
+      "sha256": "5dec2c797779805a7cdaa065429cea480f329745e969b3335cc0f67bc52ddad6"
+    },
+    {
+      "path": "docs/ARQUITECTURA.md",
+      "bytes": 1090,
+      "sha256": "af02250102fdafc7291bc64553f7ef784a0cb8f22f3931ea191bf82fefc5c813"
+    },
+    {
+      "path": "docs/BACKLOG_IMPLEMENTACION.md",
+      "bytes": 5007,
+      "sha256": "9222bbdf6fadee02eaa5824fa1146b26da41067cf703590ef3c202b45d193c18"
+    },
+    {
+      "path": "docs/BACKLOG_PRODUCCION_SATYS.md",
+      "bytes": 8917,
+      "sha256": "b93f5cf8ed536cb685b34d6fec502151f3b66b2a16a684dbe62c93b60708fdb2"
+    },
+    {
+      "path": "docs/GLOSARIO.md",
+      "bytes": 1590,
+      "sha256": "89b683e2b3f9964fefd54c1a05c31878d836e52dddcf50d91191731c649435f1"
+    },
+    {
+      "path": "docs/PORTABILIDAD.md",
+      "bytes": 1206,
+      "sha256": "ac231b6db7b2110ff68c8482152116d0a1a671fe3e2591be7f0691884e5919d0"
+    },
+    {
+      "path": "estado_descargas.py",
+      "bytes": 1777,
+      "sha256": "291028dfd432f650b6db2e52268ecf0f09343d082d60fe0991272339c2b93f69"
+    },
+    {
+      "path": "estado_ejecucion.py",
+      "bytes": 2767,
+      "sha256": "4705030d9343897ba975dbd8f402e0315e4e353c49802c1629efec8dceb8f5ba"
+    },
+    {
+      "path": "extraer_registros_documentos.py",
+      "bytes": 96187,
+      "sha256": "f27c8fd788a5d783b349f031d20e7b5e0cc98dfc56b2700ec8493cca3a69d782"
+    },
+    {
+      "path": "generar_excel_folios.py",
+      "bytes": 5261,
+      "sha256": "b392ad13d9195ccd576a2276b48f2214cf0e33eba04aa921dd4eed4682cf9c28"
+    },
+    {
+      "path": "generar_excel_metadata_json.py",
+      "bytes": 10639,
+      "sha256": "7c9bc5e5802c9d62d553b8959fa1350234b3d5fbf7966aca06cb66450c05bedf"
+    },
+    {
+      "path": "login_satys.py",
+      "bytes": 2386,
+      "sha256": "daeb68d76364d521d07afa8621305a5bc29a11941900693aa118653eb395b136"
+    },
+    {
+      "path": "main_procesar.py",
+      "bytes": 88019,
+      "sha256": "dd2588eb894c855b269fcfd209b4243375bfb8d3ed6cb148ab9720476b6dfd83"
+    },
+    {
+      "path": "notificar_email.py",
+      "bytes": 29312,
+      "sha256": "40c0bc61dcb54a4606eaa178d265f8fcaf93abbb51c120caeb5b8de59c54acac"
+    },
+    {
+      "path": "proceso_lock.py",
+      "bytes": 12415,
+      "sha256": "d6ca85aebe5917b1ea92a65c8f2e57ca4a9ba8b8e6ae64af1b17bac80edc015f"
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 378,
+      "sha256": "aed09cd9e510a5794931598536c6480565ececa18dc3dfdd5f601ac9ccc0fdad"
+    },
+    {
+      "path": "reconciliar_metadata_global.py",
+      "bytes": 13640,
+      "sha256": "7743d6c7a50c6d66b762abc0e75bea6aded7c6fddbc53ad83a5e72a470528bee"
+    },
+    {
+      "path": "reconciliar_tramites_desde_folios.py",
+      "bytes": 11011,
+      "sha256": "54d927b5708a6571992216ab9780c2c1696a198c19ea080cd1666eabad47fefe"
+    },
+    {
+      "path": "reparar_id_solicitante.py",
+      "bytes": 21298,
+      "sha256": "f91561a54daa31e8fa6b808f6c03f582dcb64faa0510f70be31db24f6bf176e8"
+    },
+    {
+      "path": "requirements-dev.txt",
+      "bytes": 61,
+      "sha256": "cb0c1d30a2996dff0ec80185f20ea7d1302ace4ac9541aacd164750fc03962d5"
+    },
+    {
+      "path": "requirements-linux.in",
+      "bytes": 288,
+      "sha256": "93fd1df54c1ca5cf30499919792e9ca22aafb2f27ca87def8c4f6fdd0b9ac885"
+    },
+    {
+      "path": "requirements-linux.lock.txt",
+      "bytes": 837,
+      "sha256": "c2bac515ed93eee74772eea606fb012df0bdcf206947c220e26b30c22012afb1"
+    },
+    {
+      "path": "requirements-linux.txt",
+      "bytes": 176,
+      "sha256": "1d69a284dc145220611a50a41ab43bf81cced4e00e0cfea977c9c19d8650399b"
+    },
+    {
+      "path": "ruta_carpeta_compartida.txt",
+      "bytes": 262,
+      "sha256": "8531df970594a9ce6f4884be6646848386f21f063c311047973cfc847899e3df"
+    },
+    {
+      "path": "rutas_salida.py",
+      "bytes": 2289,
+      "sha256": "b16f96d8be0cab9eafa07c3bff4881f972cd55a681d5f0385f770cfadba7fb3f"
+    },
+    {
+      "path": "satys_api.py",
+      "bytes": 48376,
+      "sha256": "e3726729c90b09ad77800093ea29c578a85d7879394b3c182592058a15d0c670"
+    },
+    {
+      "path": "scripts/actualizar_lock.sh",
+      "bytes": 410,
+      "sha256": "7d64c54d4ee91e983d694610836b91044e300007cd2696a0d2745c19c073f98c"
+    },
+    {
+      "path": "scripts/aplicar_correccion_ejecucion_unica.sh",
+      "bytes": 1623,
+      "sha256": "78455ac8532855b3798f8c4726448967409438eccb0663dfffe34eb1ae59af15"
+    },
+    {
+      "path": "scripts/bootstrap_portable.sh",
+      "bytes": 2774,
+      "sha256": "e1e48733dccb0a290fb1d973f396946f03abc11ac8ac2f2c8444c2825b2f26f8"
+    },
+    {
+      "path": "scripts/calidad.sh",
+      "bytes": 247,
+      "sha256": "e71d35cef91c1babba830ab387c666126a655fd68920455cebd2ebee8958cb04"
+    },
+    {
+      "path": "scripts/desplegar_docker.sh",
+      "bytes": 1000,
+      "sha256": "f77121dd165523d92ede953698e5ca9d2af3a4dee060b1ca14ea8fa3aa8db066"
+    },
+    {
+      "path": "scripts/desplegar_release_completa.sh",
+      "bytes": 13464,
+      "sha256": "9c680502b98ab187976e0098d3d539621894e9f06309ba3b47a6bf0070a04913"
+    },
+    {
+      "path": "scripts/docker_preflight.sh",
+      "bytes": 1986,
+      "sha256": "90046e1d430b8d6566c38c46e83448f565ffbdf54e3389f2d88da25b762fdef0"
+    },
+    {
+      "path": "scripts/docker_satys.sh",
+      "bytes": 1077,
+      "sha256": "9177f0e5647af6c052add79b379f8907d70e8846564a81da81e8dfc1c7136adf"
+    },
+    {
+      "path": "scripts/doctor_portable.sh",
+      "bytes": 2068,
+      "sha256": "b405b521c664f4f98832bdb2dd4134316715050b2665a740f3ee9ff8d4a773aa"
+    },
+    {
+      "path": "scripts/estado_satys.sh",
+      "bytes": 385,
+      "sha256": "a816123410482b1fc3056ad3bac82ddfa43efb86a249e73ca8cb8c56addd93e6"
+    },
+    {
+      "path": "scripts/health_satys.py",
+      "bytes": 971,
+      "sha256": "c10c2448f902b0eea5e384cc02045420237d89541afe517e54a4c064f745374c"
+    },
+    {
+      "path": "scripts/instalar_container_systemd.sh",
+      "bytes": 2531,
+      "sha256": "d44cedb47dd0985da3818605920bf834740a3fe56148a74fac78e8db13ab7083"
+    },
+    {
+      "path": "scripts/instalar_linux_1am.sh",
+      "bytes": 14024,
+      "sha256": "acbb032c68c04bf5e1834f09b785f2df08351a13f7de7e4bfd05555ddfdd86c0"
+    },
+    {
+      "path": "scripts/migrar_runtime_existente.sh",
+      "bytes": 2332,
+      "sha256": "9a73410f82ee16e4d3eeed77f6ab85e8173b777837c5287a7e3222784fa9c3a8"
+    },
+    {
+      "path": "scripts/podman_satys.sh",
+      "bytes": 4112,
+      "sha256": "36211f4cd1b275230751df52026e7a111d41545572c45f3da60900af3af81150"
+    },
+    {
+      "path": "scripts/preflight_despliegue.sh",
+      "bytes": 8516,
+      "sha256": "14975f7a3b51df881b86767d87a7cd5fd2a1c98d199636d7ae6b87524d0cdfca"
+    },
+    {
+      "path": "scripts/preparar_release.py",
+      "bytes": 11027,
+      "sha256": "cff351f753099ea854668b502ea9a536b7ae317f9c312e60cdfab9251e39e8c1"
+    },
+    {
+      "path": "scripts/publicar_imagen.sh",
+      "bytes": 503,
+      "sha256": "187cfe2390f872b43eb4eaf5e80f7db2d37f57ff9baf465270b31f6c69cc8245"
+    },
+    {
+      "path": "scripts/rollback_docker.sh",
+      "bytes": 660,
+      "sha256": "790c1ca7dc277e24cb122aad5c35d899be24fd7837dc84cd4b06c0b66768a800"
+    },
+    {
+      "path": "scripts/run_satys_diario.sh",
+      "bytes": 2340,
+      "sha256": "dcb5c150c2554489401693a86ae5e9ce722ac20051a0043d8eb8656d427256b6"
+    },
+    {
+      "path": "scripts/run_satys_internos.ps1",
+      "bytes": 1132,
+      "sha256": "eba4c4362509a4875dbf776b28544fe554eb6709f6c65aaa8c70d09f0db1562c"
+    },
+    {
+      "path": "scripts/run_satys_internos.sh",
+      "bytes": 889,
+      "sha256": "ad124a250ffc3633b79ac56e03c2362ddab6d879d3e7c4804e5163c2a48092c3"
+    },
+    {
+      "path": "scripts/satys.ps1",
+      "bytes": 2156,
+      "sha256": "22dcdaa5cbc156942181bc801edce1956f4a3f93b2e57f1a8a5809962754eee0"
+    },
+    {
+      "path": "scripts/satys.sh",
+      "bytes": 672,
+      "sha256": "ffbe1e38d82783d7ba0748ac73067594b00d66ed33d1e0762553ecee3bbf9d6a"
+    },
+    {
+      "path": "scripts/smoke_internos.py",
+      "bytes": 3651,
+      "sha256": "69b59a72b16a220ce77c77ab4972ac69f52631d1ce0f90c3c11b770c67366893"
+    },
+    {
+      "path": "scripts/validar_catalogo_rpc.py",
+      "bytes": 3162,
+      "sha256": "f2b69dccd4a267524c394e6ddef8050aebff5b1e06cc9eb54638c10ae49d9804"
+    },
+    {
+      "path": "scripts/validar_extraccion_satys.py",
+      "bytes": 2331,
+      "sha256": "92c73394bb706152c500c97750b482f0755c39600bd9bba7fdf083a3687e6f8e"
+    },
+    {
+      "path": "sincronizacion_depi.py",
+      "bytes": 5518,
+      "sha256": "e169c13a48090ceed1f04d448681054006ec1f67797eca3f110921cfe3f0a95b"
+    },
+    {
+      "path": "systemd/README.md",
+      "bytes": 523,
+      "sha256": "d1c7c1c16470a826fd0e8e252a536501fc0e9aee9873ef870c5658876b1b8bec"
+    },
+    {
+      "path": "systemd/satys-api.service",
+      "bytes": 1131,
+      "sha256": "ab1b4ed73a83c35eb8e960f591049dcce31d0d86433d797a5580a168139c3e6b"
+    },
+    {
+      "path": "systemd/satys-diario.service",
+      "bytes": 1191,
+      "sha256": "b73c7255b86c4418420ded008e3ec313e6dea3ecbb4abb3bc914e1a8837c279a"
+    },
+    {
+      "path": "systemd/satys-diario.timer",
+      "bytes": 254,
+      "sha256": "68bc612495a9345820bc35f3f1ca4a3aecc90f856abaa277be8798c7dcef7699"
+    },
+    {
+      "path": "systemd/satys-docker-diario.service",
+      "bytes": 394,
+      "sha256": "d16a895ddd707f394519fc9a15e1c25a3bcbdf84260628cda09140d44dfc40d5"
+    },
+    {
+      "path": "systemd/satys-docker-diario.timer",
+      "bytes": 253,
+      "sha256": "d7bdce173316b86c1538ac96d1a4757bf7ca3350c7811fd2682fd1bc051173eb"
+    },
+    {
+      "path": "tests/test_api_8082_security.py",
+      "bytes": 2414,
+      "sha256": "22cf449f550fbf5733154a5235db39ba5caefe05d8f45651e9363a1dadc6fe04"
+    },
+    {
+      "path": "tests/test_api_v1.py",
+      "bytes": 2413,
+      "sha256": "2c8f097ae1e3779dad270f816015620b91897ddd6efcc569af6ae7c7c2936387"
+    },
+    {
+      "path": "tests/test_ejecucion_diaria_unica.sh",
+      "bytes": 1388,
+      "sha256": "45953c370f638272c11fb2d4254b6c25603757dd5659b1c3bd7be89fee81d040"
+    },
+    {
+      "path": "tests/test_espera_robusta_tabla_satys.py",
+      "bytes": 13593,
+      "sha256": "92735605569471b46f56b2b0a40cdd343a9d91b7da7fcb49c4fde99058136b76"
+    },
+    {
+      "path": "tests/test_internos_diario.py",
+      "bytes": 11602,
+      "sha256": "36f8570c8842c98e959435aa17d38504dad7887d0ea23e5bbb66365e00c9cbc0"
+    },
+    {
+      "path": "tests/test_portable_deployment.py",
+      "bytes": 2562,
+      "sha256": "7b77628110b5af0d688d9f76a76a02348dc953f839a339405c46bc3395e6fc8c"
+    },
+    {
+      "path": "tests/test_reintentos_extraccion_satys.py",
+      "bytes": 7055,
+      "sha256": "45e85303c0092db4bc0a2d33c9bfc91eb58e05f1c0bf0cd03e89b85418678c20"
+    },
+    {
+      "path": "tests/test_reparacion_id.py",
+      "bytes": 2667,
+      "sha256": "e6717dab4e4245316ea8299574f63d1dbff5ade17c20b24ef91236bd935d2885"
+    },
+    {
+      "path": "tests/test_rutas_y_reconciliacion.py",
+      "bytes": 4327,
+      "sha256": "a5bb8d19ab9093aee1c693d582992cdcee42813430fc1abe5d0441430092853d"
+    },
+    {
+      "path": "web/static/app.js",
+      "bytes": 21847,
+      "sha256": "390f1b2754438e2bf19a072964198c206c3c3dd77f8c86c3f8ba73ba84a6f3d9"
+    },
+    {
+      "path": "web/static/logo_satys_crt.png",
+      "bytes": 55405,
+      "sha256": "99c273675f8ecdb3b0c2b5e672f0fef641a3db690371e64477a165c669b942af"
+    },
+    {
+      "path": "web/static/styles.css",
+      "bytes": 21526,
+      "sha256": "4fc6abcad1f26d1e32654aecff0775c3ebe5916f1558e6d07e2a9f5ca1b1e2ce"
+    },
+    {
+      "path": "web/templates/index.html",
+      "bytes": 14929,
+      "sha256": "d350000e38152338b79c6df9662d72a9f4a8e12509712651082ca2fe533b57bf"
+    }
+  ]
+}

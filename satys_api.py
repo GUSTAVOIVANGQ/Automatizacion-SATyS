@@ -29,9 +29,29 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import Body, FastAPI, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, StreamingResponse
+from fastapi import Body, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+
+from api_models import (
+    ConfigResponse,
+    ErrorResponse,
+    FilesResponse,
+    HealthResponse,
+    HistoryResponse,
+    ProcessStartResponse,
+    ProcessStateResponse,
+    RegistroSearchResponse,
+    RepairStartRequest,
+    RepairStateResponse,
+    RunSummaryResponse,
+    StateResponse,
+    SystemdStatusResponse,
+    TimerUpdateRequest,
+    TimerUpdateResponse,
+    VersionResponse,
+)
 
 PROJECT_DIR = Path(__file__).resolve().parent
 LOGS_DIR = PROJECT_DIR / "logs"
@@ -58,7 +78,11 @@ OUTPUT_DIR = PROJECT_DIR / "output"
 DESCARGAS_DIR = PROJECT_DIR / "descargas"
 REGISTROS_DIR = PROJECT_DIR / "registros_diarios"
 
-app = FastAPI(title="SATyS CRT", version="1.3.0")
+app = FastAPI(
+    title="SATyS CRT API",
+    version="1.0.0",
+    description="API operativa de la automatización SATyS CRT. Ruta canónica: /api/v1.",
+)
 
 for folder in (LOGS_DIR, RUNS_DIR, EXPORTS_DIR):
     folder.mkdir(parents=True, exist_ok=True)
@@ -66,6 +90,44 @@ for folder in (LOGS_DIR, RUNS_DIR, EXPORTS_DIR):
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+
+_HTTP_ERROR_CODES = {
+    400: "bad_request",
+    401: "unauthorized",
+    403: "forbidden",
+    404: "not_found",
+    409: "conflict",
+    422: "validation_error",
+    500: "internal_error",
+    503: "service_unavailable",
+}
+
+
+@app.exception_handler(HTTPException)
+async def _http_exception_handler(_request: Request, exc: HTTPException) -> JSONResponse:
+    if isinstance(exc.detail, dict):
+        detail = str(exc.detail.get("detail") or exc.detail.get("message") or exc.detail)
+        code = str(exc.detail.get("code") or _HTTP_ERROR_CODES.get(exc.status_code, "http_error"))
+    else:
+        detail = str(exc.detail)
+        code = _HTTP_ERROR_CODES.get(exc.status_code, "http_error")
+    payload = ErrorResponse(detail=detail, code=code).model_dump()
+    return JSONResponse(status_code=exc.status_code, content=payload, headers=exc.headers)
+
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_exception_handler(_request: Request, exc: RequestValidationError) -> JSONResponse:
+    pieces: list[str] = []
+    for error in exc.errors():
+        location = ".".join(str(item) for item in error.get("loc", ()))
+        message = str(error.get("msg", "dato inválido"))
+        pieces.append(f"{location}: {message}" if location else message)
+    payload = ErrorResponse(
+        detail="; ".join(pieces) or "Solicitud inválida",
+        code="validation_error",
+    ).model_dump()
+    return JSONResponse(status_code=422, content=payload)
 
 def _now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
@@ -287,6 +349,16 @@ def _dir_info(path: Path) -> dict[str, Any]:
 
 
 def _service_status() -> dict[str, Any]:
+    if os.getenv("SATYS_DEPLOYMENT_MODE", "").lower() == "docker":
+        return {
+            "mode": "docker",
+            "service": "satys-api",
+            "timer": "satys-docker-diario.timer",
+            "service_active": "container",
+            "timer_active": "host-systemd",
+            "message": "El timer Docker se administra en el host; el contenedor no controla systemd.",
+            "commands_ok": {},
+        }
     active = _run_command(["systemctl", "is-active", SERVICE_NAME])
     enabled = _run_command(["systemctl", "is-enabled", SERVICE_NAME])
     timer_active = _run_command(["systemctl", "is-active", TIMER_NAME])
@@ -645,7 +717,8 @@ def index():
     return HTMLResponse(index_path.read_text(encoding="utf-8"))
 
 
-@app.get("/api/health")
+@app.get("/api/health", include_in_schema=False)
+@app.get("/api/v1/health", response_model=HealthResponse, summary="Salud del servicio", description="Comprueba que la API está viva y muestra capacidades operativas habilitadas.", tags=["estado"])
 def health():
     return {
         "ok": True,
@@ -660,29 +733,64 @@ def health():
     }
 
 
-@app.get("/api/config")
+def _git_version() -> tuple[str, str]:
+    env_commit = os.getenv("SATYS_GIT_COMMIT", "").strip()
+    if env_commit and env_commit != "unknown":
+        return env_commit, "environment"
+    manifest_path = PROJECT_DIR / "DEPLOYMENT_MANIFEST.json"
+    if manifest_path.exists():
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            commit = str(manifest.get("git_commit") or "").strip()
+            if commit and commit != "unknown":
+                return commit, "deployment_manifest"
+        except Exception:
+            pass
+    result = _run_command(["git", "rev-parse", "HEAD"], timeout=3)
+    if result.get("ok") and result.get("stdout"):
+        return str(result["stdout"]), "git"
+    return "unknown", "unavailable"
+
+
+@app.get("/api/version", include_in_schema=False)
+@app.get("/api/v1/version", response_model=VersionResponse, summary="Versión desplegada", description="Combina VERSION con el commit Git incorporado al build/release.", tags=["estado"])
+def version():
+    version_file = PROJECT_DIR / "VERSION"
+    version_value = os.getenv("SATYS_VERSION", "").strip()
+    if not version_value and version_file.exists():
+        version_value = version_file.read_text(encoding="utf-8").strip()
+    git_commit, git_source = _git_version()
+    return {"version": version_value or "unknown", "git_commit": git_commit, "git_source": git_source}
+
+
+@app.get("/api/config", include_in_schema=False)
+@app.get("/api/v1/config", response_model=ConfigResponse, summary="Configuración del panel", description="Devuelve configuración operativa no secreta y capacidades del servicio.", tags=["estado"])
 def config():
     return _get_config() | health()
 
 
-@app.get("/api/estado")
+@app.get("/api/estado", include_in_schema=False)
+@app.get("/api/v1/estado", response_model=StateResponse, summary="Estado de la corrida diaria", description="Devuelve el estado vivo persistido por el monitor diario.", tags=["estado"])
 def estado():
     if not ESTADO_JSON.exists():
         return {"running": False, "stage": "sin_estado", "mensaje": "Aún no hay estado_actual.json"}
     return _read_json(ESTADO_JSON)
 
 
-@app.get("/api/resumen/ultimo")
+@app.get("/api/resumen/ultimo", include_in_schema=False)
+@app.get("/api/v1/resumen/ultimo", response_model=RunSummaryResponse, summary="Último resumen", description="Obtiene el resumen JSON de la última corrida diaria completada.", tags=["estado"])
 def resumen_ultimo():
     return _read_json(RESUMEN_LATEST)
 
 
-@app.get("/api/systemd")
+@app.get("/api/systemd", include_in_schema=False)
+@app.get("/api/v1/systemd", response_model=SystemdStatusResponse, summary="Estado del scheduler", description="Informa el estado de systemd en instalación clásica o el modo Docker.", tags=["timer"])
 def systemd_status():
     return _service_status()
 
 
-@app.get("/api/archivos")
+@app.get("/api/archivos", include_in_schema=False)
+@app.get("/api/v1/archivos", response_model=FilesResponse, summary="Archivos y directorios", description="Resume existencia, tamaño y fecha de los principales artefactos de datos.", tags=["descargas"])
 def archivos():
     return {
         "excel_control": _file_info(EXCEL_CONTROL),
@@ -694,7 +802,8 @@ def archivos():
     }
 
 
-@app.get("/api/historial")
+@app.get("/api/historial", include_in_schema=False)
+@app.get("/api/v1/historial", response_model=HistoryResponse, summary="Historial de corridas", description="Lista corridas diarias y manuales recientes.", tags=["corridas"])
 def historial():
     daily: list[dict[str, Any]] = []
     for path in sorted(LOGS_DIR.glob("monitor_registros_*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
@@ -720,7 +829,8 @@ def historial():
     return {"daily": daily[:50], "manual": list(reversed(manual[-50:]))}
 
 
-@app.get("/api/log/ultimo", response_class=PlainTextResponse)
+@app.get("/api/log/ultimo", response_class=PlainTextResponse, include_in_schema=False)
+@app.get("/api/v1/log/ultimo", response_class=PlainTextResponse, summary="Últimas líneas de log", description="Devuelve la cola del log diario, manual o de reparación.", tags=["estado"])
 def log_ultimo(tail: int = Query(default=300, ge=1, le=5000), tipo: str = Query(default="diario")):
     if tipo == "reparacion":
         log_path = _latest_repair_log_path()
@@ -733,7 +843,8 @@ def log_ultimo(tail: int = Query(default=300, ge=1, le=5000), tipo: str = Query(
     return _tail_lines(log_path, tail=tail)
 
 
-@app.get("/api/log/descargar")
+@app.get("/api/log/descargar", include_in_schema=False)
+@app.get("/api/v1/log/descargar", response_class=FileResponse, summary="Descargar log", description="Descarga el log más reciente del tipo solicitado.", tags=["descargas"])
 def descargar_log(tipo: str = Query(default="diario")):
     if tipo == "reparacion":
         log_path = _latest_repair_log_path()
@@ -746,14 +857,16 @@ def descargar_log(tipo: str = Query(default="diario")):
     return FileResponse(path=str(log_path), filename=log_path.name, media_type="text/plain")
 
 
-@app.get("/api/resumen/descargar")
+@app.get("/api/resumen/descargar", include_in_schema=False)
+@app.get("/api/v1/resumen/descargar", response_class=FileResponse, summary="Descargar resumen", description="Descarga monitor_registros_ultimo.json.", tags=["descargas"])
 def descargar_resumen():
     if not RESUMEN_LATEST.exists():
         raise HTTPException(status_code=404, detail="No existe monitor_registros_ultimo.json")
     return FileResponse(path=str(RESUMEN_LATEST), filename=RESUMEN_LATEST.name, media_type="application/json")
 
 
-@app.get("/api/download/excel")
+@app.get("/api/download/excel", include_in_schema=False)
+@app.get("/api/v1/download/excel", response_class=FileResponse, summary="Descargar Excel de control", description="Descarga TrámitesCRT.xlsx.", tags=["descargas"])
 def download_excel():
     if not EXCEL_CONTROL.exists():
         raise HTTPException(status_code=404, detail="No existe TrámitesCRT.xlsx")
@@ -764,7 +877,8 @@ def download_excel():
     )
 
 
-@app.get("/api/download/consolidado")
+@app.get("/api/download/consolidado", include_in_schema=False)
+@app.get("/api/v1/download/consolidado", response_class=FileResponse, summary="Descargar consolidado", description="Descarga output/Folios_Datos_Completos.xlsx.", tags=["descargas"])
 def download_consolidado():
     if not EXCEL_CONSOLIDADO.exists():
         raise HTTPException(status_code=404, detail="No existe output/Folios_Datos_Completos.xlsx")
@@ -775,19 +889,22 @@ def download_consolidado():
     )
 
 
-@app.get("/api/download/output")
+@app.get("/api/download/output", include_in_schema=False)
+@app.get("/api/v1/download/output", response_class=FileResponse, summary="Descargar output", description="Genera y descarga un ZIP del directorio output.", tags=["descargas"])
 def download_output_zip():
     zip_path = _zip_dir(OUTPUT_DIR, "satys_output")
     return FileResponse(path=str(zip_path), filename=zip_path.name, media_type="application/zip")
 
 
-@app.get("/api/download/descargas")
+@app.get("/api/download/descargas", include_in_schema=False)
+@app.get("/api/v1/download/descargas", response_class=FileResponse, summary="Descargar descargas", description="Genera y descarga un ZIP del directorio descargas.", tags=["descargas"])
 def download_descargas_zip():
     zip_path = _zip_dir(DESCARGAS_DIR, "satys_descargas")
     return FileResponse(path=str(zip_path), filename=zip_path.name, media_type="application/zip")
 
 
-@app.get("/api/registros/{registro}/buscar")
+@app.get("/api/registros/{registro}/buscar", include_in_schema=False)
+@app.get("/api/v1/registros/{registro}/buscar", response_model=RegistroSearchResponse, summary="Buscar Registro", description="Busca carpetas y metadata asociadas a un número de Registro.", tags=["descargas"])
 def buscar_registro(registro: str, tipo: str = Query(default="auto")):
     registro_norm = _normalizar_registro_api(registro)
     paths = _buscar_carpetas_registro(registro_norm, tipo=tipo)
@@ -800,7 +917,8 @@ def buscar_registro(registro: str, tipo: str = Query(default="auto")):
     }
 
 
-@app.get("/api/registros/{registro}/download")
+@app.get("/api/registros/{registro}/download", include_in_schema=False)
+@app.get("/api/v1/registros/{registro}/download", response_class=FileResponse, summary="Descargar Registro", description="Empaqueta y descarga los archivos encontrados para un Registro.", tags=["descargas"])
 def descargar_registro(registro: str, tipo: str = Query(default="auto")):
     registro_norm = _normalizar_registro_api(registro)
     paths = _buscar_carpetas_registro(registro_norm, tipo=tipo)
@@ -810,12 +928,14 @@ def descargar_registro(registro: str, tipo: str = Query(default="auto")):
     return FileResponse(path=str(zip_path), filename=zip_path.name, media_type="application/zip")
 
 
-@app.get("/api/manual/estado")
+@app.get("/api/manual/estado", include_in_schema=False)
+@app.get("/api/v1/manual/estado", response_model=ProcessStateResponse, summary="Estado manual", description="Consulta el estado de la corrida manual activa o más reciente.", tags=["corridas"])
 def manual_estado():
     return _refresh_manual_state()
 
 
-@app.post("/api/manual/procesar")
+@app.post("/api/manual/procesar", include_in_schema=False)
+@app.post("/api/v1/manual/procesar", response_model=ProcessStateResponse, summary="Procesar TXT", description="Inicia una corrida manual desde un TXT de Registros o Folios.", tags=["corridas"])
 async def manual_procesar(
     archivo: UploadFile = File(...),
     tipo_txt: str = Form("registros"),
@@ -916,7 +1036,8 @@ async def manual_procesar(
     return estado
 
 
-@app.post("/api/registros/procesar")
+@app.post("/api/registros/procesar", include_in_schema=False)
+@app.post("/api/v1/registros/procesar", response_model=ProcessStateResponse, summary="Procesar Registros", description="Atajo para iniciar una corrida manual desde un TXT de Registros.", tags=["corridas"])
 async def registros_procesar(
     archivo: UploadFile = File(...),
     workers: int = Form(6),
@@ -926,13 +1047,15 @@ async def registros_procesar(
     return await manual_procesar(archivo=archivo, tipo_txt="registros", workers=workers, headless=headless)
 
 
-@app.get("/api/reparacion-id/estado")
+@app.get("/api/reparacion-id/estado", include_in_schema=False)
+@app.get("/api/v1/reparacion-id/estado", response_model=RepairStateResponse, summary="Estado de reparación", description="Consulta el estado del reparador de id_solicitante.", tags=["reparación"])
 def reparacion_id_estado():
     return _refresh_repair_state()
 
 
-@app.post("/api/reparacion-id/iniciar")
-def reparacion_id_iniciar(payload: dict[str, Any] = Body(default_factory=dict)):
+@app.post("/api/reparacion-id/iniciar", include_in_schema=False)
+@app.post("/api/v1/reparacion-id/iniciar", response_model=RepairStateResponse, summary="Iniciar reparación", description="Inicia o reanuda la reparación de id_solicitante.", tags=["reparación"])
+def reparacion_id_iniciar(payload: RepairStartRequest = Body(default=RepairStartRequest())):
     if os.getenv("SATYS_API_ALLOW_REPAIR", "0") != "1":
         raise HTTPException(
             status_code=403,
@@ -942,11 +1065,10 @@ def reparacion_id_iniciar(payload: dict[str, Any] = Body(default_factory=dict)):
     if estado_actual.get("running"):
         raise HTTPException(status_code=409, detail="Ya hay una reparación de id_solicitante en ejecución.")
 
-    reiniciar = bool(payload.get("reiniciar_cola", False))
-    actualizar_salidas = bool(payload.get("actualizar_salidas", True))
-    redescargar_archivos = bool(payload.get("redescargar_archivos", False))
-    reintentos_raw = payload.get("reintentos", 2)
-    reintentos = max(0, min(int(2 if reintentos_raw is None else reintentos_raw), 10))
+    reiniciar = payload.reiniciar_cola
+    actualizar_salidas = payload.actualizar_salidas
+    redescargar_archivos = payload.redescargar_archivos
+    reintentos = payload.reintentos
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_path = LOGS_DIR / f"reparacion_id_{ts}.log"
     python_exe = os.getenv("SATYS_PYTHON", sys.executable)
@@ -984,7 +1106,8 @@ def reparacion_id_iniciar(payload: dict[str, Any] = Body(default_factory=dict)):
     return estado
 
 
-@app.post("/api/reparacion-id/detener")
+@app.post("/api/reparacion-id/detener", include_in_schema=False)
+@app.post("/api/v1/reparacion-id/detener", response_model=RepairStateResponse, summary="Detener reparación", description="Solicita detener el reparador preservando su checkpoint.", tags=["reparación"])
 def reparacion_id_detener():
     estado = _refresh_repair_state()
     pid = int(estado.get("pid") or 0)
@@ -1004,11 +1127,10 @@ def reparacion_id_detener():
     return estado
 
 
-@app.post("/api/timer/hora")
-def timer_hora(payload: dict[str, Any] = Body(...)):
-    hora = str(payload.get("hora", "")).strip()
-    if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", hora):
-        raise HTTPException(status_code=400, detail="Hora inválida. Usa formato HH:MM en 24 horas.")
+@app.post("/api/timer/hora", include_in_schema=False)
+@app.post("/api/v1/timer/hora", response_model=TimerUpdateResponse, summary="Cambiar hora del timer", description="Actualiza la hora del timer; la instalación en systemd depende de permisos.", tags=["timer"])
+def timer_hora(payload: TimerUpdateRequest = Body(...)):
+    hora = payload.hora
     cfg = _get_config()
     cfg["timer_hora"] = hora
     cfg["updated_at"] = _now_iso()
@@ -1017,7 +1139,8 @@ def timer_hora(payload: dict[str, Any] = Body(...)):
     return {"ok": True, "hora": hora, "install": install, "systemd": _service_status()}
 
 
-@app.post("/api/proceso/iniciar")
+@app.post("/api/proceso/iniciar", include_in_schema=False)
+@app.post("/api/v1/proceso/iniciar", response_model=ProcessStartResponse, summary="Iniciar corrida diaria", description="Solicita a systemd iniciar la corrida diaria en instalación clásica.", tags=["corridas"])
 def iniciar_proceso_manual_diario():
     if os.getenv("SATYS_API_ALLOW_START", "0") != "1":
         raise HTTPException(
@@ -1084,7 +1207,8 @@ async def _stream_log(kind: str):
         await asyncio.sleep(2)
 
 
-@app.get("/api/log/stream")
+@app.get("/api/log/stream", include_in_schema=False)
+@app.get("/api/v1/log/stream", response_class=StreamingResponse, responses={200: {"content": {"text/event-stream": {}}}}, summary="Stream de log", description="Entrega eventos SSE con el log en tiempo real.", tags=["estado"])
 async def log_stream(tipo: str = Query(default="diario")):
     kind = tipo if tipo in {"manual", "reparacion"} else "diario"
     return StreamingResponse(_stream_log(kind), media_type="text/event-stream")

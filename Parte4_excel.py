@@ -21,6 +21,9 @@ import re
 import shutil
 import logging
 import traceback
+import unicodedata
+from copy import copy
+from difflib import SequenceMatcher
 from pathlib import Path
 from datetime import datetime
 
@@ -108,6 +111,46 @@ def _ruta_a_path(ruta: str) -> Path:
     """Convierte una ruta con separadores mixtos a Path."""
     partes = [p for p in re.split(r"[\\/]+", ruta) if p]
     return Path(*partes)
+
+
+def _normalizar_header_excel(valor) -> str:
+    """Compara encabezados ignorando acentos, signos y mojibake comun."""
+    texto = str(valor or "").strip()
+    variantes = [texto]
+    try:
+        variantes.append(texto.encode("latin1").decode("utf-8"))
+    except Exception:
+        pass
+    mejor = variantes[-1] if variantes else texto
+    mejor = unicodedata.normalize("NFD", mejor)
+    mejor = "".join(c for c in mejor if unicodedata.category(c) != "Mn")
+    mejor = re.sub(r"[^A-Z0-9]+", " ", mejor.upper())
+    return re.sub(r"\s+", " ", mejor).strip()
+
+
+def _columna_encabezado(encabezados: dict, *aliases: str, default=None):
+    if not aliases:
+        return default
+    for alias in aliases:
+        if alias in encabezados:
+            return encabezados[alias]
+    normalizados = {_normalizar_header_excel(k): v for k, v in encabezados.items()}
+    for alias in aliases:
+        col = normalizados.get(_normalizar_header_excel(alias))
+        if col:
+            return col
+    for alias in aliases:
+        alias_norm = _normalizar_header_excel(alias)
+        alias_compact = alias_norm.replace(" ", "")
+        if not alias_compact:
+            continue
+        for header_norm, col in normalizados.items():
+            header_compact = header_norm.replace(" ", "")
+            if not header_compact:
+                continue
+            if SequenceMatcher(None, alias_compact, header_compact).ratio() >= 0.88:
+                return col
+    return default
 
 
 def _destino_sin_colision(destino: Path, item: Path) -> Path:
@@ -220,6 +263,38 @@ def _buscar_fila(ws, folio: str, registro: str = None, col_registro: int = None)
 #  ACTUALIZACIÓN DEL EXCEL
 # ────────────────────────────────────────────────────────
 
+def _obtener_o_crear_hoja(wb, sheet: str):
+    """Devuelve la hoja destino; si no existe, copia encabezados desde SHEET_NAME."""
+    if sheet in wb.sheetnames:
+        return wb[sheet]
+
+    base = wb[SHEET_NAME] if SHEET_NAME in wb.sheetnames else wb.active
+    ws = wb.create_sheet(sheet)
+    log.info("➕ Hoja '%s' no existía; se crea desde encabezados de '%s'.", sheet, base.title)
+
+    for col in range(1, base.max_column + 1):
+        src = base.cell(row=1, column=col)
+        dst = ws.cell(row=1, column=col, value=src.value)
+        if src.has_style:
+            dst._style = copy(src._style)
+        if src.number_format:
+            dst.number_format = src.number_format
+        if src.font:
+            dst.font = copy(src.font)
+        if src.fill:
+            dst.fill = copy(src.fill)
+        if src.border:
+            dst.border = copy(src.border)
+        if src.alignment:
+            dst.alignment = copy(src.alignment)
+        letter = get_column_letter(col)
+        if base.column_dimensions[letter].width:
+            ws.column_dimensions[letter].width = base.column_dimensions[letter].width
+
+    ws.freeze_panes = base.freeze_panes or "A2"
+    return ws
+
+
 def actualizar_excel(
     folio: str,
     registro: str = "",
@@ -235,6 +310,7 @@ def actualizar_excel(
     asunto: str = "",
     tipo_tramite: str = "",
     fecha_limite: str = "",
+    folio_internos: str = "",
     ruta_salida: str = "",
 ) -> bool:
     """
@@ -247,7 +323,7 @@ def actualizar_excel(
 
     try:
         wb = openpyxl.load_workbook(excel)
-        ws = wb[sheet]
+        ws = _obtener_o_crear_hoja(wb, sheet)
 
         # Leer encabezados dinámicamente
         encabezados = {}
@@ -257,16 +333,43 @@ def actualizar_excel(
                 encabezados[str(header).strip()] = col
 
         # Mapeo de columnas
-        col_1711        = encabezados.get("1711", 4)
-        col_memo        = encabezados.get("Memo/Volante", 5)
-        col_solicitante = encabezados.get("Solicitante Promovente", 6)
-        col_rep         = encabezados.get("Representante Legal", 7)
+        col_1711        = _columna_encabezado(encabezados, "1711", default=4)
+        col_memo        = _columna_encabezado(encabezados, "Memo/Volante", default=5)
+        col_solicitante = _columna_encabezado(encabezados, "Solicitante Promovente", default=6)
+        col_rep         = _columna_encabezado(encabezados, "Representante Legal", default=7)
         col_fecha       = encabezados.get("Fecha de creación", 10)
-        col_ruta        = encabezados.get("Ruta", 13)
-        col_notas       = encabezados.get("NOTAS_VICTOR", 42)
-        col_asunto      = encabezados.get("Asunto", None)
+        col_ruta        = _columna_encabezado(encabezados, "Ruta", default=13)
+        col_notas       = _columna_encabezado(encabezados, "NOTAS_VICTOR", default=42)
+        col_asunto      = _columna_encabezado(encabezados, "Asunto")
         col_tipo        = encabezados.get("Tipo Trámite", None)
         col_fecha_limite = encabezados.get("FECHA LÍMITE", None)
+
+        col_fecha = _columna_encabezado(encabezados, "Fecha de creacion", default=col_fecha)
+        col_tipo = _columna_encabezado(encabezados, "Tipo Tramite", default=col_tipo)
+        col_fecha_limite = _columna_encabezado(encabezados, "FECHA LIMITE", default=col_fecha_limite)
+        col_folio_internos = _columna_encabezado(
+            encabezados,
+            "Folio Internos",
+            "Folio Interno",
+            "Folio SATyS Internos",
+        )
+        if sheet == "Internos" and col_folio_internos is None:
+            col_folio_internos = ws.max_column + 1
+            celda_header = ws.cell(row=1, column=col_folio_internos, value="Folio Internos")
+            header_modelo = ws.cell(row=1, column=col_1711)
+            if header_modelo.has_style:
+                celda_header._style = copy(header_modelo._style)
+            if header_modelo.font:
+                celda_header.font = copy(header_modelo.font)
+            if header_modelo.fill:
+                celda_header.fill = copy(header_modelo.fill)
+            if header_modelo.border:
+                celda_header.border = copy(header_modelo.border)
+            if header_modelo.alignment:
+                celda_header.alignment = copy(header_modelo.alignment)
+            ws.column_dimensions[get_column_letter(col_folio_internos)].width = 18
+            encabezados["Folio Internos"] = col_folio_internos
+            log.info("➕ Columna 'Folio Internos' agregada a la hoja Internos.")
 
         # Idempotencia: si el registro/folio ya existe, actualizar esa fila
         # en lugar de duplicar. Esto permite reprocesar TODO descargas/ sin
@@ -277,11 +380,28 @@ def actualizar_excel(
         fila = None
         registro_norm = _norm_excel(registro)
         folio_norm = _norm_excel(folio)
+        folio_internos_norm = _norm_excel(folio_internos)
 
-        # Prioridad 1: coincidencia exacta por Registro (1711).
-        if registro_norm:
+        # Internos uses the numeric dashboard Folio as its daily inventory key.
+        if folio_internos_norm and col_folio_internos:
             for r in range(2, ws.max_row + 1):
-                if _norm_excel(ws.cell(row=r, column=col_1711).value) == registro_norm:
+                if _norm_excel(ws.cell(row=r, column=col_folio_internos).value) == folio_internos_norm:
+                    fila = r
+                    break
+
+        # En una migracion puede haber filas de Internos previas a la columna
+        # dedicada. Solo se reutilizan si aun no tienen Folio Internos; dos
+        # folios distintos pueden compartir el mismo Registro CRT.
+        if fila is None and registro_norm:
+            for r in range(2, ws.max_row + 1):
+                if _norm_excel(ws.cell(row=r, column=col_1711).value) != registro_norm:
+                    continue
+                folio_interno_existente = (
+                    _norm_excel(ws.cell(row=r, column=col_folio_internos).value)
+                    if folio_internos_norm and col_folio_internos
+                    else ""
+                )
+                if not folio_interno_existente:
                     fila = r
                     break
 
@@ -293,6 +413,12 @@ def actualizar_excel(
             for r in range(2, ws.max_row + 1):
                 if _norm_excel(ws.cell(row=r, column=col_memo).value) != folio_norm:
                     continue
+                if folio_internos_norm and col_folio_internos:
+                    folio_interno_existente = _norm_excel(
+                        ws.cell(row=r, column=col_folio_internos).value
+                    )
+                    if folio_interno_existente:
+                        continue
                 registro_existente = _norm_excel(ws.cell(row=r, column=col_1711).value)
                 if not registro_existente or registro_existente == registro_norm:
                     fila = r
@@ -305,6 +431,8 @@ def actualizar_excel(
             log.info("♻️  Actualizando fila existente %d para folio %s (registro %s)", fila, folio, registro or "N/A")
 
         ws.cell(row=fila, column=col_memo, value=folio)
+        if folio_internos and col_folio_internos:
+            ws.cell(row=fila, column=col_folio_internos, value=str(folio_internos).strip())
 
         # Escribir datos
         if registro:

@@ -9,6 +9,8 @@ Regla de negocio:
   - El Excel oficial del RPC aporta la columna ID OPERADOR.
   - Si id_solicitante == ID OPERADOR: coincidencia 100%.
   - Si no existe/no coincide: coincidencia 0%; NO se resuelve por nombre/fuzzy.
+  - El flujo Internos IFT puede usar cruce exacto normalizado:
+    Concesionario SATyS == NOMBRE OPERADOR del Excel RPC.
 
 Este módulo conserva los nombres de funciones que main_procesar.py esperaba en
 la versión Windows: cargar_catalogo_desde_excel, preparar_catalogo_para_matching,
@@ -275,6 +277,28 @@ def buscar_por_id_solicitante(id_solicitante: Any, catalogo: list[dict[str, Any]
         id_bp = normalizar_id(item.get("idBp") or item.get("ID OPERADOR"))
         if id_bp == objetivo:
             nombre = str(item.get("nombre_completo") or item.get("concesionario") or "").strip()
+            return {
+                "idBp": id_bp,
+                "ID OPERADOR": id_bp,
+                "concesionario": nombre,
+                "nombre_completo": nombre,
+                "score": 1.0,
+            }
+    return None
+
+
+def buscar_por_nombre_operador_exacto(nombre_operador: Any, catalogo: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Cruce exacto normalizado: Concesionario SATyS == NOMBRE OPERADOR RPC."""
+    objetivo = normalizar_nombre(nombre_operador)
+    if not objetivo:
+        return None
+    objetivo_compact = objetivo.replace(" ", "")
+    for item in catalogo or []:
+        nombre = str(item.get("nombre_completo") or item.get("concesionario") or "").strip()
+        norm = item.get("norm") or normalizar_nombre(nombre)
+        compact = item.get("compact") or norm.replace(" ", "")
+        if norm == objetivo or (objetivo_compact and compact == objetivo_compact):
+            id_bp = normalizar_id(item.get("idBp") or item.get("ID OPERADOR"))
             return {
                 "idBp": id_bp,
                 "ID OPERADOR": id_bp,

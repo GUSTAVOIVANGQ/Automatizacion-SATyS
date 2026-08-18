@@ -1,11 +1,11 @@
 {
   "satys": {
     "usuario": "USUARIO_SATYS",
-    "password": "CAMBIAR_EN_SERVIDOR"
+    "password": "CAMBIAR_LOCALMENTE"
   },
   "gmail": {
     "remitente": "CORREO_REMITENTE",
-    "app_password": "CAMBIAR_EN_SERVIDOR",
+    "app_password": "CAMBIAR_LOCALMENTE",
     "enabled": false,
     "from_name": "Sistema SATyS DEI",
     "destinatarios": [],
@@ -16,10 +16,11 @@
     "descargas": "descargas",
     "output": "output",
     "excel": "TrámitesCRT.xlsx",
-    "carpeta_compartida": "/depi/dgp/DEI_DATOS/SATyS"
+    "carpeta_compartida": "shared"
   },
   "procesamiento": {
     "workers": 10,
+    "internos_workers": 6,
     "timeout_registro": 900,
     "reintentos_registro": 2,
     "workers_reintento": 2,

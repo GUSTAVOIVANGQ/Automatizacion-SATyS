@@ -49,7 +49,7 @@ def cargar_dotenv(path: Path = Path(".env")) -> None:
 cargar_dotenv()
 
 BASE_URL = os.getenv("SATYS_BASE_URL", "https://satys.ift.org.mx/")
-SESION_FILE = Path(__file__).resolve().parent / "sesion_guardada.json"
+SESION_FILE = Path(os.getenv("SATYS_SESION_FILE", str(Path(__file__).resolve().parent / "sesion_guardada.json")))
 OUTPUT_DEFAULT = Path(os.getenv("SATYS_REGISTROS_OUT", "registros_documentos_en_proceso.txt"))
 HEADLESS_DEFAULT = os.getenv("SATYS_HEADLESS", "False").lower() in ("true", "1", "yes")
 TIMEOUT_NAV = int(os.getenv("SATYS_TIMEOUT_NAV", "60000"))
@@ -58,6 +58,14 @@ TIMEOUT_TABLA_REGISTROS = int(os.getenv("SATYS_TIMEOUT_TABLA_REGISTROS", "120000
 INTENTOS_ANIO_DEFAULT = max(1, int(os.getenv("SATYS_INTENTOS_ANIO", "3")))
 INTENTOS_PAGINA_DEFAULT = max(1, int(os.getenv("SATYS_INTENTOS_PAGINA", "3")))
 VACIO_ESTABLE_SEGUNDOS_DEFAULT = max(3, int(os.getenv("SATYS_VACIO_ESTABLE_SEGUNDOS", "8")))
+BANDEJAS_INTERNOS = (
+    "Recibidos",
+    "En proceso",
+    "Copias Marcadas",
+    "Atendidos",
+    "Ultimos Movimientos",
+    "Fuera de tiempo",
+)
 
 
 logging.basicConfig(
@@ -105,6 +113,25 @@ def esperar_sin_spinner(page, timeout_ms: int = 30_000) -> bool:
                 if loc.count() > 0 and loc.first.is_visible():
                     hay_spinner = True
                     break
+            except Exception:
+                pass
+        if not hay_spinner:
+            try:
+                hay_spinner = bool(
+                    page.evaluate(
+                        r"""
+                        () => Array.from(document.querySelectorAll('body *')).some(el => {
+                          if (el.children.length) return false;
+                          const style = window.getComputedStyle(el);
+                          if (style.display === 'none' || style.visibility === 'hidden' || el.offsetParent === null) {
+                            return false;
+                          }
+                          const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
+                          return /^Cargando(?:\.{3}|\u2026)?$/i.test(text);
+                        })
+                        """
+                    )
+                )
             except Exception:
                 pass
         if not hay_spinner:
@@ -1390,6 +1417,591 @@ def extraer_registros_por_anio(
         "intentos_pagina": max(1, intentos_pagina),
     }
 
+
+# ---------------------------------------------------------------------------
+# Internos IFT: inventory of numeric Folio values from all dashboard tabs.
+# ---------------------------------------------------------------------------
+
+def navegar_a_internos_ift(page) -> bool:
+    """Open Administracion solicitudes +TyS/SIGEDO/Internos IFT."""
+    log.info("[INT-NAV] Abriendo Administracion solicitudes +TyS/SIGEDO/Internos IFT...")
+    try:
+        esperar_sin_spinner(page, timeout_ms=20_000)
+        resultado = page.evaluate(
+            r"""
+            (() => {
+              const visible = el => {
+                const style = window.getComputedStyle(el);
+                return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null;
+              };
+              const norm = txt => (txt || '').normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+              const candidates = Array.from(document.querySelectorAll('a, button')).filter(visible)
+                .map(el => ({el, text: norm(el.innerText || el.textContent || '')}))
+                .filter(item => item.text.includes('administracion solicitudes')
+                  && item.text.includes('internos ift'))
+                .sort((a, b) => a.text.length - b.text.length);
+              if (!candidates.length) return false;
+              candidates[0].el.click();
+              return true;
+            })()
+            """
+        )
+        if not resultado:
+            raise RuntimeError("No se encontro el menu principal de Administracion solicitudes.")
+
+        page.wait_for_timeout(500)
+        submenu = page.evaluate(
+            r"""
+            (() => {
+              const visible = el => {
+                const style = window.getComputedStyle(el);
+                return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null;
+              };
+              const norm = txt => (txt || '').normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+              const candidates = Array.from(document.querySelectorAll('a, button')).filter(visible)
+                .map(el => ({el, text: norm(el.innerText || el.textContent || '')}))
+                .filter(item => item.text.includes('tys/sigedo/internos ift')
+                  && !item.text.includes('administracion'))
+                .sort((a, b) => a.text.length - b.text.length);
+              if (!candidates.length) return false;
+              candidates[0].el.click();
+              return true;
+            })()
+            """
+        )
+        if not submenu:
+            raise RuntimeError("No se encontro el submenu +TyS/SIGEDO/Internos IFT.")
+
+        esperar_datatables(page, timeout_ms=20_000)
+        page.wait_for_function(
+            r"""
+            () => {
+              const norm = txt => (txt || '').normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+              const text = norm(document.body.innerText || '');
+              return text.includes('recibidos') && text.includes('en proceso')
+                && text.includes('fuera de tiempo');
+            }
+            """,
+            timeout=TIMEOUT_NAV,
+        )
+        log.info("[INT-NAV] Tablero de Internos IFT cargado.")
+        return True
+    except Exception as exc:
+        log.error("[INT-NAV] No se pudo abrir Internos IFT: %s", exc)
+        screenshot(page, "internos_nav_error")
+        return False
+
+
+def seleccionar_bandeja_internos(page, bandeja: str) -> None:
+    """Activate one of the six Internos dashboard tabs by its visible label."""
+    resultado = page.evaluate(
+        r"""
+        (wantedRaw) => {
+          const visible = el => {
+            const style = window.getComputedStyle(el);
+            return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null;
+          };
+          const norm = txt => (txt || '').normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+          const wanted = norm(wantedRaw);
+          const candidates = Array.from(document.querySelectorAll('a, button, [role="tab"]'))
+            .filter(visible)
+            .map(el => {
+              const raw = norm(el.innerText || el.textContent || '');
+              const label = raw.replace(/\s+[\d,.]+\s*$/, '').trim();
+              const inTabs = !!el.closest('.nav-tabs, .nav-pills, [role="tablist"]');
+              return {el, label, score: (inTabs ? 1000 : 0) - raw.length};
+            })
+            .filter(item => item.label === wanted)
+            .sort((a, b) => b.score - a.score);
+          if (!candidates.length) return {ok: false};
+          const target = candidates[0].el;
+          const parent = target.closest('li, [role="presentation"]');
+          const alreadyActive = target.disabled || target.getAttribute('aria-selected') === 'true'
+            || target.classList.contains('active') || !!parent?.classList.contains('active');
+          target.scrollIntoView({block: 'center', inline: 'center'});
+          if (!alreadyActive) target.click();
+          return {ok: true, alreadyActive};
+        }
+        """,
+        bandeja,
+    ) or {}
+    if not resultado.get("ok"):
+        raise RuntimeError(f"No se encontro la bandeja de Internos: {bandeja}")
+    if not resultado.get("alreadyActive"):
+        page.wait_for_function(
+            r"""
+            (wantedRaw) => {
+              const visible = el => {
+                const style = window.getComputedStyle(el);
+                return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null;
+              };
+              const norm = txt => (txt || '').normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+              const wanted = norm(wantedRaw);
+              return Array.from(document.querySelectorAll('a, button, [role="tab"]'))
+                .filter(visible)
+                .some(el => {
+                  const label = norm(el.innerText || el.textContent || '')
+                    .replace(/\s+[\d,.]+\s*$/, '').trim();
+                  const parent = el.closest('li, [role="presentation"]');
+                  return label === wanted && (
+                    el.disabled || el.getAttribute('aria-selected') === 'true'
+                    || el.classList.contains('active') || !!parent?.classList.contains('active')
+                  );
+                });
+            }
+            """,
+            arg=bandeja,
+            timeout=TIMEOUT_NAV,
+        )
+        page.wait_for_timeout(300)
+        esperar_sin_spinner(page, timeout_ms=30_000)
+    esperar_datatables(page, timeout_ms=30_000)
+    log.info("[INT-TAB] Bandeja activa: %s", bandeja)
+
+
+def leer_estado_tabla_folios(page) -> dict:
+    """Read the active DataTable whose first logical column is Folio."""
+    estado_default = {
+        "folios": [],
+        "info": "",
+        "hasNext": False,
+        "found": False,
+        "ready": False,
+        "activePage": None,
+        "recordsDisplay": None,
+        "recordsTotal": None,
+        "pageLength": None,
+        "pageStart": None,
+        "pageEnd": None,
+        "pages": None,
+        "draw": None,
+        "dataTableReady": False,
+        "realRowCount": 0,
+        "invalidFolioCount": 0,
+        "emptyRowVisible": False,
+        "zeroUi": False,
+        "error": "",
+    }
+    try:
+        raw = page.evaluate(
+            r"""
+            JSON.stringify((() => {
+              const visible = el => {
+                if (!el) return false;
+                const style = window.getComputedStyle(el);
+                return style.display !== 'none' && style.visibility !== 'hidden' && !el.hidden
+                  && el.offsetParent !== null;
+              };
+              const norm = txt => (txt || '').normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+              const compact = txt => norm(txt).replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+              const candidates = [];
+
+              for (const table of Array.from(document.querySelectorAll('table')).filter(visible)) {
+                const headerRow = table.querySelector('thead tr') || table.querySelector('tr');
+                const headers = headerRow ? Array.from(headerRow.querySelectorAll('th, td')) : [];
+                const folioIndex = headers.findIndex(th => compact(th.innerText || th.textContent || '') === 'folio');
+                if (folioIndex < 0) continue;
+
+                const wrapper = table.closest('.dataTables_wrapper') || table.parentElement || document.body;
+                const infoEl = wrapper.querySelector('.dataTables_info, [id$="_info"]');
+                const info = infoEl ? norm(infoEl.innerText || infoEl.textContent || '') : '';
+                const processingVisible = Array.from(wrapper.querySelectorAll('.dataTables_processing')).some(visible);
+                const rows = Array.from(table.querySelectorAll('tbody tr')).filter(visible);
+                const folios = [];
+                let realRowCount = 0;
+                let invalidFolioCount = 0;
+                let emptyRowVisible = false;
+
+                for (const row of rows) {
+                  const cells = Array.from(row.querySelectorAll('td'));
+                  const rowText = norm(row.innerText || row.textContent || '');
+                  if (row.querySelector('td.dataTables_empty')
+                    || /no hay|sin datos|sin resultados|no data|ningun dato/i.test(rowText)) {
+                    emptyRowVisible = true;
+                    continue;
+                  }
+                  if (!cells.length) continue;
+                  realRowCount += 1;
+                  if (cells.length <= folioIndex) {
+                    invalidFolioCount += 1;
+                    continue;
+                  }
+                  const value = norm(cells[folioIndex].innerText || cells[folioIndex].textContent || '');
+                  const match = value.match(/\b\d{1,15}\b/);
+                  if (match) folios.push(match[0]);
+                  else invalidFolioCount += 1;
+                }
+
+                let recordsDisplay = null;
+                let recordsTotal = null;
+                let pageLength = null;
+                let pageStart = null;
+                let pageEnd = null;
+                let pages = null;
+                let draw = null;
+                let activePage = null;
+                let dataTableReady = false;
+                try {
+                  if (window.jQuery && window.jQuery.fn?.dataTable
+                    && window.jQuery.fn.dataTable.isDataTable(table)) {
+                    const api = window.jQuery(table).DataTable();
+                    const p = api.page.info();
+                    const settings = api.settings()[0];
+                    recordsDisplay = Number(p.recordsDisplay);
+                    recordsTotal = Number(p.recordsTotal);
+                    pageLength = Number(p.length);
+                    pageStart = Number(p.start);
+                    pageEnd = Number(p.end);
+                    pages = Number(p.pages);
+                    activePage = Number(p.page) + 1;
+                    draw = Number(settings?.iDraw || 0);
+                    dataTableReady = true;
+                  }
+                } catch (_) {}
+
+                const nextCandidates = Array.from(wrapper.querySelectorAll(
+                  '.paginate_button.next, li.next, a.next, button.next, [aria-label="Next"], [aria-label="Siguiente"]'
+                ));
+                const next = nextCandidates.find(el => /siguiente|next|\u2192/i.test(el.innerText || el.textContent || ''))
+                  || nextCandidates[0] || null;
+                const nextClass = next ? `${next.className || ''} ${next.parentElement?.className || ''}` : '';
+                let hasNext = !!next && !/disabled/i.test(nextClass)
+                  && next?.getAttribute('aria-disabled') !== 'true';
+                if (pages !== null && activePage !== null) hasNext = activePage < pages;
+                const zeroUi = recordsDisplay === 0
+                  || /(?:Mostrando|Showing)\s+0\s+(?:a|to)\s+0\s+(?:de|of)\s+0/i.test(info)
+                  || (emptyRowVisible && realRowCount === 0);
+                const wrapperText = norm(wrapper.innerText || wrapper.textContent || '');
+                const score = (/tramites/i.test(info) ? 1000 : 0)
+                  + (/Tipo Tramite/i.test(wrapperText) ? 100 : 0) + folios.length;
+                candidates.push({
+                  score, folios, info, hasNext, activePage, ready: !processingVisible,
+                  recordsDisplay, recordsTotal, pageLength, pageStart, pageEnd, pages, draw,
+                  dataTableReady, realRowCount, invalidFolioCount, emptyRowVisible, zeroUi
+                });
+              }
+
+              candidates.sort((a, b) => b.score - a.score);
+              return candidates.length ? {found: true, ...candidates[0]} : {found: false};
+            })())
+            """
+        )
+        estado_default.update(json.loads(raw or "{}"))
+    except Exception as exc:
+        estado_default["error"] = str(exc)
+    return estado_default
+
+
+def firma_estado_folios(estado: dict) -> tuple:
+    paginacion = parsear_info_paginacion(estado.get("info"))
+    folios = tuple(estado.get("folios") or [])
+    return (
+        estado.get("draw"),
+        estado.get("pageStart"),
+        estado.get("pageEnd"),
+        estado.get("recordsDisplay"),
+        paginacion.get("desde"),
+        paginacion.get("hasta"),
+        paginacion.get("total"),
+        estado.get("activePage"),
+        folios[:2],
+        folios[-2:],
+    )
+
+
+def esperar_tabla_folios_lista(
+    page,
+    timeout_ms: int,
+    *,
+    firma_anterior: tuple | None = None,
+    desde_minimo: int | None = None,
+    permitir_vacio_confirmado: bool = False,
+    contexto: str = "tabla de Folios",
+) -> dict:
+    inicio = time.monotonic()
+    limite = max(timeout_ms, 1_000) / 1000
+    ultimo_estado: dict = {}
+    firma_vacio = None
+    inicio_vacio = None
+    lecturas_vacio = 0
+
+    while time.monotonic() - inicio < limite:
+        estado = leer_estado_tabla_folios(page)
+        ultimo_estado = estado
+        paginacion = parsear_info_paginacion(estado.get("info"))
+        firma_actual = firma_estado_folios(estado)
+        cambio_ok = firma_anterior is None or firma_actual != firma_anterior
+        rango_ok = desde_minimo is None or (
+            paginacion.get("desde") is not None and paginacion["desde"] >= desde_minimo
+        )
+        estado_base_ok = estado.get("found") and estado.get("ready") and cambio_ok and rango_ok
+        if estado_base_ok and estado.get("folios"):
+            estado["emptyConfirmed"] = False
+            return estado
+
+        total = estado.get("recordsDisplay")
+        if total is None:
+            total = paginacion.get("total")
+        candidato_vacio = (
+            permitir_vacio_confirmado
+            and estado_base_ok
+            and not estado.get("folios")
+            and total == 0
+            and bool(estado.get("zeroUi"))
+            and int(estado.get("realRowCount") or 0) == 0
+            and int(estado.get("invalidFolioCount") or 0) == 0
+            and bool(estado.get("dataTableReady"))
+        )
+        if candidato_vacio:
+            if firma_vacio == firma_actual:
+                lecturas_vacio += 1
+            else:
+                firma_vacio = firma_actual
+                inicio_vacio = time.monotonic()
+                lecturas_vacio = 1
+            estable = time.monotonic() - (inicio_vacio or time.monotonic())
+            if lecturas_vacio >= 3 and estable >= VACIO_ESTABLE_SEGUNDOS_DEFAULT:
+                estado["emptyConfirmed"] = True
+                return estado
+        else:
+            firma_vacio = None
+            inicio_vacio = None
+            lecturas_vacio = 0
+        page.wait_for_timeout(750)
+
+    screenshot(page, "tabla_folios_timeout")
+    raise RuntimeError(
+        f"No se obtuvo un estado confirmado de {contexto} en {int(limite)} segundos. "
+        f"found={ultimo_estado.get('found')}, ready={ultimo_estado.get('ready')}, "
+        f"folios={len(ultimo_estado.get('folios') or [])}, info={ultimo_estado.get('info')!r}, "
+        f"error={ultimo_estado.get('error')!r}."
+    )
+
+
+def avanzar_siguiente_folios(page) -> bool:
+    try:
+        return bool(
+            page.evaluate(
+                r"""
+                (() => {
+                  const visible = el => {
+                    const style = window.getComputedStyle(el);
+                    return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null;
+                  };
+                  const compact = txt => (txt || '').normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+                  for (const table of Array.from(document.querySelectorAll('table')).filter(visible)) {
+                    const headers = Array.from((table.querySelector('thead tr') || table.querySelector('tr'))
+                      ?.querySelectorAll('th, td') || []);
+                    if (!headers.some(th => compact(th.innerText || th.textContent || '') === 'folio')) continue;
+                    const wrapper = table.closest('.dataTables_wrapper') || table.parentElement || document.body;
+                    const candidates = Array.from(wrapper.querySelectorAll(
+                      '.paginate_button.next, li.next, a.next, button.next, [aria-label="Next"], [aria-label="Siguiente"]'
+                    ));
+                    const next = candidates.find(el => /siguiente|next|\u2192/i.test(el.innerText || el.textContent || ''))
+                      || candidates[0] || null;
+                    if (!next) continue;
+                    const cls = `${next.className || ''} ${next.parentElement?.className || ''}`;
+                    if (/disabled/i.test(cls) || next.getAttribute('aria-disabled') === 'true') continue;
+                    const clickable = next.matches('a, button') ? next : (next.querySelector('a, button') || next);
+                    clickable.click();
+                    return true;
+                  }
+                  return false;
+                })()
+                """
+            )
+        )
+    except Exception:
+        return False
+
+
+def extraer_folios_bandeja_internos(
+    page,
+    bandeja: str,
+    *,
+    max_paginas: int,
+    timeout_ms: int,
+) -> dict:
+    seleccionar_bandeja_internos(page, bandeja)
+    if not cambiar_mostrar_a_100(page):
+        raise RuntimeError(f"No pude configurar Mostrar 100 en la bandeja {bandeja}.")
+
+    estado = esperar_tabla_folios_lista(
+        page,
+        timeout_ms,
+        permitir_vacio_confirmado=True,
+        contexto=f"primera pagina de Internos/{bandeja}",
+    )
+    if estado.get("emptyConfirmed"):
+        info = estado.get("info") or "Mostrando 0 a 0 de 0 tramites"
+        return {
+            "bandeja": bandeja,
+            "estado": "VACIO_CONFIRMADO",
+            "folios": [],
+            "total_reportado_satys": 0,
+            "filas_leidas": 0,
+            "folios_unicos": 0,
+            "duplicados_internos": 0,
+            "filas_invalidas": 0,
+            "paginas_leidas": 0,
+            "primera_info": info,
+            "ultima_info": info,
+        }
+
+    folios: list[str] = []
+    vistos: set[str] = set()
+    filas_leidas = 0
+    duplicados = 0
+    primera_info = ""
+    ultima_info = ""
+    total_esperado = None
+    paginas_leidas = 0
+
+    for pagina in range(1, max_paginas + 1):
+        valores = estado.get("folios") or []
+        info = estado.get("info") or ""
+        paginacion = parsear_info_paginacion(info)
+        total_api = estado.get("recordsDisplay")
+        total_esperado = int(total_api) if total_api is not None else paginacion.get("total")
+        if pagina == 1:
+            primera_info = info
+        ultima_info = info
+
+        reales = int(estado.get("realRowCount") or len(valores))
+        invalidos = int(estado.get("invalidFolioCount") or 0)
+        if invalidos or len(valores) != reales:
+            raise RuntimeError(
+                f"Internos/{bandeja} pagina {pagina}: filas={reales}, "
+                f"folios={len(valores)}, invalidas={invalidos}."
+            )
+        esperados_pagina = None
+        if paginacion.get("desde") is not None and paginacion.get("hasta") is not None:
+            esperados_pagina = paginacion["hasta"] - paginacion["desde"] + 1
+        elif estado.get("pageStart") is not None and estado.get("pageEnd") is not None:
+            esperados_pagina = int(estado["pageEnd"]) - int(estado["pageStart"])
+        if esperados_pagina is not None and reales != esperados_pagina:
+            raise RuntimeError(
+                f"Internos/{bandeja} pagina {pagina} incompleta: "
+                f"esperadas={esperados_pagina}, leidas={reales}, info={info!r}."
+            )
+
+        for folio in valores:
+            filas_leidas += 1
+            if folio in vistos:
+                duplicados += 1
+            else:
+                vistos.add(folio)
+                folios.append(folio)
+        paginas_leidas = pagina
+        log.info(
+            "[INT-%s] Pagina %d: %d filas, %d folios unicos acumulados | %s",
+            bandeja, pagina, reales, len(folios), info,
+        )
+
+        if not estado.get("hasNext"):
+            break
+        firma_anterior = firma_estado_folios(estado)
+        desde_minimo = (paginacion.get("hasta") + 1) if paginacion.get("hasta") is not None else None
+        if not avanzar_siguiente_folios(page):
+            raise RuntimeError(f"No se pudo avanzar la paginacion de Internos/{bandeja}.")
+        estado = esperar_tabla_folios_lista(
+            page,
+            timeout_ms,
+            firma_anterior=firma_anterior,
+            desde_minimo=desde_minimo,
+            contexto=f"pagina siguiente de Internos/{bandeja}",
+        )
+    else:
+        raise RuntimeError(f"Internos/{bandeja} alcanzo el limite de {max_paginas} paginas.")
+
+    if total_esperado is None or total_esperado <= 0:
+        raise RuntimeError(f"Internos/{bandeja} no proporciono un total auditable.")
+    ultima_paginacion = parsear_info_paginacion(ultima_info)
+    hasta = ultima_paginacion.get("hasta")
+    if hasta is None and estado.get("pageEnd") is not None:
+        hasta = int(estado["pageEnd"])
+    if hasta != total_esperado or filas_leidas != total_esperado:
+        raise RuntimeError(
+            f"Internos/{bandeja} incompleto: hasta={hasta}, total={total_esperado}, "
+            f"filas_leidas={filas_leidas}."
+        )
+
+    return {
+        "bandeja": bandeja,
+        "estado": "ENCONTRADOS_COMPLETOS",
+        "folios": folios,
+        "total_reportado_satys": total_esperado,
+        "filas_leidas": filas_leidas,
+        "folios_unicos": len(folios),
+        "duplicados_internos": duplicados,
+        "filas_invalidas": 0,
+        "paginas_leidas": paginas_leidas,
+        "primera_info": primera_info,
+        "ultima_info": ultima_info,
+    }
+
+
+def extraer_folios_internos(
+    page,
+    *,
+    max_paginas: int = 100,
+    timeout_ms: int = TIMEOUT_TABLA_REGISTROS,
+) -> dict:
+    """Extract and validate every Folio from the six Internos tabs."""
+    if not navegar_a_internos_ift(page):
+        raise RuntimeError("No fue posible abrir el tablero de Internos IFT.")
+
+    por_bandeja = []
+    folios_globales: list[str] = []
+    vistos_globales: set[str] = set()
+    duplicados_entre_bandejas = 0
+
+    for bandeja in BANDEJAS_INTERNOS:
+        detalle = extraer_folios_bandeja_internos(
+            page,
+            bandeja,
+            max_paginas=max_paginas,
+            timeout_ms=timeout_ms,
+        )
+        nuevos = 0
+        for folio in detalle["folios"]:
+            if folio in vistos_globales:
+                duplicados_entre_bandejas += 1
+            else:
+                vistos_globales.add(folio)
+                folios_globales.append(folio)
+                nuevos += 1
+        detalle["nuevos_globales"] = nuevos
+        por_bandeja.append(detalle)
+
+    estados_validos = {"ENCONTRADOS_COMPLETOS", "VACIO_CONFIRMADO"}
+    if any(item.get("estado") not in estados_validos for item in por_bandeja):
+        raise RuntimeError("La extraccion de Internos termino con una bandeja indeterminada.")
+    total_filas = sum(int(item.get("filas_leidas") or 0) for item in por_bandeja)
+    vacio_confirmado = all(item.get("estado") == "VACIO_CONFIRMADO" for item in por_bandeja)
+    log.info(
+        "[INT-OK] Extraccion completa: %d folios unicos, %d filas en %d bandejas.",
+        len(folios_globales), total_filas, len(por_bandeja),
+    )
+    return {
+        "estado": "COMPLETO",
+        "integridad": "VALIDADA",
+        "vacio_confirmado": vacio_confirmado,
+        "bandejas": list(BANDEJAS_INTERNOS),
+        "por_bandeja": por_bandeja,
+        "folios": folios_globales,
+        "total_folios": len(folios_globales),
+        "total_filas_satys": total_filas,
+        "duplicados_entre_bandejas": duplicados_entre_bandejas,
+    }
+
 def escribir_texto_atomico(path: Path, contenido: str) -> None:
     """Publica un archivo completo mediante os.replace; nunca deja una salida parcial."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -1427,7 +2039,9 @@ def guardar_resumen_extraccion(output: Path, resumen: dict) -> Path:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Extrae los numeros de Registro desde SATyS.")
+    parser = argparse.ArgumentParser(
+        description="Extrae Registros de Oficialia y Folios de Internos IFT desde SATyS."
+    )
     parser.add_argument("--output", type=Path, default=OUTPUT_DEFAULT, help="Archivo TXT de salida.")
     parser.add_argument("--headless", action="store_true", help="Ejecuta el navegador sin ventana.")
     parser.add_argument("--visible", action="store_true", help="Fuerza navegador visible.")
@@ -1466,6 +2080,11 @@ def parse_args() -> argparse.Namespace:
         choices=("todos", "actual"),
         default="todos",
         help="todos=detecta y recorre cada Año disponible; actual=solo el Año visible.",
+    )
+    parser.add_argument(
+        "--sin-internos",
+        action="store_true",
+        help="Omite la extraccion adicional de Folios en Internos IFT.",
     )
     return parser.parse_args()
 
@@ -1547,6 +2166,23 @@ def main() -> int:
                     "registros": detalle["registros"],
                     "total_registros": len(detalle["registros"]),
                 }
+
+            if args.sin_internos:
+                resumen["internos"] = {
+                    "estado": "OMITIDO",
+                    "integridad": "NO_APLICA",
+                    "folios": [],
+                    "total_folios": 0,
+                    "por_bandeja": [],
+                }
+            else:
+                resumen["internos"] = extraer_folios_internos(
+                    page,
+                    max_paginas=args.max_paginas,
+                    timeout_ms=args.timeout_tabla * 1000,
+                )
+            resumen["folios_internos"] = resumen["internos"].get("folios", [])
+            resumen["total_folios_internos"] = resumen["internos"].get("total_folios", 0)
 
             registros = resumen["registros"]
             guardar_registros(registros, args.output, args.separador)

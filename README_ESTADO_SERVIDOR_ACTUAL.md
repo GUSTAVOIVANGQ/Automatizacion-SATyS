@@ -1,3 +1,5 @@
+> **Documento histórico del despliegue anterior.** La release 2026.08.17 usa `127.0.0.1:8082` y Docker/Compose como método estándar. Los valores 8095 de esta bitácora describen el estado previo y no deben copiarse al despliegue nuevo.
+
 # SATyS CRT — Estado actual del servidor
 
 Este README resume el estado real de instalación y operación del proyecto SATyS CRT en el servidor Linux. Úsalo junto con `README_BACKEND_LINUX.md` y `README_FRONTEND_LINUX.md` cuando continúes el proyecto en otro chat o con otra persona del equipo.

@@ -17,12 +17,12 @@ Opciones:
   --venv-dir RUTA          Entorno virtual. Default: <base>/venv.
   --browsers-dir RUTA      Chromium Playwright. Default: <base>/playwright-browsers.
   --lock-dir RUTA          Lock local. Default: <base>/.lock.
-  --depi-dir RUTA          Destino compartido. Default: /depi/dgp/SATyS.
+  --depi-dir RUTA          Destino compartido. Default: valor de config o <proyecto>/shared.
   --timezone ZONA          Zona del timer. Default: America/Mexico_City.
   --hour HH:MM             Hora diaria. Default: 01:00.
   --install-api            Instala la UI/API (valor predeterminado).
   --no-install-api         No instala ni levanta la UI/API.
-  --api-port PUERTO        Puerto del panel. Default: 8095.
+  --api-port PUERTO        Puerto del panel. Default: 8082.
   --run-now                Inicia la automatización al terminar, sin bloquear.
   --skip-python-install    No instala requirements ni Chromium.
   -h, --help               Muestra esta ayuda.
@@ -43,11 +43,11 @@ APP_USER="${SUDO_USER:-}"
 VENV_DIR=""
 BROWSERS_DIR=""
 LOCK_DIR=""
-DEPI_DIR="/depi/dgp/SATyS"
+DEPI_DIR=""
 TIMEZONE="America/Mexico_City"
 RUN_HOUR="01:00"
 INSTALL_API=1
-API_PORT=8095
+API_PORT=8082
 RUN_NOW=0
 SKIP_PYTHON_INSTALL=0
 
@@ -161,13 +161,34 @@ fi
 [[ -x "$VENV_DIR/bin/python" ]] || { echo "ERROR: no existe $VENV_DIR/bin/python" >&2; exit 1; }
 [[ -f "$PROJECT_DIR/scripts/run_satys_diario.sh" ]] || { echo "ERROR: falta run_satys_diario.sh" >&2; exit 1; }
 
-DEPI_PARENT="$(dirname "$DEPI_DIR")"
+# Resolver la carpeta compartida desde la configuración cuando no se indicó
+# --depi-dir. Esto evita rutas institucionales hardcodeadas en instalaciones
+# nuevas y conserva compatibilidad con el servidor actual.
+if [[ -z "$DEPI_DIR" ]]; then
+  DEPI_DIR="$($PYTHON_SYS - "$PROJECT_DIR/config/configuracion_local.json" "$PROJECT_DIR" <<'PYCFG'
+import json,sys
+from pathlib import Path
+p=Path(sys.argv[1]); project=Path(sys.argv[2])
+d=json.loads(p.read_text(encoding='utf-8-sig'))
+raw=str(d.get('rutas',{}).get('carpeta_compartida','shared')).strip() or 'shared'
+path=Path(raw).expanduser()
+if not path.is_absolute(): path=project/path
+print(path)
+PYCFG
+)"
+fi
 
-# No se permite crear/copiar sobre /depi si el CIFS real no está montado.
-mountpoint -q "$DEPI_PARENT" || {
-  echo "ERROR: $DEPI_PARENT no es un punto de montaje activo. Revisa /etc/fstab o el montaje CIFS." >&2
-  exit 1
-}
+# Si el destino está bajo /depi exigimos que exista un montaje real que lo
+# contenga. Para destinos locales/portables basta con crear la carpeta.
+if [[ "$DEPI_DIR" == /depi/* || "$DEPI_DIR" == /depi ]]; then
+  MOUNT_TARGET="$(findmnt -T "$DEPI_DIR" -n -o TARGET 2>/dev/null || true)"
+  [[ -n "$MOUNT_TARGET" && "$MOUNT_TARGET" != "/" ]] || {
+    echo "ERROR: $DEPI_DIR no está respaldado por un montaje real bajo /depi." >&2
+    exit 1
+  }
+else
+  MOUNT_TARGET=""
+fi
 mkdir -p "$DEPI_DIR"
 chown "$APP_USER:$APP_GROUP" "$DEPI_DIR" 2>/dev/null || true
 runuser -u "$APP_USER" -- test -w "$DEPI_DIR" || {
@@ -180,7 +201,7 @@ cat > /etc/systemd/system/satys-diario.service <<EOF_SERVICE
 Description=SATyS CRT - revisión y procesamiento diario (máximo una corrida por fecha)
 After=network-online.target remote-fs.target
 Wants=network-online.target remote-fs.target
-RequiresMountsFor=$DEPI_PARENT
+RequiresMountsFor=$DEPI_DIR
 
 [Service]
 Type=oneshot
@@ -196,7 +217,7 @@ Environment=SATYS_LOCK_DIR=$LOCK_DIR
 Environment=SATYS_DAILY_GUARD_DIR=$PROJECT_DIR/runs/daily_guard
 Environment=PLAYWRIGHT_BROWSERS_PATH=$BROWSERS_DIR
 Environment=SATYS_SYNC_EXCEL_CADA_FILA=0
-ExecStartPre=/usr/bin/mountpoint -q $DEPI_PARENT
+Environment=SATYS_SHARED_DIR=$DEPI_DIR
 ExecStartPre=/usr/bin/test -w $DEPI_DIR
 ExecStart=/usr/bin/bash $PROJECT_DIR/scripts/run_satys_diario.sh
 TimeoutStartSec=infinity
@@ -233,7 +254,7 @@ export PYTHONUNBUFFERED=1
 export PYTHONIOENCODING=utf-8
 export TZ="$TIMEZONE"
 export PLAYWRIGHT_BROWSERS_PATH="$BROWSERS_DIR"
-exec "$VENV_DIR/bin/python" -m uvicorn satys_api:app --host 0.0.0.0 --port "$API_PORT"
+exec "$VENV_DIR/bin/python" -m uvicorn satys_api:app --host 127.0.0.1 --port "$API_PORT"
 EOF_API_WRAPPER
   chmod 755 /usr/local/sbin/satys-api-start
   restorecon -v /usr/local/sbin/satys-api-start >/dev/null 2>&1 || true

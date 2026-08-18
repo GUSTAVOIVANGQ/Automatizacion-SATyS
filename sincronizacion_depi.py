@@ -44,12 +44,21 @@ def validar_destino_compartido(destino_raiz: Path) -> str | None:
     """Evita escribir en el disco local cuando el CIFS bajo /depi no está montado."""
     destino_raiz = Path(destino_raiz)
     exigir = os.getenv("SATYS_REQUIRE_SHARED_MOUNT", "1").strip() != "0"
-    if not exigir or not destino_raiz.is_absolute():
+    if not exigir:
+        return None
+    texto_normalizado = str(destino_raiz).replace("\\", "/")
+    bajo_depi_lexico = texto_normalizado == "/depi" or texto_normalizado.startswith("/depi/")
+    if os.name != "posix" and bajo_depi_lexico:
+        return (
+            f"La ruta Linux {texto_normalizado} no puede validarse como montaje CIFS en {os.name}; "
+            "se cancela la sincronización para no escribir en un directorio local equivalente."
+        )
+    if not destino_raiz.is_absolute():
         return None
     try:
         bajo_depi = destino_raiz == Path("/depi") or Path("/depi") in destino_raiz.parents
     except Exception:
-        bajo_depi = str(destino_raiz).startswith("/depi/")
+        bajo_depi = bajo_depi_lexico
     if not bajo_depi:
         return None
     montaje = _montaje_real_para(destino_raiz)

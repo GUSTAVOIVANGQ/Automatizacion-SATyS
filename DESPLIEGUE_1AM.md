@@ -6,7 +6,7 @@ La instalación predeterminada configura:
 - timer estricto `satys-diario.timer` (`Persistent=false`);
 - servicio sin reintentos automáticos (`Restart=no`);
 - guarda atómica de una corrida normal por fecha en `runs/daily_guard/`;
-- panel web `satys-api.service` en el puerto `8095`;
+- panel web `satys-api.service` en el puerto `8082`;
 - Chromium headless de Playwright;
 - reconciliación automática de `TrámitesCRT.xlsx` desde
   `output/Folios_Datos_Completos.xlsx`.
@@ -45,7 +45,7 @@ sudo systemctl is-active satys-diario.timer
 sudo systemctl is-enabled satys-api.service
 sudo systemctl is-active satys-api.service
 systemctl list-timers --all satys-diario.timer
-curl --max-time 10 http://127.0.0.1:8095/
+curl --max-time 10 http://127.0.0.1:8082/
 ```
 
 ## Ejecutar sin bloquear la terminal

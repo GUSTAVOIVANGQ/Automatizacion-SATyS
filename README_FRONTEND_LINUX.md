@@ -40,7 +40,7 @@ cd /data/satys/Automatizacion-SATyS
 
 ```bash
 cd /data/satys/Automatizacion-SATyS
-/data/satys/venv/bin/uvicorn satys_api:app --host 0.0.0.0 --port 8080
+/data/satys/venv/bin/uvicorn satys_api:app --host 127.0.0.1 --port 8080
 ```
 
 Abrir:
@@ -82,20 +82,20 @@ systemctl list-timers | grep satys
 
 ```text
 GET  /
-GET  /api/estado
-GET  /api/systemd
-GET  /api/resumen/ultimo
-GET  /api/historial
-GET  /api/archivos
-GET  /api/log/stream?tipo=diario
-GET  /api/log/stream?tipo=manual
-POST /api/proceso/iniciar
-POST /api/manual/procesar
-POST /api/timer/hora
-GET  /api/download/excel
-GET  /api/download/consolidado
-GET  /api/download/output
-GET  /api/download/descargas
+GET  /api/v1/estado
+GET  /api/v1/systemd
+GET  /api/v1/resumen/ultimo
+GET  /api/v1/historial
+GET  /api/v1/archivos
+GET  /api/v1/log/stream?tipo=diario
+GET  /api/v1/log/stream?tipo=manual
+POST /api/v1/proceso/iniciar
+POST /api/v1/manual/procesar
+POST /api/v1/timer/hora
+GET  /api/v1/download/excel
+GET  /api/v1/download/consolidado
+GET  /api/v1/download/output
+GET  /api/v1/download/descargas
 ```
 
 ## Nota de operación
@@ -107,13 +107,13 @@ El proceso diario sigue viviendo en `systemd`. El navegador no ejecuta el proces
 Esta versión agrega una implementación simple para registros únicos:
 
 ```text
-POST /api/registros/procesar
-GET  /api/registros/{registro}/buscar?tipo=auto|descargas|output
-GET  /api/registros/{registro}/download?tipo=auto|descargas|output
+POST /api/v1/registros/procesar
+GET  /api/v1/registros/{registro}/buscar?tipo=auto|descargas|output
+GET  /api/v1/registros/{registro}/download?tipo=auto|descargas|output
 ```
 
-- `POST /api/registros/procesar` recibe un TXT con números de registro y ejecuta `main_procesar.py --archivo-registro`.
-- `GET /api/registros/{registro}/buscar` busca coincidencias en nombres de carpetas/archivos y en JSON de metadata dentro de `descargas/` y `output/`.
-- `GET /api/registros/{registro}/download` comprime las carpetas encontradas y las descarga como ZIP.
+- `POST /api/v1/registros/procesar` recibe un TXT con números de registro y ejecuta `main_procesar.py --archivo-registro`.
+- `GET /api/v1/registros/{registro}/buscar` busca coincidencias en nombres de carpetas/archivos y en JSON de metadata dentro de `descargas/` y `output/`.
+- `GET /api/v1/registros/{registro}/download` comprime las carpetas encontradas y las descarga como ZIP.
 
 La búsqueda es deliberadamente simple: no usa manifest ni cambia el flujo principal. Funciona bien cuando cada número de registro es único.

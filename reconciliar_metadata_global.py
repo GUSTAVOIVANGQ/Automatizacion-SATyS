@@ -36,6 +36,16 @@ REGISTRO_RE = re.compile(r"\b[A-Z]{2,6}\d{2}-\d{3,}\b", re.IGNORECASE)
 JSON_NAMES = ("metadata_satys.json", "metadata_tramite_nuevo.json")
 
 
+def _es_metadata_internos(meta_satys: dict[str, Any], meta_tn: dict[str, Any]) -> bool:
+    """Evita mezclar expedientes de Internos con la hoja Turnados recibidos."""
+    for metadata in (meta_satys, meta_tn):
+        if str(metadata.get("satys_flujo") or "").strip().lower() == "internos":
+            return True
+        if metadata.get("bandeja_internos") or metadata.get("folio_tabla_internos"):
+            return True
+    return False
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
@@ -103,6 +113,8 @@ def descubrir_metadata(descargas_base: Path) -> tuple[list[dict[str, Any]], list
         meta_satys = _read_json(carpeta / JSON_NAMES[0])
         meta_tn = _read_json(carpeta / JSON_NAMES[1])
         if not meta_satys and not meta_tn:
+            continue
+        if _es_metadata_internos(meta_satys, meta_tn):
             continue
         registro = _registro(meta_satys, meta_tn, carpeta.name)
         if not registro:

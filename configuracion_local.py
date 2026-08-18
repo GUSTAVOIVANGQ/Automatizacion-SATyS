@@ -1,23 +1,61 @@
 #!/usr/bin/env python3
-"""Carga la configuración local del servidor desde un único archivo JSON.
+"""Configuración portable de SATyS.
 
-Las credenciales no se leen de variables de entorno ni quedan escritas en los
-módulos del programa. El archivo esperado es:
+Orden de precedencia:
+1. Variables de entorno ``SATYS_*`` (útiles en contenedores/CI).
+2. ``config/configuracion_local.json`` (o ``SATYS_CONFIG_FILE``).
+3. Valores por defecto portables relativos al proyecto.
 
-    config/configuracion_local.json
-
-Debe mantenerse con permisos 600 en el servidor.
+El archivo ``.env`` de la raíz se carga al importar este módulo para que el
+mismo mecanismo funcione en Windows, macOS, Linux, Docker/Podman y venv.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 PROJECT_DIR = Path(__file__).resolve().parent
-CONFIG_FILE = PROJECT_DIR / "config" / "configuracion_local.json"
+
+
+def _cargar_dotenv_local() -> None:
+    """Carga .env sin convertirlo en una dependencia obligatoria."""
+    env_file = PROJECT_DIR / ".env"
+    if not env_file.exists():
+        return
+    try:
+        from dotenv import load_dotenv  # type: ignore
+
+        load_dotenv(env_file, override=False)
+        return
+    except Exception:
+        pass
+
+    try:
+        for raw in env_file.read_text(encoding="utf-8-sig").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip("'\"")
+            if key:
+                os.environ.setdefault(key, value)
+    except OSError:
+        return
+
+
+_cargar_dotenv_local()
+
+CONFIG_FILE = Path(
+    os.getenv(
+        "SATYS_CONFIG_FILE",
+        str(PROJECT_DIR / "config" / "configuracion_local.json"),
+    )
+).expanduser()
 
 
 class ConfiguracionError(RuntimeError):
@@ -32,7 +70,7 @@ def cargar_configuracion() -> dict[str, Any]:
             "Crea el archivo a partir de config/configuracion_local.example.json."
         )
     try:
-        data = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+        data = json.loads(CONFIG_FILE.read_text(encoding="utf-8-sig"))
     except Exception as exc:
         raise ConfiguracionError(f"No se pudo leer {CONFIG_FILE}: {exc}") from exc
     if not isinstance(data, dict):
@@ -45,29 +83,62 @@ def _seccion(nombre: str) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _env_texto(nombre: str) -> str | None:
+    value = os.getenv(nombre)
+    if value is None:
+        return None
+    value = value.strip()
+    return value if value else None
+
+
 def credenciales_satys() -> tuple[str, str]:
     cfg = _seccion("satys")
-    usuario = str(cfg.get("usuario", "")).strip()
-    password = str(cfg.get("password", "")).strip()
+    usuario = _env_texto("SATYS_USUARIO") or str(cfg.get("usuario", "")).strip()
+    password = _env_texto("SATYS_PASSWORD") or str(cfg.get("password", "")).strip()
     return usuario, password
 
 
 def configuracion_email() -> dict[str, Any]:
-    return dict(_seccion("gmail"))
+    cfg = dict(_seccion("gmail"))
+    overrides = {
+        "remitente": "SATYS_EMAIL_REMITENTE",
+        "app_password": "SATYS_EMAIL_APP_PASSWORD",
+        "from_name": "SATYS_EMAIL_FROM_NAME",
+    }
+    for key, env_name in overrides.items():
+        value = _env_texto(env_name)
+        if value is not None:
+            cfg[key] = value
+    enabled = _env_texto("SATYS_EMAIL_ENABLED")
+    if enabled is not None:
+        cfg["enabled"] = enabled.lower() in {"1", "true", "yes", "si", "sí"}
+    return cfg
 
 
 def configuracion_procesamiento() -> dict[str, Any]:
     return dict(_seccion("procesamiento"))
 
 
+_RUTA_ENV = {
+    "descargas": "SATYS_DESCARGAS_DIR",
+    "output": "SATYS_OUTPUT_DIR",
+    "excel": "SATYS_EXCEL_PATH",
+    "carpeta_compartida": "SATYS_SHARED_DIR",
+}
+
+
 def ruta_configurada(clave: str, default: str | Path) -> Path:
     rutas = _seccion("rutas")
-    valor = str(rutas.get(clave, default)).strip()
-    path = Path(valor or default)
+    env_name = _RUTA_ENV.get(clave)
+    valor_env = _env_texto(env_name) if env_name else None
+    valor = valor_env if valor_env is not None else str(rutas.get(clave, default)).strip()
+    path = Path(valor or default).expanduser()
     if not path.is_absolute():
         path = PROJECT_DIR / path
     return path
 
 
 def carpeta_compartida() -> Path:
-    return ruta_configurada("carpeta_compartida", "/depi/dgp/SATyS")
+    # El default es local/portable. Producción puede sobreescribirlo mediante
+    # SATYS_SHARED_DIR o config/configuracion_local.json.
+    return ruta_configurada("carpeta_compartida", "shared")

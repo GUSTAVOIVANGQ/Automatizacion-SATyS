@@ -68,6 +68,7 @@ ORGANIZAR_DESCARGAS = True
 
 _PROCESAMIENTO_CFG = configuracion_procesamiento()
 WORKERS_DEFAULT = int(_PROCESAMIENTO_CFG.get("workers", 10))
+INTERNOS_WORKERS_DEFAULT = int(_PROCESAMIENTO_CFG.get("internos_workers", 6))
 TIMEOUT_REGISTRO_DEFAULT = int(_PROCESAMIENTO_CFG.get("timeout_registro", 900))
 REINTENTOS_REGISTRO_DEFAULT = int(_PROCESAMIENTO_CFG.get("reintentos_registro", 2))
 WORKERS_REINTENTO_DEFAULT = int(_PROCESAMIENTO_CFG.get("workers_reintento", 2))
@@ -254,6 +255,106 @@ def descubrir_descargas_procesables(incluir_subcarpetas: bool = True) -> list[tu
 #  PARTE 1: Descarga (importa Parte1_descarga.py)
 # ────────────────────────────────────────────────────────
 
+def descubrir_descargas_internos() -> list[tuple[Path, str, str]]:
+    """Escanea descargas/internos/ y devuelve carpetas con metadata del flujo Internos IFT."""
+    base = DESCARGA_BASE / "internos"
+    if not base.exists():
+        return []
+
+    candidatos: list[tuple[Path, str, str]] = []
+    vistos: set[str] = set()
+    for carpeta in sorted([p for p in base.rglob("*") if p.is_dir()], key=lambda p: str(p).upper()):
+        if not any((carpeta / nombre).exists() for nombre in ("metadata_satys.json", "metadata_tramite_nuevo.json")):
+            continue
+        meta = leer_metadata_descarga(carpeta)
+        if meta.get("satys_flujo") != "internos" and not meta.get("bandeja_internos"):
+            continue
+        try:
+            key = str(carpeta.resolve()).lower()
+        except Exception:
+            key = str(carpeta).lower()
+        if key in vistos:
+            continue
+        vistos.add(key)
+
+        registro_ref = (
+            normalizar_registro_satys(meta.get("registro", ""))
+            or str(meta.get("folio") or carpeta.name).strip()
+        )
+        bandeja = re.sub(r"[^A-Za-z0-9_-]+", "_", str(meta.get("bandeja_internos") or carpeta.parent.name)).strip("_")
+        folio_id = f"internos__{bandeja or 'bandeja'}__{carpeta.name}"
+        candidatos.append((carpeta, folio_id, registro_ref))
+    return candidatos
+
+
+def cargar_objetivos_internos(path: str | Path) -> list[dict]:
+    """Load and validate the daily [{bandeja, folio}] Internos target list."""
+    archivo = Path(path)
+    data = json.loads(archivo.read_text(encoding="utf-8-sig"))
+    raw_items = data.get("objetivos", []) if isinstance(data, dict) else data
+    if not isinstance(raw_items, list):
+        raise ValueError("El JSON de objetivos Internos no contiene una lista valida.")
+
+    objetivos = []
+    vistos = set()
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+        bandeja = str(item.get("bandeja") or "").strip()
+        folio = str(item.get("folio") or "").strip()
+        key = (bandeja.lower(), folio)
+        if bandeja and re.fullmatch(r"\d{1,15}", folio) and key not in vistos:
+            vistos.add(key)
+            objetivos.append({"bandeja": bandeja, "folio": folio})
+    return objetivos
+
+
+def cargar_catalogo_rpc_exacto(force_rebuild: bool = False) -> list:
+    """Carga el catalogo oficial RPC desde Excel para cruces exactos."""
+    log.info("🗂️  Cargando catálogo RPC exacto desde Excel oficial...")
+    try:
+        sys.path.append(os.path.join(str(_script_dir), "buscar_concesionario"))
+        import buscar_concesionario as bc
+        from descargar_concesiones_rpc import descargar_bd
+
+        bd_dir = Path(_script_dir) / "base_de_datos_rpc"
+        bd_dir.mkdir(exist_ok=True)
+
+        def _cat_reciente(bd: Path):
+            archivos = sorted(
+                bd.glob("03_concesiones_permisos_autorizaciones_*.xlsx"),
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )
+            return archivos[0] if archivos else None
+
+        def _cat_necesita_actualizacion(bd: Path, max_dias: int = 7) -> bool:
+            reciente = _cat_reciente(bd)
+            if reciente is None:
+                return True
+            edad_dias = (datetime.now().timestamp() - reciente.stat().st_mtime) / 86400
+            return edad_dias > max_dias
+
+        xlsx = None
+        if force_rebuild or _cat_necesita_actualizacion(bd_dir):
+            log.info("⬇️  Verificando/Descargando la base RPC más reciente...")
+            descargado = descargar_bd(str(bd_dir))
+            if descargado:
+                xlsx = Path(descargado)
+        if xlsx is None:
+            xlsx = _cat_reciente(bd_dir)
+        if not xlsx or not xlsx.exists():
+            raise FileNotFoundError("No se encontró Excel oficial RPC en base_de_datos_rpc")
+
+        cat_excel = bc.cargar_catalogo_desde_excel(str(xlsx), "copeau", solo_vigentes=False)
+        catalogo = bc.preparar_catalogo_para_matching(cat_excel)
+        log.info("✅ Catálogo RPC exacto listo: %d concesionarios", len(catalogo))
+        return catalogo
+    except Exception as exc:
+        log.error("❌ Catálogo RPC exacto no disponible: %s. No se usará fuzzy/API.", exc)
+        return []
+
+
 def ejecutar_descarga(folios: list[str], workers: int = WORKERS_DEFAULT, headless: bool = False):
     """Ejecuta Parte 1; sus reintentos por archivo permanecen dentro del descargador."""
     try:
@@ -289,6 +390,45 @@ def ejecutar_descarga(folios: list[str], workers: int = WORKERS_DEFAULT, headles
 # ────────────────────────────────────────────────────────
 #  PARTES 3-4: Procesamiento
 # ────────────────────────────────────────────────────────
+
+def ejecutar_descarga_internos(
+    bandejas: list[str] | None = None,
+    headless: bool = False,
+    objetivos_path: str | Path | None = None,
+    workers: int = INTERNOS_WORKERS_DEFAULT,
+) -> int:
+    """Ejecuta Parte 1 en modo Internos IFT y devuelve el codigo de salida."""
+    try:
+        import Parte1_descarga
+    except ImportError as e:
+        log.error("❌ No se encontró Parte1_descarga.py: %s", e)
+        return 1
+
+    log.info("📥 [PARTE 1] Iniciando descarga de Internos IFT...")
+    Parte1_descarga.USUARIO = SATYS_USUARIO
+    Parte1_descarga.PASSWORD = SATYS_PASSWORD
+    Parte1_descarga.HEADLESS = headless
+    Parte1_descarga.DESCARGA_BASE = DESCARGA_BASE
+
+    headless_flag = ["--headless"] if headless else ["--visible"]
+    original_argv = sys.argv
+    try:
+        sys.argv = (
+            ["Parte1_descarga.py"]
+            + headless_flag
+            + ["--internos", "--internos-workers", str(workers)]
+        )
+        if bandejas:
+            sys.argv += ["--internos-bandejas"] + list(bandejas)
+        if objetivos_path:
+            sys.argv += ["--internos-objetivos", str(objetivos_path)]
+        return int(Parte1_descarga.main() or 0)
+    except Exception as e:
+        log.error("❌ Error en descarga de Internos IFT: %s", e)
+        return 1
+    finally:
+        sys.argv = original_argv
+
 
 def descubrir_carpetas_de_folio(folio: str) -> list[tuple[Path, str]]:
     """
@@ -338,6 +478,8 @@ def procesar_folio(
     catalogo: list,
     carpeta: Path = None,
     folio_id: str = None,
+    modo_internos: bool = False,
+    sheet_name: str = None,
 ) -> dict:
     """
     Procesa un folio completo: metadata SATyS → RPC → Excel.
@@ -363,6 +505,7 @@ def procesar_folio(
         "excel_ok": False,
         "organizado_ok": False,
         "fuente_metadatos": "satys_json",
+        "modo_internos": modo_internos,
     }
 
     carpeta = carpeta if carpeta is not None else (DESCARGA_BASE / folio)
@@ -386,8 +529,15 @@ def procesar_folio(
 
     # Leer metadatos extraídos por Parte 1
     meta_path = carpeta / "metadata_satys.json"
+    meta = {}
+    meta_tn = {}
     nombre_operador = ""
     representante_legal = ""
+    concesionario = ""
+    promovente = ""
+    info_adicional = ""
+    bandeja_internos = ""
+    folio_tabla_internos = ""
     asunto = ""
     fecha_registro = ""
     registro_val = ""
@@ -400,14 +550,19 @@ def procesar_folio(
         try:
             with open(meta_path, "r", encoding="utf-8") as f:
                 meta = json.load(f)
-                nombre_operador = meta.get("nombre_operador", "")
-                representante_legal = meta.get("representante_legal", "")
-                asunto = meta.get("asunto", "")
+                nombre_operador = meta.get("nombre_operador", "") or meta.get("concesionario", "")
+                representante_legal = meta.get("representante_legal", "") or meta.get("promovente", "")
+                concesionario = meta.get("concesionario", "") or nombre_operador
+                promovente = meta.get("promovente", "") or representante_legal
+                info_adicional = meta.get("info_adicional", "") or meta.get("asunto", "")
+                asunto = meta.get("asunto", "") or info_adicional
                 fecha_registro = meta.get("fecha_registro", "")
                 registro_val = meta.get("registro", "")
                 id_solicitante = meta.get("id_solicitante", "")  # ID para lookup exacto
                 tipo_tramite = meta.get("tipo_tramite", "")
                 folio_opc = str(meta.get("folio_opc", "") or "").strip()
+                bandeja_internos = meta.get("bandeja_internos", "")
+                folio_tabla_internos = str(meta.get("folio_tabla_internos", "") or "").strip()
         except Exception as e:
             log.warning("⚠️  No se pudo leer metadatos de %s: %s", meta_path, e)
 
@@ -423,17 +578,27 @@ def procesar_folio(
                     log.info("📅 plazo_atencion encontrado en metadata_tramite_nuevo.json: %s", fecha_limite)
                 # También completar campos vacíos desde metadata_tramite_nuevo si no vinieron de metadata_satys
                 if not nombre_operador:
-                    nombre_operador = meta_tn.get("nombre_operador", "")
+                    nombre_operador = meta_tn.get("nombre_operador", "") or meta_tn.get("concesionario", "")
                 if not representante_legal:
-                    representante_legal = meta_tn.get("representante_legal", "")
+                    representante_legal = meta_tn.get("representante_legal", "") or meta_tn.get("promovente", "")
+                if not concesionario:
+                    concesionario = meta_tn.get("concesionario", "") or nombre_operador
+                if not promovente:
+                    promovente = meta_tn.get("promovente", "") or representante_legal
+                if not info_adicional:
+                    info_adicional = meta_tn.get("info_adicional", "") or meta_tn.get("asunto", "")
                 if not asunto:
-                    asunto = meta_tn.get("asunto", "")
+                    asunto = meta_tn.get("asunto", "") or info_adicional
                 if not tipo_tramite:
                     tipo_tramite = meta_tn.get("tipo_tramite", "")
                 if not fecha_registro:
                     fecha_registro = meta_tn.get("fecha_registro", "")
                 if not folio_opc:
                     folio_opc = str(meta_tn.get("folio_opc", "") or "").strip()
+                if not bandeja_internos:
+                    bandeja_internos = meta_tn.get("bandeja_internos", "")
+                if not folio_tabla_internos:
+                    folio_tabla_internos = str(meta_tn.get("folio_tabla_internos", "") or "").strip()
         except Exception as e:
             log.warning("⚠️  No se pudo leer metadatos de %s: %s", meta_tramite_nuevo_path, e)
 
@@ -444,7 +609,7 @@ def procesar_folio(
     if not registro_val:
         registro_val = registro_desde_metadata_o_nombre(carpeta)
     resultado["registro"] = registro_val
-    if not pdf_nombre and not nombre_operador:
+    if not pdf_nombre and not nombre_operador and not modo_internos:
         if REGISTRO_RE.fullmatch(str(registro_val or "").strip().upper()):
             log.warning("⚠️  Registro %s con metadata parcial; se actualizará Excel con los campos disponibles.", registro_val)
         else:
@@ -472,6 +637,11 @@ def procesar_folio(
     resultado["pdf_encontrado"] = bool(pdf_nombre)
     resultado["nombre_operador"] = nombre_operador
     resultado["representante_legal"] = representante_legal
+    resultado["concesionario"] = concesionario or nombre_operador
+    resultado["promovente"] = promovente or representante_legal
+    resultado["info_adicional"] = info_adicional
+    resultado["bandeja_internos"] = bandeja_internos
+    resultado["folio_tabla_internos"] = folio_tabla_internos
     resultado["id_solicitante"] = id_solicitante   # Guardar para el reporte
     resultado["formatos"] = formatos_dict
     resultado["imagen_sello"] = None
@@ -497,7 +667,42 @@ def procesar_folio(
         # Compara el campo 'id_solicitante' del metadata_satys.json con la
         # columna 'ID OPERADOR' (idBp) del Excel del RPC-IFT.
         # Score = 1.0 (100%) cuando hay coincidencia exacta.
-        if id_solicitante:
+        if modo_internos:
+            nombre_rpc = concesionario or nombre_operador
+            log.info("🏷️  [PARTE 3] Internos: buscando Concesionario='%s' contra NOMBRE OPERADOR RPC...", nombre_rpc)
+            match_nombre = bc.buscar_por_nombre_operador_exacto(nombre_rpc, catalogo)
+            if match_nombre:
+                rpc_resultado = {
+                    "nombre_completo": match_nombre["nombre_completo"],
+                    "numero_rpc":      match_nombre["idBp"],
+                    "idBp":            match_nombre["idBp"],
+                    "ruta":            construir_ruta(match_nombre["nombre_completo"], match_nombre["idBp"]),
+                    "score":           1.0,
+                    "ok":              True,
+                    "empate":          False,
+                    "metodo":          "nombre_operador_exacto",
+                    "nombre_operador_satys": nombre_rpc,
+                }
+                origen_ganador = "NOMBRE_OPERADOR"
+                log.info("✅ Coincidencia exacta por NOMBRE OPERADOR: %s", match_nombre["nombre_completo"][:60])
+            else:
+                rpc_resultado = {
+                    "nombre_completo": "",
+                    "numero_rpc": "",
+                    "idBp": "",
+                    "ruta": "",
+                    "score": 0.0,
+                    "ok": False,
+                    "empate": False,
+                    "metodo": "nombre_operador_exacto",
+                    "nombre_operador_satys": nombre_rpc,
+                    "motivo": "concesionario_no_encontrado_en_nombre_operador_rpc",
+                }
+                log.warning(
+                    "⚠️  Concesionario='%s' NO encontrado como NOMBRE OPERADOR en catálogo RPC. Se marcará como SIN OPERADOR (0%%).",
+                    nombre_rpc,
+                )
+        elif id_solicitante:
             log.info("🆔 [PARTE 3] Buscando por id_solicitante='%s' en catálogo RPC...", id_solicitante)
             match_id = bc.buscar_por_id_solicitante(id_solicitante, catalogo)
             if match_id:
@@ -563,8 +768,9 @@ def procesar_folio(
                 "score": 0.0,
                 "ok": False,
                 "empate": False,
-                "metodo": "id_exacto",
+                "metodo": "nombre_operador_exacto" if modo_internos else "id_exacto",
                 "id_solicitante": id_solicitante,
+                "nombre_operador_satys": (concesionario or nombre_operador) if modo_internos else "",
                 "motivo": "catalogo_rpc_exact_no_disponible",
             }
             log.warning(
@@ -578,7 +784,12 @@ def procesar_folio(
         resultado["rpc_resultado"] = rpc_resultado
         score_exactitud = rpc_resultado.get("score", 0) * 100
         metodo = rpc_resultado.get("metodo", "")
-        etiqueta_metodo = "ID exacto" if metodo == "id_exacto" else f"Fuzzy ({origen_ganador})"
+        if metodo == "id_exacto":
+            etiqueta_metodo = "ID exacto"
+        elif metodo == "nombre_operador_exacto":
+            etiqueta_metodo = "Nombre operador exacto"
+        else:
+            etiqueta_metodo = f"Fuzzy ({origen_ganador})"
 
         log.info("✅ RPC [%s]: %s (exactitud: %.0f%%)",
                  etiqueta_metodo,
@@ -589,6 +800,10 @@ def procesar_folio(
         if metodo == "id_exacto":
             print(f"      id_solicitante usado    : {id_solicitante}")
             print(f"      ID OPERADOR en catálogo : {rpc_resultado.get('idBp', '')}")
+        elif metodo == "nombre_operador_exacto":
+            print(f"      Concesionario SATyS     : {concesionario or nombre_operador}")
+            print(f"      NOMBRE OPERADOR RPC     : {rpc_resultado.get('nombre_completo', '')}")
+            print(f"      ID OPERADOR en catÃ¡logo : {rpc_resultado.get('idBp', '')}")
         else:
             print(f"      Nombre usado ({origen_ganador}) : {nombre_original_usado}")
         print(f"      Nombre Oficial Catálogo  : {rpc_resultado['nombre_completo']}")
@@ -625,9 +840,11 @@ def procesar_folio(
         imagen_sello=datos_pdf.get("imagen_sello"),
         fecha_sello=datos_pdf.get("fecha_sello", ""),
         excel_path=EXCEL_PATH,
+        sheet_name=sheet_name,
         asunto=asunto,
         tipo_tramite=tipo_tramite,
         fecha_limite=fecha_limite,
+        folio_internos=folio_tabla_internos if modo_internos else "",
         ruta_salida=(
             rpc_resultado.get("ruta", "")
             if rpc_resultado and rpc_resultado.get("ok")
@@ -827,6 +1044,38 @@ def _enviar_email_fin_proceso(
 #  FUNCIÓN PRINCIPAL
 # ════════════════════════════════════════════════════════
 
+def aplicar_modo_todos_internos(args):
+    """Activa el recorrido completo de Internos y rechaza filtros parciales."""
+    if not getattr(args, "todos_internos", False):
+        return args
+
+    conflictos = []
+    if getattr(args, "internos_bandejas", None):
+        conflictos.append("--internos-bandejas")
+    if getattr(args, "internos_objetivos", ""):
+        conflictos.append("--internos-objetivos")
+    if getattr(args, "solo_procesar", False):
+        conflictos.append("--solo-procesar")
+    if getattr(args, "folios", None):
+        conflictos.append("folios posicionales")
+    if getattr(args, "archivo_folios", ""):
+        conflictos.append("--archivo-folios")
+    if getattr(args, "archivo_registro", ""):
+        conflictos.append("--archivo-registro")
+    if getattr(args, "buscar", 0):
+        conflictos.append("--buscar")
+    if conflictos:
+        raise ValueError(
+            "--todos-internos recorre las seis bandejas completas y no admite: "
+            + ", ".join(conflictos)
+        )
+
+    args.internos = True
+    args.internos_bandejas = None
+    args.internos_objetivos = ""
+    return args
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="SATyS — Pipeline de producción (Partes 1, 3 y 4)",
@@ -837,6 +1086,8 @@ Ejemplos:
   main_procesar.py 6407 6801            Partes 1, 3 y 4 con folios específicos
   main_procesar.py --solo-procesar      Partes 3-4 con todos los folios en descargas/
   main_procesar.py --solo-procesar 6407 Partes 3-4 con folio específico
+  main_procesar.py --todos-internos --headless
+                                        Solo Internos IFT: seis bandejas, descarga, RPC y hoja Internos
   main_procesar.py --rebuild-catalogo   Reconstruir catálogo RPC
         """,
     )
@@ -867,6 +1118,16 @@ Ejemplos:
     parser.add_argument("--archivo-registro", type=str, default="",
                         help="Ruta a un archivo .txt con la lista de números de Registro a procesar "
                              "(uno por línea o separados por espacios/comas, ej. CRT26-002483). Activa el modo de búsqueda por Registro.")
+    parser.add_argument("--internos", action="store_true",
+                        help="Procesa Administracion solicitudes +TyS/SIGEDO/Internos IFT y escribe en la hoja Internos.")
+    parser.add_argument("--todos-internos", action="store_true",
+                        help="Ejecuta exclusivamente todos los Folios de las seis bandejas de Internos IFT.")
+    parser.add_argument("--internos-bandejas", nargs="+", default=None,
+                        help="Bandejas de Internos IFT a procesar. Default: las seis bandejas del tablero.")
+    parser.add_argument("--internos-workers", type=int, default=INTERNOS_WORKERS_DEFAULT,
+                        help="Navegadores paralelos para Internos. Default: 6; 0 usa uno por bandeja.")
+    parser.add_argument("--internos-objetivos", type=str, default="",
+                        help="JSON con pares bandeja/folio nuevos; limita descarga y Partes 3-4 a esos objetivos.")
     parser.add_argument("--sin-email", action="store_true",
                         help="No enviar notificación por correo al finalizar esta corrida.")
     parser.add_argument("--email-to", type=str, default="",
@@ -874,6 +1135,12 @@ Ejemplos:
     parser.add_argument("--sin-lock", action="store_true",
                         help="No tomar el lock compartido. Usar solo cuando un proceso padre, como automatizar_registros_diario.py, ya tomó el lock.")
     args = parser.parse_args()
+    try:
+        aplicar_modo_todos_internos(args)
+    except ValueError as exc:
+        parser.error(str(exc))
+    if args.internos_workers < 0:
+        parser.error("--internos-workers debe ser 0 o un entero positivo")
 
     # ──── Bloqueo compartido: evita que 2+ corridas SATyS se empalmen ────
     # main_procesar.py toma el lock en corridas manuales, desde UI o API.
@@ -920,6 +1187,159 @@ Ejemplos:
         # ────────────────────────────────────────────────────────────────────────
         # MODO REGISTRO: buscar y descargar por número de Registro
         # ────────────────────────────────────────────────────────────────────────
+        if args.internos:
+            print("\n" + "-" * 70)
+            print("  MODO INTERNOS IFT: DESCARGA + RPC POR NOMBRE + HOJA INTERNOS")
+            if args.todos_internos:
+                print("  RECORRIDO COMPLETO: LAS SEIS BANDEJAS, SIN OFICIALIA")
+            print("-" * 70)
+            objetivos_i: list[dict] = []
+            claves_objetivo_i: set[tuple[str, str]] = set()
+            if args.internos_objetivos:
+                try:
+                    objetivos_i = cargar_objetivos_internos(args.internos_objetivos)
+                except Exception as exc:
+                    log.error("❌ No se pudo leer --internos-objetivos %s: %s", args.internos_objetivos, exc)
+                    return 1
+                if not objetivos_i:
+                    log.info("✅ El JSON de objetivos Internos no contiene pendientes.")
+                    return 0
+                claves_objetivo_i = {
+                    (item["bandeja"].strip().lower(), item["folio"])
+                    for item in objetivos_i
+                }
+                args.internos_bandejas = list(dict.fromkeys(
+                    item["bandeja"] for item in objetivos_i
+                ))
+                log.info("📋 Objetivos Internos nuevos: %d", len(objetivos_i))
+
+            rc_descarga_internos = 0
+            if not args.solo_procesar:
+                rc_descarga_internos = ejecutar_descarga_internos(
+                    bandejas=args.internos_bandejas,
+                    headless=args.headless,
+                    objetivos_path=args.internos_objetivos or None,
+                    workers=args.internos_workers,
+                )
+                if rc_descarga_internos:
+                    log.error(
+                        "❌ Parte 1 Internos terminó con código %d. "
+                        "Se continuará con Partes 3-4 para lo que sí tenga metadata local.",
+                        rc_descarga_internos,
+                    )
+            else:
+                log.info("✅ --solo-procesar activo: se omite descarga y se procesa descargas/internos/.")
+
+            carpetas_internos = descubrir_descargas_internos()
+            if claves_objetivo_i:
+                filtradas_i = []
+                claves_encontradas_i = set()
+                for candidato in carpetas_internos:
+                    meta_candidato = leer_metadata_descarga(candidato[0])
+                    folio_tabla = str(
+                        meta_candidato.get("folio_tabla_internos")
+                        or meta_candidato.get("folio")
+                        or ""
+                    ).strip()
+                    clave = (
+                        str(meta_candidato.get("bandeja_internos") or "").strip().lower(),
+                        folio_tabla,
+                    )
+                    if clave in claves_objetivo_i:
+                        filtradas_i.append(candidato)
+                        claves_encontradas_i.add(clave)
+                carpetas_internos = filtradas_i
+                faltantes_i = claves_objetivo_i - claves_encontradas_i
+                if faltantes_i:
+                    rc_descarga_internos = rc_descarga_internos or 1
+                    log.error(
+                        "❌ %d objetivo(s) Internos no generaron metadata local: %s",
+                        len(faltantes_i),
+                        ", ".join(f"{b}/{f}" for b, f in sorted(faltantes_i)[:30]),
+                    )
+            if not carpetas_internos:
+                log.error("❌ No se encontraron carpetas procesables en %s.", DESCARGA_BASE / "internos")
+                sincronizar_carpeta_compartida()
+                return 1
+
+            if not EXCEL_PATH.exists():
+                log.error("❌ No se encontró el Excel: %s", EXCEL_PATH)
+                return 1
+
+            catalogo_i = cargar_catalogo_rpc_exacto(force_rebuild=args.rebuild_catalogo)
+            resultados_i = []
+            total_i = len(carpetas_internos)
+            for idx_i, (carpeta_int, folio_id_int, registro_ref_int) in enumerate(carpetas_internos, 1):
+                print(f"\n{'-' * 70}")
+                print(f"  [{idx_i}/{total_i}] PROCESANDO INTERNO: {carpeta_int.name}")
+                print(f"      Carpeta : {carpeta_int}")
+                print(f"      Ref     : {registro_ref_int}")
+                print(f"{'-' * 70}")
+
+                folio_para_excel = folio_excel_desde_metadata(
+                    carpeta_int,
+                    registro_ref_int or carpeta_int.name,
+                )
+                resultado_i = procesar_folio(
+                    folio=folio_para_excel,
+                    catalogo=catalogo_i,
+                    carpeta=carpeta_int,
+                    folio_id=folio_id_int,
+                    modo_internos=True,
+                    sheet_name="Internos",
+                )
+                resultados_i.append(resultado_i)
+
+            imprimir_reporte(resultados_i)
+
+            log_path_i = DESCARGA_BASE / "internos" / "procesamiento_log_internos.json"
+            try:
+                log_path_i.parent.mkdir(parents=True, exist_ok=True)
+                conteos_i = _conteos_resultados(resultados_i)
+                log_data_i = {
+                    "fecha_ejecucion": datetime.now().isoformat(),
+                    "modo": "internos",
+                    "sheet": "Internos",
+                    "total_carpetas_descargas_procesadas": len(resultados_i),
+                    "total_exitosos": conteos_i["exitosos"],
+                    "total_sin_operador": conteos_i["sin_operador"],
+                    "total_errores": conteos_i["errores"],
+                    "resultados": resultados_i,
+                }
+                log_path_i.write_text(
+                    json.dumps(log_data_i, ensure_ascii=False, indent=2, default=str),
+                    encoding="utf-8",
+                )
+                log.info("📄 Log de Internos guardado en: %s", log_path_i)
+            except Exception as e_log_i:
+                log.warning("⚠️  No se pudo guardar log de Internos: %s", e_log_i)
+
+            excel_metadata_i = OUTPUT_BASE / "Folios_Datos_Completos_Internos.xlsx"
+            try:
+                from generar_excel_metadata_json import generar_excel_metadata_json
+                excel_metadata_i = generar_excel_metadata_json(
+                    resultados=resultados_i,
+                    descargas_base=DESCARGA_BASE,
+                    output_base=OUTPUT_BASE,
+                    excel_salida=excel_metadata_i,
+                    project_root=Path.cwd(),
+                )
+                log.info("📘 Excel consolidado Internos guardado en: %s", excel_metadata_i)
+            except Exception as e_meta_i:
+                log.error("❌ Error al generar Excel consolidado Internos: %s", e_meta_i)
+                rc_descarga_internos = 1
+
+            sincronizar_carpeta_compartida()
+            _enviar_email_fin_proceso(
+                resultados=resultados_i,
+                modo="internos",
+                log_path=log_path_i,
+                excel_metadata_path=excel_metadata_i,
+                sin_email=args.sin_email,
+                email_to=args.email_to,
+            )
+            return rc_descarga_internos
+
         if args.archivo_registro:
             try:
                 registros = cargar_registros_desde_archivo(args.archivo_registro)

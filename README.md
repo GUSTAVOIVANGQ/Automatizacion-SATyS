@@ -1,3 +1,7 @@
+# Automatización SATyS — versión portable
+
+> **Inicio recomendado:** consulta [`QUICKSTART_PORTABLE.md`](QUICKSTART_PORTABLE.md). La ruta principal es una imagen OCI reproducible; `venv + systemd` queda como compatibilidad/rollback. Puerto del panel: **8082**.
+
 # 📋 Proyecto SATyS - Automatización de Descargas y Procesamiento (Linux)
 
 **Sistema Automatizado de Trámites y Servicios (SATyS)**
@@ -77,8 +81,14 @@ Incluye:
 Levantar en modo prueba:
 
 ```bash
-uvicorn satys_api:app --host 0.0.0.0 --port 8080
+uvicorn satys_api:app --host 127.0.0.1 --port 8082
 ```
+
+> **Producción:** el panel/API escucha únicamente en `127.0.0.1:8082`. No se debe
+> publicar Uvicorn directamente en la red. El acceso externo debe entrar por nginx
+> con TLS/HTTPS; se incluye un ejemplo en `deploy/nginx-satys.conf`.
+
+La API canónica está versionada bajo `/api/v1`. Swagger está disponible en `/docs`, ReDoc en `/redoc` y la referencia mantenida en el repositorio es [`docs/API.md`](docs/API.md). Los aliases `/api/...` anteriores se conservan temporalmente para compatibilidad.
 
 Detalles completos de endpoints y variables en [`README_FRONTEND_LINUX.md`](README_FRONTEND_LINUX.md).
 
@@ -219,47 +229,53 @@ El modo predeterminado vuelve a consultar SATyS únicamente para completar el me
 - `reparar_id_solicitante.py` es **exclusivamente manual**: no está asociado a ningún timer.
 - El bloqueo del proyecto impide que la corrida diaria, una corrida manual y el reparador modifiquen simultáneamente los mismos archivos.
 
+
+> Release actual: `2026.08.17-portable-oci-api-v1-8082`.
+> Guía de despliegue nuevo: [`DESPLIEGUE_NUEVO.md`](DESPLIEGUE_NUEVO.md).
+> Trazabilidad del backlog: [`docs/BACKLOG_IMPLEMENTACION.md`](docs/BACKLOG_IMPLEMENTACION.md).
+
 ## 📦 Instalación
 
-Requiere **Python 3.11+** y acceso a red interna del CRT/IFT.
+### Contenedor OCI (método estándar y portable)
+
+El host sólo necesita Docker Compose o Podman. Python, dependencias y Chromium/Playwright pertenecen a la imagen. Las rutas del host se definen en `.env`; no se compilan rutas `/data/...` o `/depi/...` dentro de la imagen.
 
 ```bash
-python3.11 -m venv venv
-source venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r requirements-linux.txt
-python -m playwright install chromium
+cp .env.example .env
+bash scripts/bootstrap_portable.sh
+# editar config/configuracion_local.json si es una instalación nueva
+bash scripts/satys.sh doctor
+bash scripts/satys.sh build
+bash scripts/satys.sh api-up
 ```
 
-En RHEL, **no uses** `playwright install-deps chromium` (usa `apt-get` y falla). Si Playwright reporta librerías faltantes, instálalas con `dnf`:
+La API se publica sólo en `127.0.0.1:8082` por defecto. Para RHEL sin Compose, `scripts/podman_satys.sh` ejecuta la misma imagen directamente con Podman. En Windows PowerShell existe `scripts/satys.ps1`.
 
-```bash
-sudo dnf install -y \
-  nss nspr atk at-spi2-atk cups-libs libdrm \
-  libXcomposite libXdamage libXrandr mesa-libgbm pango \
-  alsa-lib libxshmfence libXtst libX11 libxcb libXext \
-  libXi libXrender libXfixes libXcursor libXinerama \
-  fontconfig freetype liberation-fonts
-```
+Consulta [`QUICKSTART_PORTABLE.md`](QUICKSTART_PORTABLE.md), [`DESPLIEGUE_NUEVO.md`](DESPLIEGUE_NUEVO.md) y [`docs/PORTABILIDAD.md`](docs/PORTABILIDAD.md).
+
+### Instalación sin contenedor (compatibilidad/rollback)
+
+El flujo `venv + systemd` sigue disponible mediante `scripts/instalar_linux_1am.sh`, pero no es el camino recomendado para una computadora o servidor nuevos porque requiere instalar Python, dependencias del navegador y Chromium en el host.
 
 ---
 
-## ⚙️ Configuración local del servidor
+## ⚙️ Configuración portable
 
-La configuración operativa se encuentra en `config/configuracion_local.json`:
+`config/configuracion_local.json` mantiene la configuración funcional. Las rutas pueden ser relativas al proyecto y todas las rutas relevantes también admiten override por variables de entorno. Ejemplo portable:
 
 ```json
 {
   "satys": {"usuario": "...", "password": "..."},
-  "gmail": {"remitente": "...", "app_password": "...", "destinatarios": ["..."]},
+  "gmail": {"remitente": "...", "app_password": "...", "destinatarios": []},
   "rutas": {
     "descargas": "descargas",
     "output": "output",
     "excel": "TrámitesCRT.xlsx",
-    "carpeta_compartida": "/depi/DEI_DATOS/SATyS"
+    "carpeta_compartida": "shared"
   },
   "procesamiento": {
     "workers": 10,
+    "internos_workers": 6,
     "timeout_registro": 900,
     "reintentos_registro": 2,
     "workers_reintento": 2
@@ -267,19 +283,10 @@ La configuración operativa se encuentra en `config/configuracion_local.json`:
 }
 ```
 
-Aplicar permisos restrictivos:
+Variables de despliegue principales: `SATYS_RUNTIME_DIR`, `SATYS_SHARED_HOST_DIR`, `SATYS_LOCK_HOST_DIR`, `SATYS_CONFIG_HOST_FILE`, `SATYS_API_PORT`. Dentro del contenedor el recurso compartido siempre se monta como `/shared`.
 
-```bash
-chmod 600 config/configuracion_local.json
-```
+Las credenciales pueden permanecer en `config/configuracion_local.json` o suministrarse mediante `SATYS_USUARIO`, `SATYS_PASSWORD`, `SATYS_EMAIL_REMITENTE` y `SATYS_EMAIL_APP_PASSWORD`. El archivo real y `.env` están excluidos de Git y de las releases.
 
-Las credenciales ya no están hardcodeadas ni se leen de `SATYS_USER`, `SATYS_PASS` o variables equivalentes. El archivo real está excluido por `.gitignore`; `config/configuracion_local.example.json` sirve como plantilla.
-
-> **Riesgo aceptado:** las contraseñas existentes no fueron rotadas por decisión operativa. Moverlas fuera del código reduce la exposición futura, pero no invalida copias anteriores, ZIP previos o historial Git que pudieran contenerlas.
-
-Variables de entorno que siguen siendo operativas para infraestructura, no para credenciales: `SATYS_PYTHON`, `SATYS_LOCK_DIR`, `SATYS_HEADLESS`, `PLAYWRIGHT_BROWSERS_PATH` y permisos del panel web.
-
----
 
 ## 🚀 Uso en terminal
 
@@ -292,6 +299,15 @@ python main_procesar.py --archivo-folios folios.txt --headless --workers 10
 
 # Procesar desde un archivo de números de Registro (ej. CRT26-002483):
 python main_procesar.py --archivo-registro registros.txt --headless --workers 10
+
+# Ejecutar exclusivamente todos los Folios de las seis bandejas de Internos IFT:
+python main_procesar.py --todos-internos --headless --internos-workers 6
+
+# El mismo recorrido mediante el lanzador Linux:
+SATYS_INTERNOS_WORKERS=6 bash scripts/run_satys_internos.sh
+
+# En Windows PowerShell:
+powershell -ExecutionPolicy Bypass -File .\scripts\run_satys_internos.ps1 -Workers 6
 
 # Solo procesar archivos ya descargados (sin entrar al SATyS):
 python main_procesar.py --solo-procesar
@@ -310,6 +326,8 @@ python automatizar_registros_diario.py --headless --workers 10
 | `[folios]`                     | Folios a procesar como argumentos posicionales                                       |
 | `--archivo-folios`             | Ruta a`.txt` con folios, uno por línea                                            |
 | `--archivo-registro`           | Ruta a`.txt` con números de Registro; activa el modo de búsqueda por Registro    |
+| `--todos-internos`             | Solo Internos IFT: recorre las seis bandejas, descarga, procesa y actualiza `Internos` |
+| `--internos-workers N`         | Navegadores paralelos para Internos (default: 6; `0` usa uno por bandeja)              |
 | `--solo-procesar`              | Omite la descarga (Parte 1) y procesa solo archivos ya locales                       |
 | `--headless`                   | Oculta el navegador de Playwright                                                    |
 | `--workers N`                  | Ventanas de navegador en paralelo (default: 10)                                      |
@@ -335,42 +353,28 @@ python automatizar_registros_diario.py --headless --workers 10
 
 ---
 
-## ⏱️ Automatización diaria con `systemd`
+## ⏱️ Automatización diaria
 
-> Despliegue recomendado: `sudo bash scripts/instalar_linux_1am.sh --user <usuario>`. Consulta [`DESPLIEGUE_1AM.md`](DESPLIEGUE_1AM.md).
+### Docker + systemd del host (recomendado)
 
-El proceso diario corre por `systemd` en vez de `schtasks` (Windows) o `cron`, con logs centralizados, horario estricto y una guarda adicional que limita la ejecución normal a una vez por fecha.
+El contenedor worker no queda ejecutándose. Un timer del host crea una corrida efímera a la 01:00 (`America/Mexico_City`):
 
 ```bash
-sudo cp systemd/satys-diario.service systemd/satys-diario.timer /etc/systemd/system/
+sudo cp systemd/satys-docker-diario.service systemd/satys-docker-diario.timer /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now satys-diario.timer
-systemctl list-timers | grep satys
+sudo systemctl enable --now satys-docker-diario.timer
+systemctl list-timers --all | grep satys
 ```
 
-Ejecutar manualmente / ver logs en vivo:
+Ejecución manual equivalente:
 
 ```bash
-sudo systemctl start satys-diario.service
-journalctl -u satys-diario.service -f
+docker compose run --rm satys-worker
 ```
 
-Estado rápido:
+### `venv` + systemd (alternativa)
 
-```bash
-./scripts/estado_satys.sh
-cat logs/estado_actual.json
-```
-
-### Panel web como servicio
-
-```bash
-sudo cp systemd/satys-api.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now satys-api.service
-```
-
-Ver [`README_BACKEND_LINUX.md`](README_BACKEND_LINUX.md) para los endpoints del panel y detalles de despliegue completos.
+Los archivos `systemd/satys-diario.service`, `systemd/satys-diario.timer` y `systemd/satys-api.service` continúan disponibles para el despliegue histórico sin contenedores. Consulta [`DESPLIEGUE_1AM.md`](DESPLIEGUE_1AM.md).
 
 ---
 
@@ -405,7 +409,7 @@ Se genera/actualiza al finalizar cada corrida con una fila por registro/folio, a
 ```bash
 # Panel web
 systemctl status satys-api.service --no-pager -l
-curl http://127.0.0.1:8080/api/health
+curl http://127.0.0.1:8082/api/v1/health
 
 # Proceso diario
 systemctl list-timers | grep satys
@@ -464,79 +468,18 @@ Este proyecto es propiedad de la Comisión Reguladora de Telecomunicaciones (CRT
 
 ---
 
-## ⚡ Optimización del catálogo RPC (17 de julio de 2026)
+## 🧾 Historial de cambios
 
-La carga del XLSX oficial RPC usa una lectura secuencial con
-`openpyxl.iter_rows(values_only=True)`. No debe reemplazarse por llamadas
-repetidas a `ws.cell()` cuando el libro está abierto con `read_only=True`, ya
-que eso puede convertir la lectura en un proceso aproximadamente cuadrático.
+El historial técnico que antes estaba disperso al final de este README fue migrado a [`CHANGELOG.md`](CHANGELOG.md). La arquitectura está en [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md), el glosario en [`docs/GLOSARIO.md`](docs/GLOSARIO.md) y las reglas de mantenimiento en [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-Antes de una corrida completa puede validarse el catálogo local sin descargar
-ni modificar información:
+## 🚀 Release vigente
 
-```bash
-cd /data/gustavo.garcia/satys/Automatizacion-SATyS
+Versión: `2026.08.17-produccion-api-v1-docker-8082`.
 
-/data/gustavo.garcia/satys/venv/bin/python \
-  scripts/validar_catalogo_rpc.py \
-  --esperados 9166
-```
-
-El parche de esta corrección se publica siempre en la carpeta compartida:
-
-```text
-/depi/DEI_DATOS/SATyS/satys_fullstack_montaje_depi/Automatizacion-SATyS
-```
-
-Nombre del parche:
-
-```text
-parche-satys-optimizacion-rpc-20260717.zip
-```
-
-Ruta completa:
-
-```text
-/depi/DEI_DATOS/SATyS/satys_fullstack_montaje_depi/Automatizacion-SATyS/parche-satys-optimizacion-rpc-20260717.zip
-```
-
-Aplicar este parche no elimina ni vuelve a descargar `descargas/`, `output/`,
-`logs/`, `TrámitesCRT.xlsx` ni la configuración local.
-
----
-
-## 🚀 RELEASE COMPLETA — REEMPLAZO TOTAL DE CÓDIGO
-
-El paquete completo se publica en la carpeta compartida:
-
-```text
-/depi/DEI_DATOS/SATyS/satys_fullstack_montaje_depi/Automatizacion-SATyS
-```
-
-Archivo de release:
-
-```text
-/depi/DEI_DATOS/SATyS/satys_fullstack_montaje_depi/Automatizacion-SATyS/automatizacion-satys-release-final-20260717.zip
-```
-
-Esta modalidad reemplaza toda la carpeta de código activa en:
-
-```text
-/data/gustavo.garcia/satys/Automatizacion-SATyS
-```
-
-No se hace una superposición parcial. La instalación anterior se renombra como respaldo y se conserva únicamente la información operativa: descargas, resultados, logs, configuración local, sesión, catálogo RPC y Excel vigente.
-
-Después de extraer el ZIP, ejecutar:
+Construir el artefacto reproducible y verificar su manifest SHA-256:
 
 ```bash
-sudo env SATYS_PYTHON_BIN=/data/gustavo.garcia/satys/venv/bin/python \
-  bash /tmp/satys-release-final/desplegar_release_completa.sh
+python scripts/preparar_release.py
 ```
 
-El despliegue instala o actualiza dependencias, levanta la UI/API y deja habilitado el timer diario a la **01:00 `America/Mexico_City`**. No inicia una corrida completa durante el despliegue, salvo que se añada `--run-now`.
-
-
-## Corrección de múltiples correos (2026-07-20)
-
-Consulta [`CORRECCION_EJECUCION_UNICA_20260720.md`](CORRECCION_EJECUCION_UNICA_20260720.md) para aplicar y validar la protección de una corrida por día.
+La release excluye credenciales, sesiones, Excel y datos operativos. Para un despliegue completamente nuevo, usar [`DESPLIEGUE_NUEVO.md`](DESPLIEGUE_NUEVO.md).

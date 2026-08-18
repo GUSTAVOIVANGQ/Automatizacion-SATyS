@@ -36,6 +36,32 @@ class ReintentosExtraccionSatysTest(unittest.TestCase):
                 "total_guardados_anio": len(registros),
                 "filas_invalidas": 0,
             }],
+            "internos": {
+                "estado": "COMPLETO",
+                "integridad": "VALIDADA",
+                "vacio_confirmado": True,
+                "total_folios": 0,
+                "total_filas_satys": 0,
+                "folios": [],
+                "por_bandeja": [
+                    {
+                        "bandeja": bandeja,
+                        "estado": "VACIO_CONFIRMADO",
+                        "total_reportado_satys": 0,
+                        "filas_leidas": 0,
+                        "folios": [],
+                        "filas_invalidas": 0,
+                    }
+                    for bandeja in (
+                        "Recibidos",
+                        "En proceso",
+                        "Copias Marcadas",
+                        "Atendidos",
+                        "Ultimos Movimientos",
+                        "Fuera de tiempo",
+                    )
+                ],
+            },
         }
         self.output.with_suffix(".txt.json").write_text(
             __import__("json").dumps(contenido), encoding="utf-8"

@@ -6,11 +6,12 @@ TARGET_DIR="/data/gustavo.garcia/satys/Automatizacion-SATyS"
 BASE_DIR="/data/gustavo.garcia/satys"
 TIMEZONE="America/Mexico_City"
 RUN_HOUR="01:00"
-API_PORT="8095"
+API_PORT="8082"
+DEPI_DIR="/depi/DEI_DATOS/SATyS"
 RUN_NOW=0
 SKIP_DEPS=0
 VALIDATE_RPC=1
-SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/Automatizacion-SATyS"
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 usage() {
   cat <<'USAGE'
@@ -21,12 +22,13 @@ Uso:
     bash desplegar_release_completa.sh [opciones]
 
 Opciones:
-  --source-dir RUTA       Proyecto nuevo. Default: ./Automatizacion-SATyS
+  --source-dir RUTA       Proyecto nuevo. Default: raiz de esta release
   --target-dir RUTA       Proyecto activo. Default: /data/gustavo.garcia/satys/Automatizacion-SATyS
   --user USUARIO          Usuario del servicio. Default: gustavo.garcia
   --hour HH:MM            Hora diaria. Default: 01:00
   --timezone ZONA         Zona horaria. Default: America/Mexico_City
-  --api-port PUERTO       Puerto UI/API. Default: 8095
+  --api-port PUERTO       Puerto UI/API. Default: 8082
+  --depi-dir RUTA         Destino compartido. Default: /depi/DEI_DATOS/SATyS
   --skip-deps             No reinstala requirements ni Chromium.
   --skip-rpc-validation   No mide el catálogo RPC local al finalizar.
   --run-now               Inicia una corrida real después del despliegue.
@@ -46,6 +48,7 @@ while [[ $# -gt 0 ]]; do
     --hour) RUN_HOUR="${2:?Falta valor}"; shift 2 ;;
     --timezone) TIMEZONE="${2:?Falta valor}"; shift 2 ;;
     --api-port) API_PORT="${2:?Falta valor}"; shift 2 ;;
+    --depi-dir) DEPI_DIR="${2:?Falta valor}"; shift 2 ;;
     --skip-deps) SKIP_DEPS=1; shift ;;
     --skip-rpc-validation) VALIDATE_RPC=0; shift ;;
     --run-now) RUN_NOW=1; shift ;;
@@ -64,7 +67,14 @@ TARGET_DIR="$(readlink -m "$TARGET_DIR")"
 BASE_DIR="$(dirname "$TARGET_DIR")"
 [[ -d "$SOURCE_DIR" ]] || { echo "ERROR: no existe $SOURCE_DIR" >&2; exit 1; }
 [[ -f "$SOURCE_DIR/scripts/instalar_linux_1am.sh" ]] || { echo "ERROR: release incompleta" >&2; exit 1; }
+[[ -f "$SOURCE_DIR/scripts/preflight_despliegue.sh" ]] || { echo "ERROR: falta preflight_despliegue.sh" >&2; exit 1; }
 [[ -f "$SOURCE_DIR/VERSION" ]] || { echo "ERROR: falta VERSION en la release" >&2; exit 1; }
+
+if systemctl is-active --quiet satys-diario.service; then
+  echo "ERROR: satys-diario.service esta ejecutando una corrida." >&2
+  echo "Espera a que termine antes de desplegar; no se interrumpiran descargas activas." >&2
+  exit 1
+fi
 
 APP_GROUP="$(id -gn "$APP_USER")"
 VENV_DIR="$BASE_DIR/venv"
@@ -182,11 +192,16 @@ printf 'Destino:       %s\n' "$TARGET_DIR"
 printf 'Usuario:       %s:%s\n' "$APP_USER" "$APP_GROUP"
 printf 'Python:        %s\n' "$PYTHON_BIN"
 printf 'Horario:       %s %s\n' "$RUN_HOUR" "$TIMEZONE"
+printf 'Destino DEPI:  %s\n' "$DEPI_DIR"
 
-# Validación previa: no toca el servidor activo.
-echo "Validando sintaxis de la release..."
-"$PYTHON_BIN" -m compileall -q "$SOURCE_DIR"
-while IFS= read -r -d '' script; do bash -n "$script"; done < <(find "$SOURCE_DIR" -type f -name '*.sh' -print0)
+# Validacion previa: no toca el servidor activo.
+bash "$SOURCE_DIR/scripts/preflight_despliegue.sh" \
+  --release-dir "$SOURCE_DIR" \
+  --python "$PYTHON_BIN" \
+  --server \
+  --target-dir "$TARGET_DIR" \
+  --user "$APP_USER" \
+  --depi-dir "$DEPI_DIR"
 
 # Detener entradas automáticas y procesos manuales conocidos.
 systemctl stop satys-diario.timer >/dev/null 2>&1 || true
@@ -239,6 +254,35 @@ if [[ -d "$OLD_DIR" ]]; then
     < <(find "$OLD_DIR" -maxdepth 1 -type f -name '*.xlsx' -print0)
 fi
 
+CONFIG_PATH="$TARGET_DIR/config/configuracion_local.json"
+[[ -f "$CONFIG_PATH" ]] || {
+  echo "ERROR: no se encontro la configuracion productiva preservada: $CONFIG_PATH" >&2
+  exit 1
+}
+"$PYTHON_BIN" - "$CONFIG_PATH" "$DEPI_DIR" <<'PY_CONFIG'
+import json
+import os
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+depi_dir = sys.argv[2]
+data = json.loads(path.read_text(encoding="utf-8"))
+if not isinstance(data, dict):
+    raise SystemExit("La configuracion productiva no es un objeto JSON")
+procesamiento = data.setdefault("procesamiento", {})
+if not isinstance(procesamiento, dict):
+    raise SystemExit("La seccion procesamiento no es un objeto JSON")
+procesamiento.setdefault("internos_workers", 6)
+rutas = data.setdefault("rutas", {})
+if not isinstance(rutas, dict):
+    raise SystemExit("La seccion rutas no es un objeto JSON")
+rutas["carpeta_compartida"] = depi_dir
+temporal = path.with_suffix(path.suffix + ".tmp")
+temporal.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+os.replace(temporal, path)
+PY_CONFIG
+
 mkdir -p "$TARGET_DIR"/{descargas,output,logs,runs,exports,registros_diarios,registros_fallidos,base_de_datos_rpc}
 chown -R "$APP_USER:$APP_GROUP" "$TARGET_DIR"
 chmod 600 "$TARGET_DIR/config/configuracion_local.json" 2>/dev/null || true
@@ -249,6 +293,7 @@ INSTALL_ARGS=(
   --timezone "$TIMEZONE"
   --hour "$RUN_HOUR"
   --api-port "$API_PORT"
+  --depi-dir "$DEPI_DIR"
   --install-api
 )
 (( SKIP_DEPS == 1 )) && INSTALL_ARGS+=(--skip-python-install)
@@ -288,6 +333,7 @@ timer=satys-diario.timer
 timer_hora=$RUN_HOUR $TIMEZONE
 api=satys-api.service
 api_puerto=$API_PORT
+depi_dir=$DEPI_DIR
 corrida_iniciada=$RUN_NOW
 EOF_REPORT
 
@@ -300,6 +346,7 @@ echo "Código activo:       $TARGET_DIR"
 echo "Código anterior:     $OLD_DIR"
 echo "Reporte:             $META_BACKUP/despliegue.txt"
 echo "UI:                  http://IP_SERVIDOR:$API_PORT/"
+echo "Destino DEPI:        $DEPI_DIR"
 echo "Timer diario:        $RUN_HOUR $TIMEZONE"
 echo "Corrida iniciada:    $([[ $RUN_NOW -eq 1 ]] && echo sí || echo no)"
 echo

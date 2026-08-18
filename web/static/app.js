@@ -208,12 +208,12 @@ function renderHistory(data) {
 async function refreshAll(silent = false) {
   try {
     const [cfg, estado, systemd, manual, repair, archivos] = await Promise.all([
-      fetchJson('/api/config').catch(() => ({})),
-      fetchJson('/api/estado').catch(() => ({})),
-      fetchJson('/api/systemd').catch(() => null),
-      fetchJson('/api/manual/estado').catch(() => ({})),
-      fetchJson('/api/reparacion-id/estado').catch(() => ({})),
-      fetchJson('/api/archivos').catch(() => null),
+      fetchJson('/api/v1/config').catch(() => ({})),
+      fetchJson('/api/v1/estado').catch(() => ({})),
+      fetchJson('/api/v1/systemd').catch(() => null),
+      fetchJson('/api/v1/manual/estado').catch(() => ({})),
+      fetchJson('/api/v1/reparacion-id/estado').catch(() => ({})),
+      fetchJson('/api/v1/archivos').catch(() => null),
     ]);
     if (cfg.timer_hora) els.timerHora.value = cfg.timer_hora;
     renderEstado(estado);
@@ -222,7 +222,7 @@ async function refreshAll(silent = false) {
     renderRepair(repair);
     if (archivos) renderFiles(archivos);
 
-    fetchJson('/api/resumen/ultimo')
+    fetchJson('/api/v1/resumen/ultimo')
       .then(renderSummary)
       .catch(() => {
         els.dailySummary.className = 'summary-grid empty';
@@ -234,11 +234,11 @@ async function refreshAll(silent = false) {
   }
 }
 async function refreshFiles() {
-  try { renderFiles(await fetchJson('/api/archivos')); }
+  try { renderFiles(await fetchJson('/api/v1/archivos')); }
   catch (err) { showToast(`No se pudieron consultar salidas: ${err.message}`, 'error'); }
 }
 async function refreshHistory() {
-  try { renderHistory(await fetchJson('/api/historial')); }
+  try { renderHistory(await fetchJson('/api/v1/historial')); }
   catch (err) { showToast(`No se pudo cargar historial: ${err.message}`, 'error'); }
 }
 
@@ -262,7 +262,7 @@ async function buscarRegistro() {
   const tipo = els.registroTipo?.value || 'auto';
   els.registroBuscarBtn.disabled = true;
   try {
-    const data = await fetchJson(`/api/registros/${encodeURIComponent(registro)}/buscar?tipo=${encodeURIComponent(tipo)}`);
+    const data = await fetchJson(`/api/v1/registros/${encodeURIComponent(registro)}/buscar?tipo=${encodeURIComponent(tipo)}`);
     renderRegistroResult(data);
     showToast(data.total ? `Encontré ${data.total} coincidencia(s).` : 'No encontré coincidencias.', data.total ? 'ok' : 'warn');
   } catch (err) {
@@ -279,7 +279,7 @@ function descargarRegistro() {
   const registro = registroValue();
   if (!registro) { showToast('Escribe un número de registro.', 'warn'); return; }
   const tipo = els.registroTipo?.value || 'auto';
-  window.location.href = `/api/registros/${encodeURIComponent(registro)}/download?tipo=${encodeURIComponent(tipo)}`;
+  window.location.href = `/api/v1/registros/${encodeURIComponent(registro)}/download?tipo=${encodeURIComponent(tipo)}`;
 }
 
 function updateManualCommand() {
@@ -295,7 +295,7 @@ async function saveTimer() {
   const hora = els.timerHora.value || '01:00';
   els.saveTimer.disabled = true;
   try {
-    const result = await fetchJson('/api/timer/hora', {
+    const result = await fetchJson('/api/v1/timer/hora', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({hora}),
@@ -316,7 +316,7 @@ async function startDaily() {
   if (!confirm('¿Ejecutar ahora la tarea diaria satys-diario.service?')) return;
   els.startDaily.disabled = true;
   try {
-    await fetchJson('/api/proceso/iniciar', { method: 'POST' });
+    await fetchJson('/api/v1/proceso/iniciar', { method: 'POST' });
     showToast('Tarea diaria iniciada.', 'ok');
     await refreshAll(true);
   } catch (err) {
@@ -341,7 +341,7 @@ async function startManual(event) {
   const btn = els.manualForm.querySelector('button[type="submit"]');
   btn.disabled = true;
   try {
-    const result = await fetchJson('/api/manual/procesar', { method: 'POST', body: data });
+    const result = await fetchJson('/api/v1/manual/procesar', { method: 'POST', body: data });
     renderManual(result);
     showToast('Corrida manual iniciada.', 'ok');
     navTo('procesar');
@@ -358,7 +358,7 @@ async function startRepair(reiniciarCola = false) {
   els.repairResumeBtn.disabled = true;
   els.repairNewBtn.disabled = true;
   try {
-    const result = await fetchJson('/api/reparacion-id/iniciar', {
+    const result = await fetchJson('/api/v1/reparacion-id/iniciar', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -382,7 +382,7 @@ async function stopRepair() {
   if (!confirm('¿Detener la reparación? El checkpoint se conservará.')) return;
   els.repairStopBtn.disabled = true;
   try {
-    const result = await fetchJson('/api/reparacion-id/detener', {method: 'POST'});
+    const result = await fetchJson('/api/v1/reparacion-id/detener', {method: 'POST'});
     renderRepair(result);
     showToast('Detención solicitada; podrás reanudar después.', 'warn');
   } catch (err) {
@@ -401,7 +401,7 @@ function startLogStream(tipo, box, sourceLabel, autoscroll) {
     appendLog(box, autoscroll, 'Tu navegador no soporta EventSource.');
     return;
   }
-  const src = new EventSource(`/api/log/stream?tipo=${tipo}`);
+  const src = new EventSource(`/api/v1/log/stream?tipo=${tipo}`);
   src.onmessage = (event) => appendLog(box, autoscroll, event.data);
   src.addEventListener('source', (event) => {
     sourceLabel.textContent = `Fuente: ${event.data}`;

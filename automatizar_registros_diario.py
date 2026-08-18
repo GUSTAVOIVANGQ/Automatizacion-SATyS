@@ -48,6 +48,7 @@ except Exception:
     _EMAIL_DISPONIBLE = False
 
 REGISTRO_RE = re.compile(r"\b[A-Z]{2,8}\d{2}-\d{3,}\b", re.IGNORECASE)
+FOLIO_INTERNO_RE = re.compile(r"^\d{1,15}$")
 
 PROJECT_DIR = Path(__file__).resolve().parent
 PYTHON_EXE_DEFAULT = Path(os.getenv("SATYS_PYTHON", sys.executable))
@@ -56,10 +57,13 @@ MAIN_SCRIPT_DEFAULT = PROJECT_DIR / "main_procesar.py"
 RECONCILIAR_SCRIPT_DEFAULT = PROJECT_DIR / "reconciliar_metadata_global.py"
 EXCEL_DEFAULT = ruta_configurada("excel", "TrámitesCRT.xlsx")
 REGISTROS_LATEST_DEFAULT = PROJECT_DIR / "registros.txt"
+INTERNOS_LATEST_DEFAULT = PROJECT_DIR / "folios_internos_nuevos.json"
 REGISTROS_DIR_DEFAULT = PROJECT_DIR / "registros_diarios"
 LOG_DIR_DEFAULT = PROJECT_DIR / "logs"
 SHEET_DEFAULT = "Turnados recibidos"
 HEADER_REGISTRO_DEFAULT = "1711"
+SHEET_INTERNOS_DEFAULT = "Internos"
+HEADER_FOLIO_INTERNOS_DEFAULT = "Folio Internos"
 PROCESAMIENTO_CFG = configuracion_procesamiento()
 WORKERS_DEFAULT = int(PROCESAMIENTO_CFG.get("workers", 10))
 TIMEOUT_REGISTRO_DEFAULT = int(PROCESAMIENTO_CFG.get("timeout_registro", 900))
@@ -82,6 +86,23 @@ def normalizar_registro(valor: object) -> str:
     texto = re.sub(r"\s+", "", texto)
     m = REGISTRO_RE.search(texto)
     return m.group(0).upper() if m else ""
+
+
+def normalizar_folio_interno(valor: object) -> str:
+    """Return a numeric Internos Folio or an empty string."""
+    texto = re.sub(r"\s+", "", str(valor or "").strip())
+    return texto if FOLIO_INTERNO_RE.fullmatch(texto) else ""
+
+
+def unicos_folios_internos(items: Iterable[object]) -> list[str]:
+    vistos: set[str] = set()
+    salida: list[str] = []
+    for item in items:
+        folio = normalizar_folio_interno(item)
+        if folio and folio not in vistos:
+            vistos.add(folio)
+            salida.append(folio)
+    return salida
 
 
 def unicos_preservando_orden(items: Iterable[str]) -> list[str]:
@@ -209,6 +230,99 @@ def cargar_registros_procesados_excel(excel_path: Path, sheet_name: str, header_
     }
     wb.close()
     return procesados, info
+
+
+def cargar_folios_internos_procesados_excel(
+    excel_path: Path,
+    sheet_name: str = SHEET_INTERNOS_DEFAULT,
+    header_folio: str = HEADER_FOLIO_INTERNOS_DEFAULT,
+) -> tuple[set[str], dict]:
+    """Read processed numeric Folio values from the dedicated Internos sheet."""
+    try:
+        import openpyxl
+    except ImportError as exc:
+        raise RuntimeError("No se pudo importar openpyxl para leer la hoja Internos.") from exc
+
+    if not excel_path.exists():
+        raise FileNotFoundError(f"No existe el Excel de evidencia: {excel_path}")
+
+    wb = openpyxl.load_workbook(excel_path, read_only=True, data_only=True)
+    if sheet_name not in wb.sheetnames:
+        info = {
+            "excel": str(excel_path),
+            "sheet": sheet_name,
+            "sheet_exists": False,
+            "header_folio": header_folio,
+            "header_row": None,
+            "header_col": None,
+            "total_procesados_excel": 0,
+        }
+        wb.close()
+        return set(), info
+
+    ws = wb[sheet_name]
+
+    def _norm_header(value: object) -> str:
+        texto = str(value or "").strip().lower()
+        reemplazos = str.maketrans("áéíóúüñ", "aeiouun")
+        return re.sub(r"[^a-z0-9]", "", texto.translate(reemplazos))
+
+    aliases = {
+        _norm_header(header_folio),
+        _norm_header("Folio Interno"),
+        _norm_header("Folio SATyS Internos"),
+    }
+    header_col = None
+    header_row = None
+    for row in ws.iter_rows(min_row=1, max_row=min(ws.max_row or 1, 20)):
+        for cell in row:
+            if _norm_header(cell.value) in aliases:
+                header_col = cell.column
+                header_row = cell.row
+                break
+        if header_col is not None:
+            break
+
+    procesados: set[str] = set()
+    if header_col is not None:
+        for row in ws.iter_rows(min_row=(header_row or 1) + 1, min_col=header_col, max_col=header_col):
+            folio = normalizar_folio_interno(row[0].value)
+            if folio:
+                procesados.add(folio)
+
+    info = {
+        "excel": str(excel_path),
+        "sheet": ws.title,
+        "sheet_exists": True,
+        "header_folio": header_folio,
+        "header_row": header_row,
+        "header_col": header_col,
+        "total_procesados_excel": len(procesados),
+    }
+    wb.close()
+    return procesados, info
+
+
+def construir_objetivos_internos(resumen_internos: dict, folios: Iterable[str]) -> list[dict]:
+    """Attach each selected Folio to the tab where it was discovered."""
+    pendientes = set(unicos_folios_internos(folios))
+    objetivos: list[dict] = []
+    vistos: set[str] = set()
+    for item in resumen_internos.get("por_bandeja") or []:
+        bandeja = str(item.get("bandeja") or "").strip()
+        for folio in unicos_folios_internos(item.get("folios") or []):
+            if folio in pendientes and folio not in vistos:
+                vistos.add(folio)
+                objetivos.append({"bandeja": bandeja, "folio": folio})
+    return objetivos
+
+
+def guardar_objetivos_internos(path: Path, objetivos: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"objetivos": objetivos}, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 def ejecutar_comando(
@@ -372,8 +486,66 @@ def validar_resumen_extractor(output_path: Path, registros: list[str]) -> dict:
         resultado["error"] = "el resumen reporta filas pero el TXT quedó vacío"
         return resultado
 
+    internos = resumen.get("internos")
+    if not isinstance(internos, dict):
+        resultado["error"] = "el resumen no contiene la extraccion de Internos IFT"
+        return resultado
+    if internos.get("estado") != "COMPLETO" or internos.get("integridad") != "VALIDADA":
+        resultado["error"] = (
+            f"Internos con estado/integridad no validos: estado={internos.get('estado')!r}, "
+            f"integridad={internos.get('integridad')!r}"
+        )
+        return resultado
+
+    por_bandeja = internos.get("por_bandeja")
+    if not isinstance(por_bandeja, list) or len(por_bandeja) != 6:
+        resultado["error"] = "Internos no contiene exactamente las seis bandejas esperadas"
+        return resultado
+    total_filas_internos = 0
+    todos_vacios_internos = True
+    for item in por_bandeja:
+        estado_bandeja = item.get("estado")
+        if estado_bandeja not in estados_validos:
+            resultado["error"] = (
+                f"Internos/{item.get('bandeja')}: estado indeterminado {estado_bandeja!r}"
+            )
+            return resultado
+        total = int(item.get("total_reportado_satys") or 0)
+        filas = int(item.get("filas_leidas") or 0)
+        invalidas = int(item.get("filas_invalidas") or 0)
+        folios = unicos_folios_internos(item.get("folios") or [])
+        if invalidas:
+            resultado["error"] = f"Internos/{item.get('bandeja')}: {invalidas} fila(s) invalidas"
+            return resultado
+        if estado_bandeja == "ENCONTRADOS_COMPLETOS":
+            todos_vacios_internos = False
+            if total <= 0 or filas != total or not folios:
+                resultado["error"] = (
+                    f"Internos/{item.get('bandeja')}: conciliacion incompleta "
+                    f"total={total}, filas={filas}, folios={len(folios)}"
+                )
+                return resultado
+        elif total != 0 or filas != 0 or folios:
+            resultado["error"] = (
+                f"Internos/{item.get('bandeja')}: VACIO_CONFIRMADO inconsistente"
+            )
+            return resultado
+        total_filas_internos += filas
+
+    folios_internos = unicos_folios_internos(internos.get("folios") or [])
+    if int(internos.get("total_folios", -1)) != len(folios_internos):
+        resultado["error"] = "total_folios de Internos no coincide con la lista deduplicada"
+        return resultado
+    if int(internos.get("total_filas_satys", -1)) != total_filas_internos:
+        resultado["error"] = "total_filas_satys de Internos no coincide con sus bandejas"
+        return resultado
+    if bool(internos.get("vacio_confirmado")) != todos_vacios_internos:
+        resultado["error"] = "bandera vacio_confirmado de Internos inconsistente"
+        return resultado
+
     resultado["ok"] = True
     resultado["vacio_confirmado"] = todos_vacios
+    resultado["folios_internos"] = folios_internos
     return resultado
 
 
@@ -601,8 +773,14 @@ def construir_parser() -> argparse.ArgumentParser:
                         help="Hoja del Excel donde se encuentra la columna 1711.")
     parser.add_argument("--header-registro", default=HEADER_REGISTRO_DEFAULT,
                         help="Encabezado de la columna de registros ya procesados.")
+    parser.add_argument("--sheet-internos", default=SHEET_INTERNOS_DEFAULT,
+                        help="Hoja donde se controlan los Folios de Internos IFT.")
+    parser.add_argument("--header-folio-internos", default=HEADER_FOLIO_INTERNOS_DEFAULT,
+                        help="Encabezado de la columna numerica usada para Folios de Internos IFT.")
     parser.add_argument("--registros-latest", type=Path, default=REGISTROS_LATEST_DEFAULT,
                         help="TXT que consumirá main_procesar.py. Default: registros.txt")
+    parser.add_argument("--internos-latest", type=Path, default=INTERNOS_LATEST_DEFAULT,
+                        help="JSON de Folios nuevos de Internos que consumira main_procesar.py.")
     parser.add_argument("--registros-dir", type=Path, default=REGISTROS_DIR_DEFAULT,
                         help="Carpeta donde se guardan copias históricas de TXT.")
     parser.add_argument("--logs-dir", type=Path, default=LOG_DIR_DEFAULT,
@@ -657,6 +835,7 @@ def main() -> int:
 
     registros_satys_hist = args.registros_dir / f"registros_satys_{fecha}.txt"
     registros_nuevos_hist = args.registros_dir / f"registros_nuevos_{fecha}.txt"
+    internos_nuevos_hist = args.registros_dir / f"folios_internos_nuevos_{fecha}.json"
 
     resumen: dict = {
         "fecha_ejecucion": datetime.now().isoformat(),
@@ -676,6 +855,8 @@ def main() -> int:
             "registros_latest": str(args.registros_latest),
             "registros_satys_hist": str(registros_satys_hist),
             "registros_nuevos_hist": str(registros_nuevos_hist),
+            "internos_latest": str(args.internos_latest),
+            "internos_nuevos_hist": str(internos_nuevos_hist),
             "log": str(log_path),
         },
         "ok": False,
@@ -799,12 +980,24 @@ def main() -> int:
                 "Se trata como error indeterminado, no como cero registros."
             )
 
+        extraccion_satys = resumen.get("extraccion_satys") or {}
+        resumen_internos = extraccion_satys.get("internos") or {}
+        folios_internos_satys = unicos_folios_internos(resumen_internos.get("folios") or [])
+        resumen["total_folios_internos_satys"] = len(folios_internos_satys)
+        resumen["primeros_folios_internos_satys"] = folios_internos_satys[:15]
+
         # 2) Leer evidencia Excel, columna 1711.
         estado.actualizar(stage="leyendo_excel_control", excel=str(args.excel))
         procesados_excel, excel_info = cargar_registros_procesados_excel(
             args.excel, args.sheet, args.header_registro
         )
         resumen["excel_info"] = excel_info
+        procesados_internos_excel, excel_internos_info = cargar_folios_internos_procesados_excel(
+            args.excel,
+            args.sheet_internos,
+            args.header_folio_internos,
+        )
+        resumen["excel_internos_info"] = excel_internos_info
 
         estado.actualizar(
             stage="comparando_registros",
@@ -813,6 +1006,21 @@ def main() -> int:
         )
         # 3) Comparar y guardar nuevos.
         nuevos_excel = [registro for registro in registros_satys if registro not in procesados_excel]
+        folios_internos_nuevos = [
+            folio for folio in folios_internos_satys
+            if folio not in procesados_internos_excel
+        ]
+        objetivos_internos = construir_objetivos_internos(
+            resumen_internos,
+            folios_internos_nuevos,
+        )
+        if len(objetivos_internos) != len(folios_internos_nuevos):
+            raise RuntimeError(
+                "No fue posible asociar cada Folio Internos nuevo con su bandeja: "
+                f"folios={len(folios_internos_nuevos)}, objetivos={len(objetivos_internos)}."
+            )
+        guardar_objetivos_internos(internos_nuevos_hist, objetivos_internos)
+        guardar_objetivos_internos(args.internos_latest, objetivos_internos)
 
         # 3b) También incluir registros que ya están en el Excel pero tienen
         #     carpeta sin archivos reales (solo los JSONs generados por el programa).
@@ -850,6 +1058,10 @@ def main() -> int:
         resumen["total_nuevos_excel"] = len(nuevos_excel)
         resumen["total_incompletos_reintento"] = len(incompletos_en_excel)
         resumen["registros_nuevos"] = nuevos
+        resumen["total_folios_internos_procesados_excel"] = len(procesados_internos_excel)
+        resumen["total_folios_internos_nuevos"] = len(folios_internos_nuevos)
+        resumen["folios_internos_nuevos"] = folios_internos_nuevos
+        resumen["objetivos_internos_nuevos"] = objetivos_internos
         estado.actualizar(
             stage="comparacion_lista",
             total_registros_satys=len(registros_satys),
@@ -858,6 +1070,8 @@ def main() -> int:
             total_nuevos_excel=len(nuevos_excel),
             total_incompletos_reintento=len(incompletos_en_excel),
             registros_nuevos_preview=nuevos[:30],
+            total_folios_internos_satys=len(folios_internos_satys),
+            total_folios_internos_nuevos=len(folios_internos_nuevos),
         )
 
         print("\n" + "=" * 90)
@@ -872,8 +1086,18 @@ def main() -> int:
         print(f"Copia histórica nuevos:        {registros_nuevos_hist}")
         if nuevos:
             print("Nuevos:", ", ".join(nuevos[:50]) + ("..." if len(nuevos) > 50 else ""))
+        print(f"Folios Internos en SATyS:      {len(folios_internos_satys)}")
+        print(f"Folios Internos en Excel:      {len(procesados_internos_excel)}")
+        print(f"Folios Internos nuevos:        {len(folios_internos_nuevos)}")
+        print(f"JSON Internos para main:       {args.internos_latest}")
+        if folios_internos_nuevos:
+            print(
+                "Internos nuevos:",
+                ", ".join(folios_internos_nuevos[:50])
+                + ("..." if len(folios_internos_nuevos) > 50 else ""),
+            )
 
-        if not nuevos:
+        if not nuevos and not objetivos_internos:
             rc_reconciliacion = 0
             if not args.sin_reconciliacion_global:
                 rc_reconciliacion = ejecutar_reconciliacion_global(
@@ -885,13 +1109,14 @@ def main() -> int:
                 )
             resumen["return_code_reconciliacion_global"] = rc_reconciliacion
             resumen["ok"] = rc_reconciliacion == 0
-            if vacio_confirmado_satys:
+            if vacio_confirmado_satys and not folios_internos_satys:
                 base_mensaje = "SATyS confirmó cero registros."
                 mensaje_notificacion = "SATyS confirmó cero registros en todos los años consultados."
             else:
                 base_mensaje = "No hay registros nuevos."
                 mensaje_notificacion = (
-                    f"Se revisaron {len(registros_satys)} registros; "
+                    f"Se revisaron {len(registros_satys)} registros de Oficialia y "
+                    f"{len(folios_internos_satys)} folios de Internos; "
                     "todos existen en TrámitesCRT.xlsx."
                 )
             resumen["mensaje"] = (
@@ -926,12 +1151,13 @@ def main() -> int:
             resumen["return_code_reconciliacion_global"] = rc_reconciliacion
             resumen["ok"] = rc_reconciliacion == 0
             resumen["mensaje"] = (
-                "Se generó TXT de nuevos registros, pero no se procesó por --no-procesar. "
+                "Se generaron las listas de nuevos de Oficialia e Internos, "
+                "pero no se procesaron por --no-procesar. "
                 f"Reconciliación global: código {rc_reconciliacion}."
             )
             notificar_windows(
                 "SATyS CRT — registros nuevos detectados",
-                f"{len(nuevos)} registro(s) nuevo(s). TXT: {args.registros_latest.name}",
+                f"Oficialia: {len(nuevos)} nuevo(s). Internos: {len(objetivos_internos)} nuevo(s).",
                 habilitado=not args.sin_notificacion,
             )
             estado.finalizar(
@@ -944,25 +1170,56 @@ def main() -> int:
             sincronizar_estado_diario_depi()
             return rc_reconciliacion
 
-        cmd_main = [
-            str(args.python_exe),
-            str(args.main_script),
-            "--archivo-registro", str(args.registros_latest),
-            "--workers", str(args.workers),
-            "--timeout-registro", str(args.timeout_registro),
-            "--reintentos-registro", str(args.reintentos_registro),
-            "--workers-reintento", str(args.workers_reintento),
-            "--sin-lock",
-        ]
-        if headless:
-            cmd_main.append("--headless")
+        rc_main = 0
+        if nuevos:
+            cmd_main = [
+                str(args.python_exe),
+                str(args.main_script),
+                "--archivo-registro", str(args.registros_latest),
+                "--workers", str(args.workers),
+                "--timeout-registro", str(args.timeout_registro),
+                "--reintentos-registro", str(args.reintentos_registro),
+                "--workers-reintento", str(args.workers_reintento),
+                "--sin-lock",
+            ]
+            if headless:
+                cmd_main.append("--headless")
+            if args.sin_email:
+                cmd_main.append("--sin-email")
 
-        estado.actualizar(stage="procesando_registros_nuevos", total_nuevos=len(nuevos))
-        rc_main = ejecutar_comando(
-            cmd_main, PROJECT_DIR, log_path, "2) PROCESAR REGISTROS NUEVOS",
-            estado=estado, etapa="procesando_registros_nuevos"
-        )
+            estado.actualizar(stage="procesando_registros_nuevos", total_nuevos=len(nuevos))
+            rc_main = ejecutar_comando(
+                cmd_main, PROJECT_DIR, log_path, "2) PROCESAR REGISTROS NUEVOS",
+                estado=estado, etapa="procesando_registros_nuevos"
+            )
         resumen["return_code_main"] = rc_main
+
+        rc_main_internos = 0
+        if objetivos_internos:
+            cmd_main_internos = [
+                str(args.python_exe),
+                str(args.main_script),
+                "--internos",
+                "--internos-objetivos", str(args.internos_latest),
+                "--sin-lock",
+            ]
+            if headless:
+                cmd_main_internos.append("--headless")
+            if args.sin_email:
+                cmd_main_internos.append("--sin-email")
+            estado.actualizar(
+                stage="procesando_folios_internos_nuevos",
+                total_folios_internos_nuevos=len(objetivos_internos),
+            )
+            rc_main_internos = ejecutar_comando(
+                cmd_main_internos,
+                PROJECT_DIR,
+                log_path,
+                "3) PROCESAR FOLIOS NUEVOS DE INTERNOS IFT",
+                estado=estado,
+                etapa="procesando_folios_internos_nuevos",
+            )
+        resumen["return_code_main_internos"] = rc_main_internos
 
         rc_reconciliacion = 0
         if not args.sin_reconciliacion_global:
@@ -972,10 +1229,10 @@ def main() -> int:
                 excel=args.excel,
                 log_path=log_path,
                 estado=estado,
-                sin_backup=(rc_main == 0),
+                sin_backup=(rc_main == 0 and rc_main_internos == 0),
             )
         resumen["return_code_reconciliacion_global"] = rc_reconciliacion
-        rc_final = rc_main if rc_main != 0 else rc_reconciliacion
+        rc_final = rc_main or rc_main_internos or rc_reconciliacion
 
         fallidos_latest = PROJECT_DIR / "registros_fallidos" / "registros_fallidos_latest.txt"
         fallidos = leer_registros_txt(fallidos_latest) if fallidos_latest.exists() else []
@@ -983,13 +1240,16 @@ def main() -> int:
         resumen["total_fallidos_controlados"] = len(fallidos)
         resumen["ok"] = rc_final == 0
         resumen["mensaje"] = (
-            f"Procesados {len(nuevos)} registro(s) nuevo(s). Código main_procesar.py: {rc_main}. "
+            f"Procesados {len(nuevos)} registro(s) de Oficialia y "
+            f"{len(objetivos_internos)} folio(s) de Internos. "
+            f"Codigos main: Oficialia={rc_main}, Internos={rc_main_internos}. "
             f"Reconciliación global: {rc_reconciliacion}. Fallidos controlados: {len(fallidos)}."
         )
 
         notificar_windows(
             "SATyS CRT — proceso diario finalizado",
-            f"Nuevos: {len(nuevos)} | Fallidos controlados: {len(fallidos)} | main_procesar.py código: {rc_main} | Log: {log_path.name}",
+            f"Oficialia: {len(nuevos)} | Internos: {len(objetivos_internos)} | "
+            f"Fallidos: {len(fallidos)} | Codigos main: {rc_main}/{rc_main_internos} | Log: {log_path.name}",
             habilitado=not args.sin_notificacion,
         )
 
@@ -1006,8 +1266,10 @@ def main() -> int:
             ok=rc_final == 0,
             mensaje=resumen["mensaje"],
             total_nuevos=len(nuevos),
+            total_folios_internos_nuevos=len(objetivos_internos),
             total_fallidos_controlados=len(fallidos),
             return_code_main=rc_main,
+            return_code_main_internos=rc_main_internos,
             return_code_reconciliacion_global=rc_reconciliacion,
         )
         # ─────────────────────────────────────────────────────────────────────

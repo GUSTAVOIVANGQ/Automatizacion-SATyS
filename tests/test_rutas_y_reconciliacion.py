@@ -66,6 +66,41 @@ class RutasSalidaTests(unittest.TestCase):
             )
             self.assertEqual(stats["sin_operador_correo"], 1)
 
+    def test_reconciliacion_global_excluye_metadata_de_internos(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            descargas = root / "descargas"
+            output = root / "output"
+            normal = descargas / "CRT26-000001"
+            interno = descargas / "Internos" / "En_proceso" / "148326"
+            normal.mkdir(parents=True)
+            interno.mkdir(parents=True)
+
+            (normal / "metadata_satys.json").write_text(
+                json.dumps({"registro": "CRT26-000001", "id_solicitante": "123"}),
+                encoding="utf-8",
+            )
+            (interno / "metadata_satys.json").write_text(
+                json.dumps({
+                    "registro": "CRT26-034284",
+                    "id_solicitante": "123",
+                    "satys_flujo": "internos",
+                    "bandeja_internos": "En proceso",
+                    "folio_tabla_internos": "148326",
+                }),
+                encoding="utf-8",
+            )
+
+            resultados, stats = construir_resultados(
+                descargas,
+                output,
+                {"123": {"idBp": "123", "nombre_completo": "OPERADOR DEMO"}},
+                migrar_correos=False,
+            )
+
+            self.assertEqual([r["registro"] for r in resultados], ["CRT26-000001"])
+            self.assertEqual(stats["metadata"], 1)
+
     def test_bloquea_depi_local_sin_montaje(self):
         # En el entorno de pruebas /depi no es un CIFS montado; debe impedirse
         # escribir allí para evitar un falso éxito de sincronización.

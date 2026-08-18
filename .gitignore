@@ -8,9 +8,10 @@ registros_diarios/
 registros_fallidos/
 runs/
 exports/
+releases/
 
 # Caché y editor
-*.html
+debug_html/
 __pycache__/
 *.pyc
 *.pyo
@@ -21,7 +22,13 @@ __pycache__/
 sesion_guardada.json
 config/configuracion_local.json
 .env
+.satys_previous_image
 ~$*.xlsx
 
 # La plantilla sin secretos sí puede versionarse:
 !config/configuracion_local.example.json
+
+# Runtime portable local
+runtime/
+shared/
+.lock_local/
