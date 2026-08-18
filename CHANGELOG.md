@@ -1,3 +1,20 @@
+## 2026.08.17 - UI2 (documentación sincronizada)
+
+- `/docs` usa el mismo tema claro/oscuro que el panel principal mediante `localStorage["theme"]`.
+- Tema claro por defecto; se eliminó la dependencia de `prefers-color-scheme` que podía forzar documentación oscura.
+- Se añadió selector de tema en la cabecera de documentación; el cambio también se refleja al volver al panel.
+- Swagger UI hereda paleta, superficies, bordes y tipografía compatibles con la interfaz principal.
+
+## 2026.08.17-portable-oci-api-v1-8082-ui1
+
+- Swagger `/docs` recibe una cabecera SATyS, navegación al panel, ReDoc/OpenAPI y estilos responsivos.
+- El dashboard añade botón **API Docs** en la cabecera.
+- La ruta `/` deja de aparecer como endpoint de API en OpenAPI.
+- Documentación agrupada con descripciones por tags.
+- Podman rootless permite `SATYS_API_BIND` y `SATYS_API_NETWORK`; perfil RHEL usa `slirp4netns:enable_ipv6=false`.
+- Build Podman usa formato Docker para conservar `HEALTHCHECK`.
+- Se incorpora el aislamiento correcto del test de `SATYS_API_ALLOW_MANUAL`.
+
 # Changelog
 
 ## [2026.08.17-portable-oci-api-v1-8082]

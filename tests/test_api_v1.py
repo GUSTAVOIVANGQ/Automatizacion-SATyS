@@ -1,5 +1,6 @@
 import os
 import unittest
+from unittest.mock import patch
 
 os.environ.setdefault("SATYS_API_ALLOW_MANUAL", "0")
 os.environ.setdefault("SATYS_API_ALLOW_REPAIR", "0")
@@ -45,13 +46,30 @@ class ApiV1Tests(unittest.TestCase):
             self.assertEqual(response.json()["code"], "not_found")
 
     def test_manual_disabled_returns_standard_error(self):
-        response = self.client.post(
-            "/api/v1/manual/procesar",
-            files={"archivo": ("registros.txt", b"CRT26-000001\n", "text/plain")},
-            data={"tipo_txt": "registros", "workers": "1", "headless": "true"},
-        )
+        with patch.dict(os.environ, {"SATYS_API_ALLOW_MANUAL": "0"}):
+            response = self.client.post(
+                "/api/v1/manual/procesar",
+                files={"archivo": ("registros.txt", b"CRT26-000001\n", "text/plain")},
+                data={"tipo_txt": "registros", "workers": "1", "headless": "true"},
+            )
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json()["code"], "forbidden")
+
+    def test_dashboard_links_to_api_docs(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('href="/docs"', response.text)
+        self.assertIn("API Docs", response.text)
+
+    def test_custom_docs_ui(self):
+        response = self.client.get("/docs")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("docs-appbar", response.text)
+        self.assertIn("Documentación para desarrolladores", response.text)
+        self.assertIn("swagger-ui", response.text)
+        self.assertIn('/static/docs-theme.js', response.text)
+        self.assertIn('id="docs-theme-toggle"', response.text)
+        self.assertIn("localStorage.getItem('theme')", response.text)
 
     def test_validation_error_is_standardized(self):
         response = self.client.post("/api/v1/timer/hora", json={})

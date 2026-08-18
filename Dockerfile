@@ -3,6 +3,11 @@ ARG PLAYWRIGHT_VERSION=1.57.0
 FROM mcr.microsoft.com/playwright/python:v${PLAYWRIGHT_VERSION}-noble AS builder
 WORKDIR /build
 COPY requirements-linux.lock.txt ./
+# La imagen oficial de Playwright para Ubuntu Noble no incluye ensurepip/venv.
+# Instalamos el paquete venv de la misma versión de Python antes de crear el entorno.
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3.12-venv \
+ && rm -rf /var/lib/apt/lists/*
 RUN python -m venv /opt/satys-venv \
  && /opt/satys-venv/bin/python -m pip install --upgrade pip \
  && /opt/satys-venv/bin/pip install --no-cache-dir -r requirements-linux.lock.txt

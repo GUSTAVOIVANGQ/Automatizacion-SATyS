@@ -1,6 +1,16 @@
+
+## Interfaces de documentación
+
+- Panel operativo: `/`
+- Swagger UI: `/docs`
+- ReDoc: `/redoc`
+- Esquema OpenAPI: `/openapi.json`
+
+El panel incluye un botón **API Docs** que abre Swagger UI. Las rutas son relativas para funcionar igual en localhost, Docker/Podman o un servidor nuevo.
+
 # API SATyS v1
 
-Versión documentada: `2026.08.17-portable-oci-api-v1-8082`.
+Versión documentada: `2026.08.17-portable-oci-api-v1-8082-ui2`.
 
 Base local: `http://127.0.0.1:8082`. En producción, los consumidores externos deben entrar por el HTTPS institucional publicado por nginx; el proceso Uvicorn no se expone directamente a la red.
 
@@ -52,7 +62,7 @@ curl -sS http://127.0.0.1:8082/api/v1/version
 Respuesta 200:
 
 ```json
-{"version":"2026.08.17-portable-oci-api-v1-8082","git_commit":"<sha-o-unknown>","git_source":"environment|manifest|git|unknown"}
+{"version":"2026.08.17-portable-oci-api-v1-8082-ui2","git_commit":"<sha-o-unknown>","git_source":"environment|manifest|git|unknown"}
 ```
 
 Errores: 500 ante fallo interno. Alias: `GET /api/version`.

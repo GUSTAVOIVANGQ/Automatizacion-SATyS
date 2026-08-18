@@ -1,10 +1,10 @@
 {
   "product": "Automatizacion-SATyS",
-  "version": "2026.08.17-portable-oci-api-v1-8082",
+  "version": "2026.08.17-portable-oci-api-v1-8082-ui2",
   "git_commit": "unknown",
-  "created_utc": "2026-08-17T22:41:15.859250+00:00",
+  "created_utc": "2026-08-18T01:02:28.789881+00:00",
   "contains_secrets": false,
-  "file_count": 114,
+  "file_count": 119,
   "files": [
     {
       "path": ".dockerignore",
@@ -13,8 +13,8 @@
     },
     {
       "path": ".env.example",
-      "bytes": 770,
-      "sha256": "4b375b8a8d759471298fd02a5caf811397596b7febdcbe6c276d20d7fc936ecf"
+      "bytes": 847,
+      "sha256": "e7285a4ea25e43228559fbb4a0b8216c0321a4117868862ada0a57806671976b"
     },
     {
       "path": ".github/workflows/ci.yml",
@@ -37,9 +37,19 @@
       "sha256": "4f7deb3b4c154b9a5ef647a28720a5ae4bb788c0e989d36cb9ac8ef39fb859fd"
     },
     {
+      "path": "BUILD_FIX2_20260817.md",
+      "bytes": 667,
+      "sha256": "5a839ee07c894831e9a76c1e27c456294ae1bae8cabff610fffc97b144af57fd"
+    },
+    {
+      "path": "BUILD_FIX_20260817.md",
+      "bytes": 339,
+      "sha256": "0962d308e4bfa27c3d33de3ce0d6f63e1efa0e732d28a9b39d6d7b2d40c965c1"
+    },
+    {
       "path": "CHANGELOG.md",
-      "bytes": 2694,
-      "sha256": "46c7f08259b55d88e882dadd7e6e0d3ebe975e7b050a1409510b6e64499e6cb1"
+      "bytes": 3761,
+      "sha256": "4097b2ca99c3512dd123f72a80a3eea75f0345f0ce95b9001f9c700c6e2c708d"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -68,13 +78,18 @@
     },
     {
       "path": "DESPLIEGUE_NUEVO.md",
-      "bytes": 2514,
-      "sha256": "cca5fcdad0b0db973adee74d5bfa8c136ec645fbe12ce9c4e5385ee7646444c3"
+      "bytes": 2518,
+      "sha256": "b5c1950e19380662bd5ea7696652928ae38383fb9e44a302bff6b205434f40b8"
+    },
+    {
+      "path": "DESPLIEGUE_UI2_8082.md",
+      "bytes": 1878,
+      "sha256": "574cdef937a6778130a80dae3aa16453f3e04268a54c6e0dd03e365dfe7c7b28"
     },
     {
       "path": "Dockerfile",
-      "bytes": 1363,
-      "sha256": "6a7cd8d9ff6befb035a4fb4b177d154837313ded62168358cc943b8563d56920"
+      "bytes": 1678,
+      "sha256": "61b03c5fc4fa15768c8e64d2ecfa1c4ae66e30a9a7d7874ed07977ac9058498a"
     },
     {
       "path": "INSTRUCCIONES_DESPLIEGUE_EMAIL_SATYS.md",
@@ -113,13 +128,13 @@
     },
     {
       "path": "QUICKSTART_PORTABLE.md",
-      "bytes": 2368,
-      "sha256": "c3b2a62e2942a43128d707aae18364b6014e6aac9f186ec31509514f5a30a0c4"
+      "bytes": 2372,
+      "sha256": "eb6dc4a0facabbba095e14cbd41f4500d9adca147595188e1b9d76ae0bb8204e"
     },
     {
       "path": "README.md",
-      "bytes": 26050,
-      "sha256": "64921115a4a1d93c5679c3d6f25a51203d4031471c62aa087d04d80ce60e7204"
+      "bytes": 26054,
+      "sha256": "1f095db8ae2700789b74bc2ee0e3661f185b196a49aa2b679a11fdf391d35143"
     },
     {
       "path": "README_BACKEND_LINUX.md",
@@ -153,8 +168,8 @@
     },
     {
       "path": "VERSION",
-      "bytes": 36,
-      "sha256": "a0aea80f6db794efff30f5c13dc7c9cbedf31368d4ee4e12ce99abd9bbf4ac22"
+      "bytes": 40,
+      "sha256": "d6a96e45979a0431ebed8d68b149a32a05366d27708770e57456cdf96f26e4b9"
     },
     {
       "path": "api_models.py",
@@ -193,13 +208,13 @@
     },
     {
       "path": "deploy/satys.env.example",
-      "bytes": 392,
-      "sha256": "62bc1f5b3f986c5488559cb3deaad899a0e496d25e527f327917cc1a7fe68352"
+      "bytes": 469,
+      "sha256": "3ac6fd031ccb05b6aff3dd2a80ad166aa3482c1bdd378d8fa60f7b69131c33c1"
     },
     {
       "path": "deploy/srvmbcudaqa01.env.example",
-      "bytes": 724,
-      "sha256": "3cfc187c0c5dc59051a480bff31f84902c9a2289926389f7c96c7d38d830ddaa"
+      "bytes": 799,
+      "sha256": "14b041f980ddc04aed0c48843aa319a34c1761ac795a9050609a6755ad22f09b"
     },
     {
       "path": "descargar_concesiones_rpc.py",
@@ -208,13 +223,13 @@
     },
     {
       "path": "docker-compose.yml",
-      "bytes": 2160,
-      "sha256": "1b1d89b38779752477feff6f0ed53eca51acae224f477514b1cc1af284c2cae0"
+      "bytes": 2187,
+      "sha256": "3c25155dc5436237bff75ff3ca187fbf0f52b266de1e2d1997a8a241b918bd74"
     },
     {
       "path": "docs/API.md",
-      "bytes": 13874,
-      "sha256": "5dec2c797779805a7cdaa065429cea480f329745e969b3335cc0f67bc52ddad6"
+      "bytes": 14171,
+      "sha256": "791fa0594b2e71f886fdea70f11df1f277a813c078442be90b6541096ea584f2"
     },
     {
       "path": "docs/ARQUITECTURA.md",
@@ -223,8 +238,8 @@
     },
     {
       "path": "docs/BACKLOG_IMPLEMENTACION.md",
-      "bytes": 5007,
-      "sha256": "9222bbdf6fadee02eaa5824fa1146b26da41067cf703590ef3c202b45d193c18"
+      "bytes": 5011,
+      "sha256": "aa007bab017a128fad596b24b2b0a7130846878682afc8b830d20e0e76b7515d"
     },
     {
       "path": "docs/BACKLOG_PRODUCCION_SATYS.md",
@@ -313,13 +328,13 @@
     },
     {
       "path": "requirements-linux.in",
-      "bytes": 288,
-      "sha256": "93fd1df54c1ca5cf30499919792e9ca22aafb2f27ca87def8c4f6fdd0b9ac885"
+      "bytes": 375,
+      "sha256": "d9a81cc1d843c5bccb76f760233765dee82bb48809f80ccc46a6ebcb23f23f85"
     },
     {
       "path": "requirements-linux.lock.txt",
-      "bytes": 837,
-      "sha256": "c2bac515ed93eee74772eea606fb012df0bdcf206947c220e26b30c22012afb1"
+      "bytes": 882,
+      "sha256": "02a6d4f7db5c4d649aa5df0f1c4a252c3d6f192dfe5b8d52b274192dbb4f1980"
     },
     {
       "path": "requirements-linux.txt",
@@ -338,8 +353,8 @@
     },
     {
       "path": "satys_api.py",
-      "bytes": 48376,
-      "sha256": "e3726729c90b09ad77800093ea29c578a85d7879394b3c182592058a15d0c670"
+      "bytes": 51763,
+      "sha256": "375cbc869a003ffdfc58fa65db70b886bf48175144db96be63aac7c9a1f890fc"
     },
     {
       "path": "scripts/actualizar_lock.sh",
@@ -413,8 +428,8 @@
     },
     {
       "path": "scripts/podman_satys.sh",
-      "bytes": 4112,
-      "sha256": "36211f4cd1b275230751df52026e7a111d41545572c45f3da60900af3af81150"
+      "bytes": 4245,
+      "sha256": "bc66e5b7e22eeebfdb4a126de1cb6cb5d7a13813933ebad27b297a6a57b90e6a"
     },
     {
       "path": "scripts/preflight_despliegue.sh",
@@ -513,13 +528,13 @@
     },
     {
       "path": "tests/test_api_8082_security.py",
-      "bytes": 2414,
-      "sha256": "22cf449f550fbf5733154a5235db39ba5caefe05d8f45651e9363a1dadc6fe04"
+      "bytes": 2433,
+      "sha256": "45f709c90cb329836dc2763b93c3a1294c40f3cbf720973157f963109ef6d86d"
     },
     {
       "path": "tests/test_api_v1.py",
-      "bytes": 2413,
-      "sha256": "2c8f097ae1e3779dad270f816015620b91897ddd6efcc569af6ae7c7c2936387"
+      "bytes": 3284,
+      "sha256": "6102db85eb9413dd45c04149e12d05d5d3a09f62927d03aa118756ddaf1184f6"
     },
     {
       "path": "tests/test_ejecucion_diaria_unica.sh",
@@ -538,8 +553,8 @@
     },
     {
       "path": "tests/test_portable_deployment.py",
-      "bytes": 2562,
-      "sha256": "7b77628110b5af0d688d9f76a76a02348dc953f839a339405c46bc3395e6fc8c"
+      "bytes": 2714,
+      "sha256": "9bc468f15680378ddb45c4ddc2194d4c837bb64c28016f7baf07f78535649325"
     },
     {
       "path": "tests/test_reintentos_extraccion_satys.py",
@@ -553,13 +568,23 @@
     },
     {
       "path": "tests/test_rutas_y_reconciliacion.py",
-      "bytes": 4327,
-      "sha256": "a5bb8d19ab9093aee1c693d582992cdcee42813430fc1abe5d0441430092853d"
+      "bytes": 4571,
+      "sha256": "3df4261120342b1609272eb26284dde95d48b8d5c9f1a471f05b41f202895ec9"
     },
     {
       "path": "web/static/app.js",
       "bytes": 21847,
       "sha256": "390f1b2754438e2bf19a072964198c206c3c3dd77f8c86c3f8ba73ba84a6f3d9"
+    },
+    {
+      "path": "web/static/docs-theme.js",
+      "bytes": 1790,
+      "sha256": "5ef7da7f8fe27276d99961cc7f159ed8f6c9ba6e49087ce2294fcc7133de79a0"
+    },
+    {
+      "path": "web/static/docs.css",
+      "bytes": 10400,
+      "sha256": "63bcb16dbdb6bb7be94732985ec19c2311b571828735d627a8bea7d93d76553a"
     },
     {
       "path": "web/static/logo_satys_crt.png",
@@ -573,8 +598,8 @@
     },
     {
       "path": "web/templates/index.html",
-      "bytes": 14929,
-      "sha256": "d350000e38152338b79c6df9662d72a9f4a8e12509712651082ca2fe533b57bf"
+      "bytes": 15072,
+      "sha256": "56ce22740eba32e0f97c7ba148f25383413c4b1c1188f3937fee2f600203cace"
     }
   ]
 }

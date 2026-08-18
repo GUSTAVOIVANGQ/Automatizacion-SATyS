@@ -1,12 +1,12 @@
 name: satys
 
 x-satys-common: &satys-common
-  image: ${SATYS_IMAGE:-satys-api:2026.08.17-portable-oci-api-v1-8082}
+  image: ${SATYS_IMAGE:-satys-api:2026.08.17-portable-oci-api-v1-8082-ui2}
   build:
     context: .
     args:
       PLAYWRIGHT_VERSION: "1.57.0"
-      SATYS_VERSION: "2026.08.17-portable-oci-api-v1-8082"
+      SATYS_VERSION: "2026.08.17-portable-oci-api-v1-8082-ui2"
       SATYS_GIT_COMMIT: ${SATYS_GIT_COMMIT:-unknown}
   environment:
     TZ: ${SATYS_TZ:-America/Mexico_City}
@@ -46,7 +46,7 @@ services:
     <<: *satys-common
     restart: unless-stopped
     ports:
-      - "127.0.0.1:${SATYS_API_PORT:-8082}:8082"
+      - "${SATYS_API_BIND:-127.0.0.1}:${SATYS_API_PORT:-8082}:8082"
     command: ["uvicorn", "satys_api:app", "--host", "0.0.0.0", "--port", "8082", "--proxy-headers"]
 
   satys-worker:

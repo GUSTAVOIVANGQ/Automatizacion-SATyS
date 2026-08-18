@@ -30,9 +30,9 @@ class Api8082SecurityTests(unittest.TestCase):
         self.assertIn("debug_html/", gitignore)
         self.assertTrue((ROOT / "web" / "templates" / "index.html").is_file())
 
-    def test_docker_compose_binds_only_loopback_and_mounts_runtime_secret(self):
+    def test_docker_compose_defaults_to_loopback_and_allows_explicit_bind(self):
         text = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
-        self.assertIn('"127.0.0.1:${SATYS_API_PORT:-8082}:8082"', text)
+        self.assertIn('"${SATYS_API_BIND:-127.0.0.1}:${SATYS_API_PORT:-8082}:8082"', text)
         self.assertIn('${SATYS_CONFIG_HOST_FILE:-./config/configuracion_local.json}:/app/config/configuracion_local.json:ro', text)
         self.assertIn('user: "${SATYS_UID:-10001}:${SATYS_GID:-10001}"', text)
         self.assertIn('SATYS_SHARED_HOST_DIR', text)

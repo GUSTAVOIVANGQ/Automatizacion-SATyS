@@ -1,6 +1,6 @@
 # Estado de implementación del backlog de producción SATyS
 
-Versión: `2026.08.17-portable-oci-api-v1-8082`.
+Versión: `2026.08.17-portable-oci-api-v1-8082-ui2`.
 
 Este documento sirve como trazabilidad entre `BACKLOG_PRODUCCION_SATYS.md` y el código de la release.
 

@@ -9,6 +9,8 @@ set -a; source .env; set +a
 VERSION="$(tr -d '\r\n' < VERSION)"
 IMAGE="${SATYS_IMAGE:-satys-api:$VERSION}"
 PORT="${SATYS_API_PORT:-8082}"
+BIND="${SATYS_API_BIND:-127.0.0.1}"
+API_NETWORK="${SATYS_API_NETWORK:-slirp4netns:enable_ipv6=false}"
 RUNTIME="${SATYS_RUNTIME_DIR:-./runtime}"
 SHARED="${SATYS_SHARED_HOST_DIR:-$RUNTIME/shared}"
 CONFIG="${SATYS_CONFIG_HOST_FILE:-./config/configuracion_local.json}"
@@ -59,7 +61,7 @@ common=(
 cmd="${1:-help}"; shift || true
 case "$cmd" in
   build)
-    exec podman build \
+    exec podman build --format docker \
       --build-arg PLAYWRIGHT_VERSION=1.57.0 \
       --build-arg "SATYS_VERSION=$VERSION" \
       --build-arg "SATYS_GIT_COMMIT=${SATYS_GIT_COMMIT:-unknown}" \
@@ -67,11 +69,11 @@ case "$cmd" in
     ;;
   api-up)
     podman rm -f satys-api >/dev/null 2>&1 || true
-    podman run -d --name satys-api "${common[@]}" -p "127.0.0.1:$PORT:8082" \
+    podman run -d --name satys-api "${common[@]}" --network "$API_NETWORK" -p "$BIND:$PORT:8082" \
       "$IMAGE" uvicorn satys_api:app --host 0.0.0.0 --port 8082 --proxy-headers >/dev/null
     for _ in $(seq 1 30); do
       if curl --fail --silent --max-time 3 "http://127.0.0.1:$PORT/api/health" >/dev/null; then
-        echo "API SATyS OK en 127.0.0.1:$PORT"; exit 0
+        echo "API SATyS OK en $BIND:$PORT"; exit 0
       fi
       sleep 2
     done
@@ -104,7 +106,7 @@ case "$cmd" in
     cat <<EOF
 Uso: scripts/podman_satys.sh COMANDO
   build      Construir imagen OCI
-  api-up     Levantar API en 127.0.0.1:${PORT}
+  api-up     Levantar API en ${BIND}:${PORT}
   api-down   Detener API
   status     Estado del contenedor API
   logs       Logs en vivo

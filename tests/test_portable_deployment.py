@@ -20,7 +20,7 @@ class PortableDeploymentTests(unittest.TestCase):
         self.assertIn("SATYS_RUNTIME_DIR", text)
         self.assertIn("SATYS_SHARED_HOST_DIR", text)
         self.assertIn("SATYS_CONFIG_HOST_FILE", text)
-        self.assertIn('127.0.0.1:${SATYS_API_PORT:-8082}:8082', text)
+        self.assertIn('${SATYS_API_BIND:-127.0.0.1}:${SATYS_API_PORT:-8082}:8082', text)
 
     def test_example_config_is_portable(self):
         data = json.loads((ROOT / "config" / "configuracion_local.example.json").read_text(encoding="utf-8"))
@@ -51,6 +51,8 @@ print("OK")
         text = (ROOT / "deploy" / "srvmbcudaqa01.env.example").read_text(encoding="utf-8")
         self.assertIn("SATYS_RUNTIME_DIR=/data/gustavo.garcia/satys/Automatizacion-SATyS", text)
         self.assertIn("SATYS_SHARED_HOST_DIR=/depi/dgp/DEI_DATOS/SATyS", text)
+        self.assertIn("SATYS_API_BIND=0.0.0.0", text)
+        self.assertIn("SATYS_API_NETWORK=slirp4netns:enable_ipv6=false", text)
         self.assertNotIn("password=", text.lower())
         self.assertNotIn("app_password=", text.lower())
 

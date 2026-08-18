@@ -1,6 +1,6 @@
 # SATyS — Quickstart portable
 
-Versión: `2026.08.17-portable-oci-api-v1-8082`
+Versión: `2026.08.17-portable-oci-api-v1-8082-ui2`
 
 ## Objetivo
 

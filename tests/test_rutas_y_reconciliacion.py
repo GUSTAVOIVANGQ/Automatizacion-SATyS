@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from reconciliar_metadata_global import construir_resultados
 from rutas_salida import carpeta_sin_operador, ruta_relativa_sin_operador
@@ -102,9 +104,13 @@ class RutasSalidaTests(unittest.TestCase):
             self.assertEqual(stats["metadata"], 1)
 
     def test_bloquea_depi_local_sin_montaje(self):
-        # En el entorno de pruebas /depi no es un CIFS montado; debe impedirse
-        # escribir allí para evitar un falso éxito de sincronización.
-        self.assertIsNotNone(validar_destino_compartido(Path("/depi/satys_mount_inexistente/SATyS")))
+        # Este test valida explícitamente el modo seguro por defecto. El runtime
+        # portable usa SATYS_REQUIRE_SHARED_MOUNT=0 porque /shared ya es un bind
+        # mount validado por el host; esa variable no debe contaminar esta prueba.
+        with patch.dict(os.environ, {"SATYS_REQUIRE_SHARED_MOUNT": "1"}):
+            self.assertIsNotNone(
+                validar_destino_compartido(Path("/depi/satys_mount_inexistente/SATyS"))
+            )
 
 
 if __name__ == "__main__":

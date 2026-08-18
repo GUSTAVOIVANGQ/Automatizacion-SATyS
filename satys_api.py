@@ -31,6 +31,7 @@ from typing import Any
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -78,10 +79,20 @@ OUTPUT_DIR = PROJECT_DIR / "output"
 DESCARGAS_DIR = PROJECT_DIR / "descargas"
 REGISTROS_DIR = PROJECT_DIR / "registros_diarios"
 
+OPENAPI_TAGS = [
+    {"name": "estado", "description": "Salud, versión, configuración, estado vivo, resumen y logs de la automatización."},
+    {"name": "timer", "description": "Consulta y administración controlada de la programación diaria."},
+    {"name": "corridas", "description": "Inicio y seguimiento de procesos diarios o manuales."},
+    {"name": "reparación", "description": "Herramientas para reparar id_solicitante y reanudar trabajos con checkpoint."},
+    {"name": "descargas", "description": "Descarga de Excel, output, logs, resúmenes y archivos por Registro."},
+]
+
 app = FastAPI(
     title="SATyS CRT API",
     version="1.0.0",
     description="API operativa de la automatización SATyS CRT. Ruta canónica: /api/v1.",
+    docs_url=None,
+    openapi_tags=OPENAPI_TAGS,
 )
 
 for folder in (LOGS_DIR, RUNS_DIR, EXPORTS_DIR):
@@ -709,12 +720,75 @@ def _zip_paths(paths: list[Path], prefix: str) -> Path:
     return zip_path
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
 def index():
     index_path = TEMPLATES_DIR / "index.html"
     if not index_path.exists():
         return HTMLResponse("<h1>SATyS CRT</h1><p>No existe web/templates/index.html</p>", status_code=200)
     return HTMLResponse(index_path.read_text(encoding="utf-8"))
+
+
+@app.get("/docs", response_class=HTMLResponse, include_in_schema=False)
+def api_docs():
+    """Swagger UI con navegación y estilo visual consistente con el panel SATyS."""
+    response = get_swagger_ui_html(
+        openapi_url=app.openapi_url,
+        title="SATyS CRT — Documentación API",
+        swagger_ui_parameters={
+            "docExpansion": "none",
+            "defaultModelsExpandDepth": -1,
+            "displayRequestDuration": True,
+            "filter": True,
+            "persistAuthorization": True,
+        },
+    )
+    html = response.body.decode("utf-8")
+    # Apply the dashboard theme before the stylesheet is painted to avoid a
+    # dark/light flash. The panel and /docs share localStorage key "theme".
+    theme_bootstrap = """<script>
+(function(){
+  try {
+    if (localStorage.getItem('theme') === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+  } catch (_) {}
+})();
+</script>"""
+    html = html.replace(
+        "</head>",
+        theme_bootstrap + '<link rel="stylesheet" href="/static/docs.css"><script defer src="/static/docs-theme.js"></script></head>',
+    )
+    docs_header = """
+<header class="docs-appbar">
+  <a class="docs-brand" href="/" aria-label="Volver al panel SATyS">
+    <img src="/static/logo_satys_crt.png" alt="CRT SATyS">
+    <span><strong>SATyS CRT</strong><small>Documentación API · /api/v1</small></span>
+  </a>
+  <nav class="docs-actions" aria-label="Navegación de documentación">
+    <a class="docs-btn docs-btn-primary" href="/">← Panel</a>
+    <button class="docs-btn docs-theme-btn" id="docs-theme-toggle" type="button" title="Cambiar tema" aria-label="Cambiar tema"><span class="docs-theme-icon" aria-hidden="true">☾</span><span class="docs-theme-label">Tema oscuro</span></button>
+    <a class="docs-btn" href="/redoc">ReDoc</a>
+    <a class="docs-btn" href="/openapi.json">OpenAPI JSON</a>
+  </nav>
+</header>
+<main class="docs-page">
+  <section class="docs-hero">
+    <div>
+      <span class="docs-kicker">SATyS · API OPERATIVA</span>
+      <h1>Documentación para desarrolladores</h1>
+      <p>Consulta contratos, parámetros y respuestas de la API v1. Usa <strong>Try it out</strong> sólo cuando conozcas el efecto operativo del endpoint.</p>
+    </div>
+    <div class="docs-meta">
+      <span>FastAPI</span><span>OpenAPI 3.1</span><span>v1.0.0</span>
+    </div>
+  </section>
+  <section class="docs-swagger-card">
+"""
+    html = html.replace("<body>", "<body>" + docs_header, 1)
+    html = html.replace("</body>", "  </section>\n</main>\n</body>", 1)
+    return HTMLResponse(html)
 
 
 @app.get("/api/health", include_in_schema=False)

@@ -230,7 +230,7 @@ El modo predeterminado vuelve a consultar SATyS únicamente para completar el me
 - El bloqueo del proyecto impide que la corrida diaria, una corrida manual y el reparador modifiquen simultáneamente los mismos archivos.
 
 
-> Release actual: `2026.08.17-portable-oci-api-v1-8082`.
+> Release actual: `2026.08.17-portable-oci-api-v1-8082-ui2`.
 > Guía de despliegue nuevo: [`DESPLIEGUE_NUEVO.md`](DESPLIEGUE_NUEVO.md).
 > Trazabilidad del backlog: [`docs/BACKLOG_IMPLEMENTACION.md`](docs/BACKLOG_IMPLEMENTACION.md).
 
