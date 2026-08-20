@@ -16,6 +16,7 @@ import extraer_registros_documentos as extractor
 import main_procesar
 import Parte1_descarga
 import Parte4_excel
+import estado_descargas
 
 
 class InternosDiarioTest(unittest.TestCase):
@@ -26,7 +27,7 @@ class InternosDiarioTest(unittest.TestCase):
     def tearDown(self):
         self.tmp_ctx.cleanup()
 
-    def test_objetivos_conservan_primera_bandeja_y_se_comparten_entre_etapas(self):
+    def test_objetivos_conservan_cada_pareja_bandeja_folio_entre_etapas(self):
         resumen = {
             "por_bandeja": [
                 {"bandeja": "En proceso", "folios": ["148326", "147390"]},
@@ -39,6 +40,7 @@ class InternosDiarioTest(unittest.TestCase):
         )
         self.assertEqual(objetivos, [
             {"bandeja": "En proceso", "folio": "148326"},
+            {"bandeja": "Atendidos", "folio": "148326"},
             {"bandeja": "Atendidos", "folio": "190823"},
         ])
 
@@ -46,6 +48,134 @@ class InternosDiarioTest(unittest.TestCase):
         monitor.guardar_objetivos_internos(path, objetivos)
         self.assertEqual(main_procesar.cargar_objetivos_internos(path), objetivos)
         self.assertEqual(Parte1_descarga._cargar_objetivos_internos(path), objetivos)
+
+    def test_auditoria_internos_exige_metadata_y_todos_los_archivos(self):
+        carpeta = self.tmp / "descargas" / "internos" / "atendidos" / "190823"
+        carpeta.mkdir(parents=True)
+        (carpeta / "documento_1.pdf").write_bytes(b"pdf-1")
+        (carpeta / "documento_2.csv").write_bytes(b"csv-2")
+        metadata = {
+            "folio": "CRT26-000001",
+            "estado": "OK",
+            "coincide": True,
+            "total_archivos_encontrados": 2,
+            "total_archivos_ok": 2,
+            "total_archivos_error": 0,
+            "metadatos_satys": {
+                "bandeja_internos": "Atendidos",
+                "folio_tabla_internos": "190823",
+            },
+            "archivos": [
+                {"archivo": "documento_1.pdf", "ok": True},
+                {"archivo": "documento_2.csv", "ok": True},
+            ],
+        }
+        (carpeta / "metadata_completo.json").write_text(
+            json.dumps(metadata),
+            encoding="utf-8",
+        )
+
+        self.assertTrue(estado_descargas.objetivo_internos_esta_completo(
+            self.tmp / "descargas", "Atendidos", "190823"
+        ))
+        (carpeta / "documento_2.csv").unlink()
+        self.assertFalse(estado_descargas.objetivo_internos_esta_completo(
+            self.tmp / "descargas", "Atendidos", "190823"
+        ))
+
+    def test_auditoria_internos_reintenta_zip_residual(self):
+        carpeta = self.tmp / "descargas" / "internos" / "fuera_de_tiempo" / "121195"
+        carpeta.mkdir(parents=True)
+        (carpeta / "pendiente.zip").write_bytes(b"zip-incompleto")
+        metadata = {
+            "folio": "121195",
+            "estado": "OK",
+            "coincide": True,
+            "total_archivos_encontrados": 1,
+            "total_archivos_ok": 1,
+            "total_archivos_error": 0,
+            "metadatos_satys": {
+                "bandeja_internos": "Fuera de tiempo",
+                "folio_tabla_internos": "121195",
+            },
+            "archivos": [{"archivo": "pendiente.zip", "ok": True}],
+        }
+        (carpeta / "metadata_completo.json").write_text(
+            json.dumps(metadata),
+            encoding="utf-8",
+        )
+
+        self.assertFalse(estado_descargas.objetivo_internos_esta_completo(
+            self.tmp / "descargas", "Fuera de tiempo", "121195"
+        ))
+
+    def test_metadata_distingue_documentos_portal_de_archivos_extraidos_del_zip(self):
+        carpeta = self.tmp / "zip_expandido"
+        resultados = [
+            {
+                "archivo": f"miembro_{indice}.csv",
+                "ok": True,
+                "indice_documento_portal": 1,
+                "total_documentos_portal": 1,
+            }
+            for indice in range(3)
+        ]
+
+        metadata = Parte1_descarga.guardar_metadata_completo(
+            "190823", "190823", carpeta,
+            {"bandeja_internos": "Atendidos", "folio_tabla_internos": "190823"},
+            {}, resultados, "INTERNOS_DOCUMENTOS_ANEXOS",
+        )
+
+        self.assertEqual(metadata["estado"], "OK")
+        self.assertEqual(metadata["total_archivos_ok"], 3)
+        self.assertEqual(metadata["total_documentos_portal"], 1)
+        self.assertEqual(metadata["total_documentos_portal_ok"], 1)
+        self.assertTrue(metadata["documentos_portal_completos"])
+
+    def test_metadata_marca_parcial_si_no_recorrio_todos_los_documentos_portal(self):
+        carpeta = self.tmp / "conteo_incompleto"
+        resultados = [{
+            "archivo": "documento_1.pdf",
+            "ok": True,
+            "indice_documento_portal": 1,
+            "total_documentos_portal": 2,
+        }]
+
+        metadata = Parte1_descarga.guardar_metadata_completo(
+            "190823", "190823", carpeta,
+            {"bandeja_internos": "Atendidos", "folio_tabla_internos": "190823"},
+            {}, resultados, "INTERNOS_DOCUMENTOS_ANEXOS",
+        )
+
+        self.assertEqual(metadata["estado"], "PARCIAL")
+        self.assertFalse(metadata["coincide"])
+        self.assertFalse(metadata["documentos_portal_completos"])
+
+    def test_clasificacion_internos_no_usa_excel_y_mantiene_bandejas(self):
+        resumen = {
+            "por_bandeja": [
+                {"bandeja": "En proceso", "folios": ["148326"]},
+                {"bandeja": "Atendidos", "folios": ["148326"]},
+                {"bandeja": "Fuera de tiempo", "folios": ["148326"]},
+            ]
+        }
+        with patch.object(
+            monitor,
+            "objetivo_internos_esta_completo",
+            side_effect=lambda _base, bandeja, _folio: bandeja == "En proceso",
+        ):
+            inventario, completos, pendientes = monitor.clasificar_objetivos_internos(
+                resumen,
+                self.tmp / "descargas",
+            )
+
+        self.assertEqual(len(inventario), 3)
+        self.assertEqual(completos, [{"bandeja": "En proceso", "folio": "148326"}])
+        self.assertEqual(pendientes, [
+            {"bandeja": "Atendidos", "folio": "148326"},
+            {"bandeja": "Fuera de tiempo", "folio": "148326"},
+        ])
 
     def test_extractores_reconocen_modo_solo_internos(self):
         with patch.object(sys, "argv", ["extraer_registros_documentos.py", "--solo-internos"]):

@@ -1,12 +1,12 @@
 name: satys
 
 x-satys-common: &satys-common
-  image: ${SATYS_IMAGE:-satys-api:2026.08.18-portable-oci-api-v1-8082-internos12}
+  image: ${SATYS_IMAGE:-satys-api:2026.08.20-portable-oci-api-v1-8082-internos-audit1}
   build:
     context: .
     args:
       PLAYWRIGHT_VERSION: "1.57.0"
-      SATYS_VERSION: "2026.08.18-portable-oci-api-v1-8082-internos12"
+      SATYS_VERSION: "2026.08.20-portable-oci-api-v1-8082-internos-audit1"
       SATYS_GIT_COMMIT: ${SATYS_GIT_COMMIT:-unknown}
   environment:
     TZ: ${SATYS_TZ:-America/Mexico_City}

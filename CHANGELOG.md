@@ -1,4 +1,22 @@
-# 2026.08.18-portable-oci-api-v1-8082-internos12
+# 2026.08.20-portable-oci-api-v1-8082-internos-audit1
+
+- Cambia la unidad de conciliación de Internos de Folio único a
+  `(bandeja, folio)`, conservando las apariciones repetidas entre las seis
+  bandejas y creando una carpeta auditable por cada pareja.
+- Reintenta objetivos con carpeta vacía, metadata parcial, ZIP residual o
+  cualquier archivo físico faltante respecto de `metadata_completo.json`.
+- Registra y concilia por separado documentos reportados por el portal y
+  archivos expandidos desde ZIP; una discrepancia de paginación ya no puede
+  terminar como descarga completa.
+- Serializa la escritura de `TrámitesCRT.xlsx` entre workers y soporta el
+  `EBUSY` de archivos montados individualmente dentro de Linux/OCI sin ocultar
+  otros errores de sistema.
+- `--no-procesar` genera un inventario rápido y omite la resincronización
+  completa de `descargas/` hacia DEPI.
+- En la corrida diaria, Internos se procesa antes que Oficialía para que una
+  conciliación masiva de varias horas no vuelva a posponer sus descargas.
+
+## 2026.08.18-portable-oci-api-v1-8082-internos12
 
 - Eleva a 12 los navegadores predeterminados de Internos y elimina los topes
   artificiales en CLI, configuración, smoke tests y preflight de servidor.

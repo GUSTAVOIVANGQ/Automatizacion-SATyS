@@ -13,7 +13,6 @@ Objetivos:
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import shutil
 from datetime import datetime
@@ -21,6 +20,8 @@ from pathlib import Path
 from typing import Any
 
 import openpyxl
+
+from guardado_seguro import reemplazar_desde_temporal
 
 REGISTRO_RE = re.compile(r"^CRT\d{2}-\d+$", re.IGNORECASE)
 FORMATO_RE = re.compile(r"\bR(?:0(?:0[1-9]|1\d|2[0-7]))\b", re.IGNORECASE)
@@ -268,7 +269,7 @@ def reconciliar(
     temp_path = tramites_path.with_name(f".{tramites_path.name}.tmp")
     wb_t.save(temp_path)
     wb_t.close()
-    os.replace(temp_path, tramites_path)
+    reemplazar_desde_temporal(temp_path, tramites_path)
 
     valid_final = len(source_rows) + len(target_only)
     routes_blank = sum(1 for item in source_rows if not _ruta_desde_output(item.get("output")))

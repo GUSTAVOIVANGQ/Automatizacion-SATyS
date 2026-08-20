@@ -20,14 +20,17 @@ import os
 import re
 import shutil
 import logging
+import threading
 import traceback
 import unicodedata
+from functools import wraps
 from copy import copy
 from difflib import SequenceMatcher
 from pathlib import Path
 from datetime import datetime
 
 from configuracion_local import carpeta_compartida, ruta_configurada
+from guardado_seguro import reemplazar_desde_temporal
 
 # Forzar UTF-8 (solo si no está ya configurado)
 if hasattr(sys.stdout, "buffer") and getattr(sys.stdout, 'encoding', '') != 'utf-8':
@@ -70,6 +73,17 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 log = logging.getLogger("SATyS-Excel")
+
+_EXCEL_WRITE_LOCK = threading.RLock()
+
+
+def _serializar_actualizacion_excel(func):
+    """Evita que varios workers carguen y sobrescriban el mismo libro a la vez."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        with _EXCEL_WRITE_LOCK:
+            return func(*args, **kwargs)
+    return wrapper
 
 
 # ────────────────────────────────────────────────────────
@@ -295,6 +309,7 @@ def _obtener_o_crear_hoja(wb, sheet: str):
     return ws
 
 
+@_serializar_actualizacion_excel
 def actualizar_excel(
     folio: str,
     registro: str = "",
@@ -496,7 +511,12 @@ def actualizar_excel(
         temporal = Path(excel).with_name(f".{Path(excel).name}.tmp")
         wb.save(temporal)
         wb.close()
-        os.replace(temporal, excel)
+        fallback_bind_mount = reemplazar_desde_temporal(temporal, Path(excel))
+        if fallback_bind_mount:
+            log.warning(
+                "⚠️  Excel es un archivo montado en Linux; se conservó el inode "
+                "y se sobrescribió su contenido bajo lock."
+            )
         log.info("💾 Excel guardado: %s", excel)
 
         # La sincronización final del pipeline copia el Excel una sola vez. El

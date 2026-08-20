@@ -11,6 +11,24 @@ import Parte1_descarga as descarga
 
 
 class ZipSeguroTests(unittest.TestCase):
+    def test_extraer_zip_si_aplica_devuelve_hojas_de_zip_anidado(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            interior = root / "interior.zip"
+            with zipfile.ZipFile(interior, "w") as zf:
+                zf.writestr("hoja/final.txt", b"contenido-final")
+            exterior = root / "exterior.zip"
+            with zipfile.ZipFile(exterior, "w") as zf:
+                zf.write(interior, arcname="anidado/interior.zip")
+            interior.unlink()
+
+            extraidos = descarga.extraer_zip_si_aplica(exterior, root)
+
+            self.assertEqual(len(extraidos), 1)
+            self.assertEqual(extraidos[0].name, "final.txt")
+            self.assertEqual(extraidos[0].read_bytes(), b"contenido-final")
+            self.assertFalse(any(root.rglob("*.zip")))
+
     def setUp(self):
         self.tmp_ctx = tempfile.TemporaryDirectory()
         self.tmp = Path(self.tmp_ctx.name)

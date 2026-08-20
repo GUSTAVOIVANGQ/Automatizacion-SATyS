@@ -53,7 +53,7 @@ configurar_salida_utf8()
 
 from proceso_lock import ProcesoLock, LockOcupadoError
 from estado_ejecucion import EstadoEjecucion
-from estado_descargas import registro_esta_completo
+from estado_descargas import objetivo_internos_esta_completo, registro_esta_completo
 from configuracion_local import carpeta_compartida, configuracion_procesamiento, ruta_configurada
 from sincronizacion_depi import sincronizar_salidas
 
@@ -320,18 +320,40 @@ def cargar_folios_internos_procesados_excel(
     return procesados, info
 
 
-def construir_objetivos_internos(resumen_internos: dict, folios: Iterable[str]) -> list[dict]:
-    """Attach each selected Folio to the tab where it was discovered."""
-    pendientes = set(unicos_folios_internos(folios))
+def construir_objetivos_internos(
+    resumen_internos: dict,
+    folios: Iterable[str] | None = None,
+) -> list[dict]:
+    """Conserva cada pareja (bandeja, folio), incluso si el folio se repite."""
+    seleccionados = None if folios is None else set(unicos_folios_internos(folios))
     objetivos: list[dict] = []
-    vistos: set[str] = set()
+    vistos: set[tuple[str, str]] = set()
     for item in resumen_internos.get("por_bandeja") or []:
         bandeja = str(item.get("bandeja") or "").strip()
         for folio in unicos_folios_internos(item.get("folios") or []):
-            if folio in pendientes and folio not in vistos:
-                vistos.add(folio)
+            clave = (bandeja.casefold(), folio)
+            if (seleccionados is None or folio in seleccionados) and clave not in vistos:
+                vistos.add(clave)
                 objetivos.append({"bandeja": bandeja, "folio": folio})
     return objetivos
+
+
+def clasificar_objetivos_internos(
+    resumen_internos: dict,
+    descargas_base: Path,
+) -> tuple[list[dict], list[dict], list[dict]]:
+    """Devuelve inventario, objetivos completos y pendientes por bandeja+folio."""
+    inventario = construir_objetivos_internos(resumen_internos)
+    completos: list[dict] = []
+    pendientes: list[dict] = []
+    for objetivo in inventario:
+        destino = completos if objetivo_internos_esta_completo(
+            descargas_base,
+            objetivo["bandeja"],
+            objetivo["folio"],
+        ) else pendientes
+        destino.append(objetivo)
+    return inventario, completos, pendientes
 
 
 def limitar_objetivos_internos(objetivos: Iterable[dict], limite: int) -> list[dict]:
@@ -842,7 +864,7 @@ def ejecutar_reconciliacion_global(
         cmd,
         PROJECT_DIR,
         log_path,
-        "3) RECONCILIAR TRÁMITESCRT DESDE TODOS LOS METADATA",
+        "4) RECONCILIAR TRÁMITESCRT DESDE TODOS LOS METADATA",
         estado=estado,
         etapa="reconciliando_excel_global",
     )
@@ -876,7 +898,7 @@ def construir_parser() -> argparse.ArgumentParser:
     parser.add_argument("--registros-latest", type=Path, default=REGISTROS_LATEST_DEFAULT,
                         help="TXT que consumirá main_procesar.py. Default: registros.txt")
     parser.add_argument("--internos-latest", type=Path, default=INTERNOS_LATEST_DEFAULT,
-                        help="JSON de Folios nuevos de Internos que consumira main_procesar.py.")
+                        help="JSON de objetivos bandeja+folio pendientes que consumira main_procesar.py.")
     parser.add_argument("--registros-dir", type=Path, default=REGISTROS_DIR_DEFAULT,
                         help="Carpeta donde se guardan copias históricas de TXT.")
     parser.add_argument("--logs-dir", type=Path, default=LOG_DIR_DEFAULT,
@@ -1127,19 +1149,38 @@ def main() -> int:
         )
         # 3) Comparar y guardar nuevos.
         nuevos_excel = [registro for registro in registros_satys if registro not in procesados_excel]
-        folios_internos_nuevos = [
+        folios_internos_nuevos_excel = [
             folio for folio in folios_internos_satys
             if folio not in procesados_internos_excel
         ]
-        objetivos_internos_detectados = construir_objetivos_internos(
+
+        # Excel sólo demuestra que un folio fue procesado alguna vez; no demuestra
+        # que se descargaron sus archivos en todas las bandejas donde aparece.
+        # Por eso Internos se concilia por la pareja (bandeja, folio) y contra la
+        # evidencia física de metadata_completo.json + todos sus archivos.
+        DESCARGA_BASE_DIARIO = ruta_configurada("descargas", "descargas")
+        (
+            objetivos_internos_inventario,
+            objetivos_internos_completos,
+            objetivos_internos_descarga_pendiente,
+        ) = clasificar_objetivos_internos(
             resumen_internos,
-            folios_internos_nuevos,
+            DESCARGA_BASE_DIARIO,
         )
-        if len(objetivos_internos_detectados) != len(folios_internos_nuevos):
-            raise RuntimeError(
-                "No fue posible asociar cada Folio Internos nuevo con su bandeja: "
-                f"folios={len(folios_internos_nuevos)}, objetivos={len(objetivos_internos_detectados)}."
-            )
+        objetivos_internos_sin_excel = construir_objetivos_internos(
+            resumen_internos,
+            folios_internos_nuevos_excel,
+        )
+        objetivos_internos_detectados: list[dict] = []
+        claves_objetivos_internos: set[tuple[str, str]] = set()
+        for objetivo in objetivos_internos_descarga_pendiente + objetivos_internos_sin_excel:
+            clave = (objetivo["bandeja"].casefold(), objetivo["folio"])
+            if clave not in claves_objetivos_internos:
+                claves_objetivos_internos.add(clave)
+                objetivos_internos_detectados.append(objetivo)
+        folios_internos_nuevos = unicos_folios_internos(
+            item["folio"] for item in objetivos_internos_detectados
+        )
         objetivos_internos = limitar_objetivos_internos(
             objetivos_internos_detectados,
             args.max_folios_internos,
@@ -1150,8 +1191,6 @@ def main() -> int:
         # 3b) También incluir registros que ya están en el Excel pero tienen
         #     carpeta sin archivos reales (solo los JSONs generados por el programa).
         #     Esto garantiza que los re-intentos ocurran en cada corrida diaria.
-        DESCARGA_BASE_DIARIO = ruta_configurada("descargas", "descargas")
-
         # Registros en Excel pero sin una descarga real válida. La decisión usa
         # la misma regla central que Parte 1 y main_procesar.py: los JSON de
         # metadata, archivos vacíos, temporales y auxiliares nunca cuentan.
@@ -1184,9 +1223,18 @@ def main() -> int:
         resumen["total_incompletos_reintento"] = len(incompletos_en_excel)
         resumen["registros_nuevos"] = nuevos
         resumen["total_folios_internos_procesados_excel"] = len(procesados_internos_excel)
+        resumen["total_folios_internos_nuevos_excel"] = len(folios_internos_nuevos_excel)
         resumen["total_folios_internos_nuevos"] = len(folios_internos_nuevos)
+        resumen["total_objetivos_internos_satys"] = len(objetivos_internos_inventario)
+        resumen["total_objetivos_internos_completos_local"] = len(objetivos_internos_completos)
+        resumen["total_objetivos_internos_descarga_pendiente"] = len(
+            objetivos_internos_descarga_pendiente
+        )
+        resumen["total_objetivos_internos_sin_excel"] = len(objetivos_internos_sin_excel)
+        resumen["total_objetivos_internos_pendientes"] = len(objetivos_internos_detectados)
         resumen["total_objetivos_internos_seleccionados"] = len(objetivos_internos)
         resumen["folios_internos_nuevos"] = folios_internos_nuevos
+        resumen["objetivos_internos_pendientes"] = objetivos_internos_detectados
         resumen["objetivos_internos_nuevos"] = objetivos_internos
         estado.actualizar(
             stage="comparacion_lista",
@@ -1198,6 +1246,13 @@ def main() -> int:
             registros_nuevos_preview=nuevos[:30],
             total_folios_internos_satys=len(folios_internos_satys),
             total_folios_internos_nuevos=len(folios_internos_nuevos),
+            total_objetivos_internos_satys=len(objetivos_internos_inventario),
+            total_objetivos_internos_completos_local=len(objetivos_internos_completos),
+            total_objetivos_internos_descarga_pendiente=len(
+                objetivos_internos_descarga_pendiente
+            ),
+            total_objetivos_internos_sin_excel=len(objetivos_internos_sin_excel),
+            total_objetivos_internos_pendientes=len(objetivos_internos_detectados),
         )
 
         print("\n" + "=" * 90)
@@ -1214,12 +1269,17 @@ def main() -> int:
             print("Nuevos:", ", ".join(nuevos[:50]) + ("..." if len(nuevos) > 50 else ""))
         print(f"Folios Internos en SATyS:      {len(folios_internos_satys)}")
         print(f"Folios Internos en Excel:      {len(procesados_internos_excel)}")
-        print(f"Folios Internos nuevos:        {len(folios_internos_nuevos)}")
-        print(f"Folios seleccionados en lote:  {len(objetivos_internos)}")
+        print(f"Folios Internos no en Excel:   {len(folios_internos_nuevos_excel)}")
+        print(f"Objetivos bandeja+folio SATyS: {len(objetivos_internos_inventario)}")
+        print(f"Objetivos completos locales:   {len(objetivos_internos_completos)}")
+        print(f"Descargas incompletas/faltantes: {len(objetivos_internos_descarga_pendiente)}")
+        print(f"Objetivos sin fila en Excel:   {len(objetivos_internos_sin_excel)}")
+        print(f"Objetivos pendientes (unión):  {len(objetivos_internos_detectados)}")
+        print(f"Objetivos seleccionados lote:  {len(objetivos_internos)}")
         print(f"JSON Internos para main:       {args.internos_latest}")
         if folios_internos_nuevos:
             print(
-                "Internos nuevos:",
+                "Folios Internos pendientes (únicos):",
                 ", ".join(folios_internos_nuevos[:50])
                 + ("..." if len(folios_internos_nuevos) > 50 else ""),
             )
@@ -1237,10 +1297,11 @@ def main() -> int:
             resumen["return_code_reconciliacion_global"] = rc_reconciliacion
             resumen["ok"] = rc_reconciliacion == 0
             if args.solo_internos:
-                base_mensaje = "No hay Folios Internos nuevos."
+                base_mensaje = "No hay descargas pendientes de Internos."
                 mensaje_notificacion = (
-                    f"Se revisaron {len(folios_internos_satys)} folios de Internos; "
-                    "todos existen en la hoja Internos de TrámitesCRT.xlsx."
+                    f"Se auditaron {len(objetivos_internos_inventario)} objetivos "
+                    "bandeja+folio de Internos; todos conservan metadata completa "
+                    "y sus archivos físicos."
                 )
             elif vacio_confirmado_satys and not folios_internos_satys:
                 base_mensaje = "SATyS confirmó cero registros."
@@ -1313,33 +1374,17 @@ def main() -> int:
                 no_procesar=True,
                 return_code_reconciliacion_global=rc_reconciliacion,
             )
-            sincronizar_estado_diario_depi()
+            # Un inventario con --no-procesar no creó descargas ni actualizó el
+            # Excel. Evitamos copiar de nuevo todo descargas/ a la red, operación
+            # que puede tardar horas y contradice el objetivo de una comprobación rápida.
+            resumen["sincronizacion_depi_omitida"] = True
+            resumen["motivo_sincronizacion_depi_omitida"] = "--no-procesar"
+            print("ℹ️  Sincronización DEPI omitida: --no-procesar sólo generó el inventario.")
             return rc_reconciliacion
 
-        rc_main = 0
-        if nuevos:
-            cmd_main = [
-                str(args.python_exe),
-                str(args.main_script),
-                "--archivo-registro", str(args.registros_latest),
-                "--workers", str(args.workers),
-                "--timeout-registro", str(args.timeout_registro),
-                "--reintentos-registro", str(args.reintentos_registro),
-                "--workers-reintento", str(args.workers_reintento),
-                "--sin-lock",
-            ]
-            if headless:
-                cmd_main.append("--headless")
-            if args.sin_email:
-                cmd_main.append("--sin-email")
-
-            estado.actualizar(stage="procesando_registros_nuevos", total_nuevos=len(nuevos))
-            rc_main = ejecutar_comando(
-                cmd_main, PROJECT_DIR, log_path, "2) PROCESAR REGISTROS NUEVOS",
-                estado=estado, etapa="procesando_registros_nuevos"
-            )
-        resumen["return_code_main"] = rc_main
-
+        # Internos se procesa antes que Oficialía. En el servidor una corrida de
+        # Oficialía puede durar varias horas; no debe volver a dejar sin atender
+        # el inventario de las seis bandejas de Internos.
         rc_main_internos = 0
         if objetivos_internos:
             cmd_main_internos = [
@@ -1362,11 +1407,35 @@ def main() -> int:
                 cmd_main_internos,
                 PROJECT_DIR,
                 log_path,
-                "3) PROCESAR FOLIOS NUEVOS DE INTERNOS IFT",
+                "2) PROCESAR OBJETIVOS BANDEJA+FOLIO DE INTERNOS IFT",
                 estado=estado,
                 etapa="procesando_folios_internos_nuevos",
             )
         resumen["return_code_main_internos"] = rc_main_internos
+
+        rc_main = 0
+        if nuevos:
+            cmd_main = [
+                str(args.python_exe),
+                str(args.main_script),
+                "--archivo-registro", str(args.registros_latest),
+                "--workers", str(args.workers),
+                "--timeout-registro", str(args.timeout_registro),
+                "--reintentos-registro", str(args.reintentos_registro),
+                "--workers-reintento", str(args.workers_reintento),
+                "--sin-lock",
+            ]
+            if headless:
+                cmd_main.append("--headless")
+            if args.sin_email:
+                cmd_main.append("--sin-email")
+
+            estado.actualizar(stage="procesando_registros_nuevos", total_nuevos=len(nuevos))
+            rc_main = ejecutar_comando(
+                cmd_main, PROJECT_DIR, log_path, "3) PROCESAR REGISTROS NUEVOS",
+                estado=estado, etapa="procesando_registros_nuevos"
+            )
+        resumen["return_code_main"] = rc_main
 
         rc_reconciliacion = 0
         if reconciliacion_habilitada:
@@ -1388,7 +1457,7 @@ def main() -> int:
         resumen["ok"] = rc_final == 0
         if args.solo_internos:
             resumen["mensaje"] = (
-                f"Procesados {len(objetivos_internos)} folio(s) nuevos de Internos. "
+                f"Procesados {len(objetivos_internos)} objetivo(s) bandeja+folio de Internos. "
                 f"Código main Internos={rc_main_internos}. "
                 f"Fallidos controlados: {len(fallidos)}."
             )

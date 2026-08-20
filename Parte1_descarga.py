@@ -43,7 +43,7 @@ from datetime import datetime
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 from configuracion_local import configuracion_procesamiento, credenciales_satys, ruta_configurada
-from estado_descargas import registro_esta_completo
+from estado_descargas import registro_esta_completo, slug_bandeja_internos
 
 # --- Cargar .env manualmente (para no depender de dotenv) ---
 env_path = Path(".env")
@@ -360,7 +360,7 @@ def _extraer_contenido_zip(archivo: Path, carpeta: Path) -> tuple[list[Path], li
     return archivos_extraidos, errores
 
 
-def extraer_zip_si_aplica(archivo: Path, carpeta: Path) -> list:
+def extraer_zip_si_aplica(archivo: Path, carpeta: Path, _profundidad: int = 0) -> list:
     archivos_extraidos: list[Path] = []
     if archivo.suffix.lower() == ".zip":
         log.info("[ZIP] Archivo ZIP detectado, descomprimiendo: %s", archivo.name)
@@ -375,6 +375,28 @@ def extraer_zip_si_aplica(archivo: Path, carpeta: Path) -> list:
         else:
             log.info("[ZIP] Descomprimido correctamente: %s. Eliminando ZIP original.", archivo.name)
             archivo.unlink(missing_ok=True)
+            # Convertir ZIPs anidados exitosos en sus hojas finales antes de
+            # construir metadata. Así metadata_completo.json nunca apunta a un
+            # ZIP intermedio que ya fue eliminado.
+            finales: list[Path] = []
+            for extraido in archivos_extraidos:
+                if extraido.suffix.lower() != ".zip":
+                    finales.append(extraido)
+                    continue
+                if _profundidad + 1 >= ZIP_MAX_ITERACIONES:
+                    log.error(
+                        "[ZIP] Profundidad maxima (%d) alcanzada en %s; se conserva para diagnostico.",
+                        ZIP_MAX_ITERACIONES,
+                        extraido,
+                    )
+                    finales.append(extraido)
+                    continue
+                anidados = extraer_zip_si_aplica(extraido, extraido.parent, _profundidad + 1)
+                if anidados:
+                    finales.extend(anidados)
+                elif extraido.exists():
+                    finales.append(extraido)
+            archivos_extraidos = finales
     return archivos_extraidos
 
 
@@ -4520,6 +4542,8 @@ def descargar_via_documentos_anexos(context, page, folio: str, carpeta: Path) ->
                             resultados.append({
                                 "folio": folio,
                                 "archivo": nombre_doc, "nombre_original": nombre_doc,
+                                "indice_documento_portal": contador_global,
+                                "total_documentos_portal": total_esperado,
                                 "tipo": tipo_doc, "fecha": fecha_doc,
                                 "descripcion": descripcion_doc,
                                 "ruta": "", "tamano_kb": 0, "ok": False,
@@ -4533,6 +4557,8 @@ def descargar_via_documentos_anexos(context, page, folio: str, carpeta: Path) ->
                         resultados.append({
                             "folio": folio,
                             "archivo": nombre_doc, "nombre_original": nombre_doc,
+                            "indice_documento_portal": contador_global,
+                            "total_documentos_portal": total_esperado,
                             "tipo": tipo_doc, "fecha": fecha_doc,
                             "descripcion": descripcion_doc,
                             "ruta": "", "tamano_kb": 0, "ok": False,
@@ -4557,6 +4583,8 @@ def descargar_via_documentos_anexos(context, page, folio: str, carpeta: Path) ->
                                 "folio": folio,
                                 "archivo": ex.name,
                                 "nombre_original": nombre_doc,
+                                "indice_documento_portal": contador_global,
+                                "total_documentos_portal": total_esperado,
                                 "tipo": ex.suffix.upper().lstrip("."),
                                 "fecha": fecha_doc,
                                 "descripcion": descripcion_doc,
@@ -4577,6 +4605,8 @@ def descargar_via_documentos_anexos(context, page, folio: str, carpeta: Path) ->
                             "folio": folio,
                             "archivo": fname,
                             "nombre_original": nombre_doc,
+                            "indice_documento_portal": contador_global,
+                            "total_documentos_portal": total_esperado,
                             "tipo": tipo_doc,
                             "fecha": fecha_doc,
                             "descripcion": descripcion_doc,
@@ -4605,19 +4635,55 @@ def descargar_via_documentos_anexos(context, page, folio: str, carpeta: Path) ->
         # --- VALIDACION FINAL ---
         ok_count = sum(1 for r in resultados if r.get("ok"))
         err_count = len(resultados) - ok_count
+        indices_vistos = {
+            int(r.get("indice_documento_portal") or 0)
+            for r in resultados
+            if int(r.get("indice_documento_portal") or 0) > 0
+        }
+        indices_ok = {
+            indice for indice in indices_vistos
+            if any(
+                int(r.get("indice_documento_portal") or 0) == indice and r.get("ok")
+                for r in resultados
+            )
+            and not any(
+                int(r.get("indice_documento_portal") or 0) == indice and not r.get("ok")
+                for r in resultados
+            )
+        }
 
         if total_esperado > 0:
-            if ok_count == total_esperado:
+            if len(indices_ok) == total_esperado and len(indices_vistos) == total_esperado:
                 log.info(
                     "[ALT-DL] VALIDACION OK: %d/%d documentos descargados",
-                    ok_count, total_esperado
+                    len(indices_ok), total_esperado
                 )
             else:
                 log.warning(
-                    "[ALT-DL] VALIDACION: esperados=%d  ok=%d  errores=%d",
-                    total_esperado, ok_count, err_count
+                    "[ALT-DL] VALIDACION: esperados=%d  documentos_ok=%d  "
+                    "documentos_vistos=%d  archivos_error=%d",
+                    total_esperado, len(indices_ok), len(indices_vistos), err_count
                 )
                 screenshot(page, f"validacion_fallo_{folio}")
+                if len(indices_vistos) < total_esperado:
+                    resultados.append({
+                        "folio": folio,
+                        "archivo": f"ERROR_CONTEO_DOCUMENTOS_{folio}",
+                        "nombre_original": "",
+                        "indice_documento_portal": 0,
+                        "total_documentos_portal": total_esperado,
+                        "tipo": "ERROR_CONTEO",
+                        "fecha": "",
+                        "descripcion": "",
+                        "ruta": "",
+                        "tamano_kb": 0,
+                        "ok": False,
+                        "error": (
+                            f"SATyS reportó {total_esperado} documento(s), "
+                            f"pero sólo se recorrieron {len(indices_vistos)}."
+                        ),
+                        "fuente": "DOCUMENTOS_ANEXOS",
+                    })
         else:
             log.info(
                 "[ALT-DL] Descargados %d documento(s) (%d errores)",
@@ -4722,18 +4788,7 @@ def _cargar_objetivos_internos(path: Path) -> list[dict]:
 
 
 def _slug_internos(texto: str) -> str:
-    texto = (texto or "sin_bandeja").strip().lower()
-    reemplazos = {
-        " ": "_",
-        "/": "_",
-        "\\": "_",
-        "+": "plus",
-    }
-    for src, dst in reemplazos.items():
-        texto = texto.replace(src, dst)
-    texto = re.sub(r"[^a-z0-9_.-]+", "_", texto)
-    texto = re.sub(r"_+", "_", texto).strip("._-")
-    return texto or "sin_bandeja"
+    return slug_bandeja_internos(texto)
 
 
 def _firma_texto(texto: str) -> str:
@@ -5488,6 +5543,24 @@ def procesar_bandeja_internos(
                     item.setdefault("registro", meta.get("registro") or folio_descarga)
                     item.setdefault("carpeta", str(carpeta))
 
+                descomprimir_todos_zips_en_carpeta(carpeta)
+                zips_residuales = sorted(carpeta.rglob("*.zip"))
+                for zip_residual in zips_residuales:
+                    res.append({
+                        "folio": folio_descarga,
+                        "archivo": zip_residual.name,
+                        "nombre_original": zip_residual.name,
+                        "tipo": "ERROR_ZIP_RESIDUAL",
+                        "ruta": str(zip_residual),
+                        "tamano_kb": round(zip_residual.stat().st_size / 1024, 1),
+                        "ok": False,
+                        "error": "El ZIP no pudo descomprimirse por completo.",
+                        "fuente": "DOCUMENTOS_ANEXOS",
+                        "bandeja_internos": bandeja,
+                        "registro": meta.get("registro") or folio_descarga,
+                        "carpeta": str(carpeta),
+                    })
+
                 meta = _actualizar_metadata_internos(carpeta, bandeja, firma, row_meta, meta, res)
                 guardar_metadata_completo(
                     folio_descarga,
@@ -5498,7 +5571,6 @@ def procesar_bandeja_internos(
                     res,
                     "INTERNOS_DOCUMENTOS_ANEXOS",
                 )
-                descomprimir_todos_zips_en_carpeta(carpeta)
 
                 if res:
                     resultados_bandeja.extend(res)
@@ -5972,16 +6044,49 @@ def guardar_metadata_completo(
     ok_count = sum(1 for r in resultados if r.get("ok"))
     total = len(resultados)
 
-    # Intentar obtener el total esperado desde los resultados mismos
-    # (puede haber sido registrado como error si hay discrepancia)
-    total_esperado_externo = total  # Fallback conservador
+    def _entero_positivo(valor) -> int:
+        try:
+            return max(0, int(valor or 0))
+        except (TypeError, ValueError):
+            return 0
+
+    totales_portal = {
+        _entero_positivo(r.get("total_documentos_portal"))
+        for r in resultados
+        if isinstance(r, dict) and _entero_positivo(r.get("total_documentos_portal")) > 0
+    }
+    total_documentos_portal = max(totales_portal) if totales_portal else 0
+    indices_portal = {
+        _entero_positivo(r.get("indice_documento_portal"))
+        for r in resultados
+        if isinstance(r, dict) and _entero_positivo(r.get("indice_documento_portal")) > 0
+    }
+    indices_portal_ok = {
+        indice for indice in indices_portal
+        if any(
+            _entero_positivo(r.get("indice_documento_portal")) == indice and r.get("ok")
+            for r in resultados if isinstance(r, dict)
+        )
+        and not any(
+            _entero_positivo(r.get("indice_documento_portal")) == indice and not r.get("ok")
+            for r in resultados if isinstance(r, dict)
+        )
+    }
+    documentos_portal_completos = (
+        total_documentos_portal <= 0
+        or (
+            len(indices_portal) == total_documentos_portal
+            and len(indices_portal_ok) == total_documentos_portal
+        )
+    )
+    metadata_ok = ok_count > 0 and ok_count == total and documentos_portal_completos
 
     data = {
         "folio": folio,
         "folio_raw": folio_raw,
         "fecha_proceso": datetime.now().isoformat(),
         "fuente_descarga": fuente,
-        "estado": "OK" if ok_count > 0 and ok_count == total else (
+        "estado": "OK" if metadata_ok else (
             "PARCIAL" if ok_count > 0 else "SIN_ARCHIVOS"
         ),
         "metadatos_satys": meta_satys if meta_satys else {},
@@ -5989,7 +6094,11 @@ def guardar_metadata_completo(
         "total_archivos_encontrados": total,
         "total_archivos_ok": ok_count,
         "total_archivos_error": total - ok_count,
-        "coincide": ok_count == total and total > 0,
+        "total_documentos_portal": total_documentos_portal,
+        "total_documentos_portal_recorridos": len(indices_portal),
+        "total_documentos_portal_ok": len(indices_portal_ok),
+        "documentos_portal_completos": documentos_portal_completos,
+        "coincide": metadata_ok,
         "archivos": resultados,
     }
 
