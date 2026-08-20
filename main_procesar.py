@@ -68,7 +68,7 @@ ORGANIZAR_DESCARGAS = True
 
 _PROCESAMIENTO_CFG = configuracion_procesamiento()
 WORKERS_DEFAULT = int(_PROCESAMIENTO_CFG.get("workers", 10))
-INTERNOS_WORKERS_DEFAULT = int(_PROCESAMIENTO_CFG.get("internos_workers", 6))
+INTERNOS_WORKERS_DEFAULT = int(_PROCESAMIENTO_CFG.get("internos_workers", 12))
 TIMEOUT_REGISTRO_DEFAULT = int(_PROCESAMIENTO_CFG.get("timeout_registro", 900))
 REINTENTOS_REGISTRO_DEFAULT = int(_PROCESAMIENTO_CFG.get("reintentos_registro", 2))
 WORKERS_REINTENTO_DEFAULT = int(_PROCESAMIENTO_CFG.get("workers_reintento", 2))
@@ -1125,7 +1125,7 @@ Ejemplos:
     parser.add_argument("--internos-bandejas", nargs="+", default=None,
                         help="Bandejas de Internos IFT a procesar. Default: las seis bandejas del tablero.")
     parser.add_argument("--internos-workers", type=int, default=INTERNOS_WORKERS_DEFAULT,
-                        help="Navegadores paralelos para Internos. Default: 6; 0 usa uno por bandeja.")
+                        help="Navegadores paralelos para Internos. Default: 12; sin tope artificial; 0 usa uno por bandeja.")
     parser.add_argument("--internos-objetivos", type=str, default="",
                         help="JSON con pares bandeja/folio nuevos; limita descarga y Partes 3-4 a esos objetivos.")
     parser.add_argument("--sin-email", action="store_true",

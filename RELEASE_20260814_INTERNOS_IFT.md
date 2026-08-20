@@ -28,9 +28,11 @@ El despliegue preserva desde la instalación productiva anterior:
 - `descargas/`, `output/`, `logs/`, `runs/` y datos RPC;
 - registros históricos y fallidos.
 
-La migración añade `procesamiento.internos_workers: 6` cuando la clave no
-existe y alinea `rutas.carpeta_compartida` con el `--depi-dir` indicado. No
-reemplaza credenciales ni otros valores de configuración.
+La migración usa `procesamiento.internos_workers: 12` para instalaciones nuevas
+y actualiza únicamente el antiguo valor predeterminado `6`. Cualquier otro
+valor configurado por el operador se conserva sin imponer un máximo. También
+alinea `rutas.carpeta_compartida` con el `--depi-dir` indicado y no reemplaza
+credenciales ni otros valores de configuración.
 
 ## 1. Construir el paquete en Windows
 

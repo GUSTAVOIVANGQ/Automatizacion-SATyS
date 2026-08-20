@@ -1,11 +1,11 @@
 {
   "satys": {
     "usuario": "USUARIO_SATYS",
-    "password": "CAMBIAR_LOCALMENTE"
+    "password": "CAMBIAR_EN_SERVIDOR"
   },
   "gmail": {
     "remitente": "CORREO_REMITENTE",
-    "app_password": "CAMBIAR_LOCALMENTE",
+    "app_password": "CAMBIAR_EN_SERVIDOR",
     "enabled": false,
     "from_name": "Sistema SATyS DEI",
     "destinatarios": [],
@@ -20,7 +20,7 @@
   },
   "procesamiento": {
     "workers": 10,
-    "internos_workers": 6,
+    "internos_workers": 12,
     "timeout_registro": 900,
     "reintentos_registro": 2,
     "workers_reintento": 2,

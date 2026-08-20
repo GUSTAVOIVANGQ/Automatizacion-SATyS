@@ -1,6 +1,6 @@
 # Despliegue UI2 en srvmbcudaqa01
 
-Versión: `2026.08.17-portable-oci-api-v1-8082-ui2`
+Versión: `2026.08.18-portable-oci-api-v1-8082-internos12`
 
 Objetivo: publicar SATyS directamente en `http://172.17.42.163:8082`, sin modificar nginx ni la aplicación de Conectividad en México.
 

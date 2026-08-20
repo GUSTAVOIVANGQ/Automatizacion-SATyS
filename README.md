@@ -7,7 +7,7 @@
 **Sistema Automatizado de Trámites y Servicios (SATyS)**
 **Comisión Reguladora de Telecomunicaciones (CRT)**
 
-Versión para servidor Linux (Red Hat Enterprise Linux). Reemplaza la versión anterior en Windows: sin Python embebido, sin GUI de escritorio (Flet) y con un panel web + `systemd` para operación desatendida.
+.
 
 ---
 
@@ -170,7 +170,6 @@ Documentación adicional incluida en el repo:
 
 ---
 
-
 ## 📍 Ruta canónica del paquete compartido DEPI
 
 En este proyecto, cualquier ejemplo que use `/ruta/<archivo>.zip` **no es una ruta literal**. El directorio compartido canónico para los paquetes de despliegue es siempre:
@@ -229,8 +228,7 @@ El modo predeterminado vuelve a consultar SATyS únicamente para completar el me
 - `reparar_id_solicitante.py` es **exclusivamente manual**: no está asociado a ningún timer.
 - El bloqueo del proyecto impide que la corrida diaria, una corrida manual y el reparador modifiquen simultáneamente los mismos archivos.
 
-
-> Release actual: `2026.08.17-portable-oci-api-v1-8082-ui2`.
+> Release actual: `2026.08.18-portable-oci-api-v1-8082-internos12`.
 > Guía de despliegue nuevo: [`DESPLIEGUE_NUEVO.md`](DESPLIEGUE_NUEVO.md).
 > Trazabilidad del backlog: [`docs/BACKLOG_IMPLEMENTACION.md`](docs/BACKLOG_IMPLEMENTACION.md).
 
@@ -275,7 +273,7 @@ El flujo `venv + systemd` sigue disponible mediante `scripts/instalar_linux_1am.
   },
   "procesamiento": {
     "workers": 10,
-    "internos_workers": 6,
+    "internos_workers": 12,
     "timeout_registro": 900,
     "reintentos_registro": 2,
     "workers_reintento": 2
@@ -283,10 +281,9 @@ El flujo `venv + systemd` sigue disponible mediante `scripts/instalar_linux_1am.
 }
 ```
 
-Variables de despliegue principales: `SATYS_RUNTIME_DIR`, `SATYS_SHARED_HOST_DIR`, `SATYS_LOCK_HOST_DIR`, `SATYS_CONFIG_HOST_FILE`, `SATYS_API_PORT`. Dentro del contenedor el recurso compartido siempre se monta como `/shared`.
+Variables de despliegue principales: `SATYS_RUNTIME_DIR`, `SATYS_SHARED_HOST_DIR`, `SATYS_LOCK_HOST_DIR`, `SATYS_CONFIG_HOST_FILE`, `SATYS_API_PORT`, `SATYS_INTERNOS_WORKERS` y `SATYS_SHM_SIZE`. Dentro del contenedor el recurso compartido siempre se monta como `/shared`.
 
 Las credenciales pueden permanecer en `config/configuracion_local.json` o suministrarse mediante `SATYS_USUARIO`, `SATYS_PASSWORD`, `SATYS_EMAIL_REMITENTE` y `SATYS_EMAIL_APP_PASSWORD`. El archivo real y `.env` están excluidos de Git y de las releases.
-
 
 ## 🚀 Uso en terminal
 
@@ -301,13 +298,22 @@ python main_procesar.py --archivo-folios folios.txt --headless --workers 10
 python main_procesar.py --archivo-registro registros.txt --headless --workers 10
 
 # Ejecutar exclusivamente todos los Folios de las seis bandejas de Internos IFT:
-python main_procesar.py --todos-internos --headless --internos-workers 6
+python main_procesar.py --todos-internos --headless --internos-workers 12
 
 # El mismo recorrido mediante el lanzador Linux:
-SATYS_INTERNOS_WORKERS=6 bash scripts/run_satys_internos.sh
+SATYS_INTERNOS_WORKERS=12 bash scripts/run_satys_internos.sh
 
 # En Windows PowerShell:
-powershell -ExecutionPolicy Bypass -File .\scripts\run_satys_internos.ps1 -Workers 6
+powershell -ExecutionPolicy Bypass -File .\scripts\run_satys_internos.ps1 -Workers 12
+
+# Solo Internos IFT con filtro de nuevos contra la hoja Internos (OCI/Podman/Docker):
+bash scripts/satys.sh internos
+
+# Ejecución directa sin contenedor:
+bash scripts/run_satys_internos_nuevos.sh
+
+# El mismo modo filtrado en Windows PowerShell:
+powershell -ExecutionPolicy Bypass -File .\scripts\run_satys_internos_nuevos.ps1
 
 # Solo procesar archivos ya descargados (sin entrar al SATyS):
 python main_procesar.py --solo-procesar
@@ -317,28 +323,36 @@ python main_procesar.py --rebuild-catalogo
 
 # Ejecutar el monitor diario manualmente (detecta y procesa solo lo nuevo):
 python automatizar_registros_diario.py --headless --workers 10
+
+# Monitor manual limitado a las seis bandejas de Internos IFT:
+python automatizar_registros_diario.py --solo-internos --headless
 ```
+
+`--todos-internos` reprocesa todos los Folios visibles. Para una corrida normal
+que compare `Folio Internos` y procese únicamente pendientes, usa
+`automatizar_registros_diario.py --solo-internos` o el lanzador
+`run_satys_internos_nuevos`.
 
 ### Argumentos de `main_procesar.py`
 
-| Argumento                        | Descripción                                                                         |
-| -------------------------------- | ------------------------------------------------------------------------------------ |
-| `[folios]`                     | Folios a procesar como argumentos posicionales                                       |
-| `--archivo-folios`             | Ruta a`.txt` con folios, uno por línea                                            |
-| `--archivo-registro`           | Ruta a`.txt` con números de Registro; activa el modo de búsqueda por Registro    |
-| `--todos-internos`             | Solo Internos IFT: recorre las seis bandejas, descarga, procesa y actualiza `Internos` |
-| `--internos-workers N`         | Navegadores paralelos para Internos (default: 6; `0` usa uno por bandeja)              |
-| `--solo-procesar`              | Omite la descarga (Parte 1) y procesa solo archivos ya locales                       |
-| `--headless`                   | Oculta el navegador de Playwright                                                    |
-| `--workers N`                  | Ventanas de navegador en paralelo (default: 10)                                      |
-| `--timeout-registro N`         | Timeout duro por registro en segundos (default: 900)                                 |
-| `--reintentos-registro N`      | Reintentos para registros incompletos (default: 2)                                   |
-| `--workers-reintento N`        | Workers usados en los reintentos (default: 2)                                        |
-| `--buscar N` / `--desde X`   | Búsqueda secuencial de`N` folios a partir de `X`                                |
-| `--no-organizar`               | Actualiza el Excel pero no mueve archivos a`/output/`                              |
-| `--rebuild-catalogo`           | Reconstruye el catálogo RPC desde cero                                              |
-| `--sin-email` / `--email-to` | Omite o redirige la notificación por correo                                         |
-| `--sin-lock`                   | No toma el lock compartido (usado internamente cuando el monitor diario ya lo tomó) |
+| Argumento                        | Descripción                                                                            |
+| -------------------------------- | --------------------------------------------------------------------------------------- |
+| `[folios]`                     | Folios a procesar como argumentos posicionales                                          |
+| `--archivo-folios`             | Ruta a`.txt` con folios, uno por línea                                               |
+| `--archivo-registro`           | Ruta a`.txt` con números de Registro; activa el modo de búsqueda por Registro       |
+| `--todos-internos`             | Solo Internos IFT: recorre las seis bandejas, descarga, procesa y actualiza`Internos` |
+| `--internos-workers N`         | Navegadores paralelos para Internos (default: 12; sin máximo artificial; `0` usa uno por bandeja) |
+| `--solo-procesar`              | Omite la descarga (Parte 1) y procesa solo archivos ya locales                          |
+| `--headless`                   | Oculta el navegador de Playwright                                                       |
+| `--workers N`                  | Ventanas de navegador en paralelo (default: 10)                                         |
+| `--timeout-registro N`         | Timeout duro por registro en segundos (default: 900)                                    |
+| `--reintentos-registro N`      | Reintentos para registros incompletos (default: 2)                                      |
+| `--workers-reintento N`        | Workers usados en los reintentos (default: 2)                                           |
+| `--buscar N` / `--desde X`   | Búsqueda secuencial de`N` folios a partir de `X`                                   |
+| `--no-organizar`               | Actualiza el Excel pero no mueve archivos a`/output/`                                 |
+| `--rebuild-catalogo`           | Reconstruye el catálogo RPC desde cero                                                 |
+| `--sin-email` / `--email-to` | Omite o redirige la notificación por correo                                            |
+| `--sin-lock`                   | No toma el lock compartido (usado internamente cuando el monitor diario ya lo tomó)    |
 
 ### Argumentos propios de `automatizar_registros_diario.py`
 
@@ -437,7 +451,7 @@ Más detalle operativo (montajes de red, permisos, puertos usados) en [`README_E
 
 ### 🔲 Pendiente
 
-- [x] Credenciales retiradas del código y leídas desde `config/configuracion_local.json`
+- [X] Credenciales retiradas del código y leídas desde `config/configuracion_local.json`
 - [ ] Dashboard interactivo de estadísticas
 - [ ] Soporte para reanudar desde el último punto en caso de apagón o cierre abrupto
 - [ ] Encontrar o crear una API oficial para el sitio SATyS

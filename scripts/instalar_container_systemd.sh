@@ -6,6 +6,7 @@ GROUP_NAME="$(id -gn "$USER_NAME" 2>/dev/null || echo "$USER_NAME")"
 API_SERVICE="satys-container-api.service"
 DAILY_SERVICE="satys-container-diario.service"
 TIMER="satys-container-diario.timer"
+INTERNOS_SERVICE="satys-container-internos.service"
 
 if [[ $EUID -ne 0 ]]; then
   echo "Uso: sudo bash scripts/instalar_container_systemd.sh" >&2
@@ -28,17 +29,19 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=oneshot
-RemainAfterExit=yes
+Type=simple
 User=$USER_NAME
 Group=$GROUP_NAME
 WorkingDirectory=$ROOT
 Environment=HOME=$USER_HOME
 Environment=XDG_RUNTIME_DIR=/run/user/$USER_UID
-ExecStart=/usr/bin/bash $ROOT/scripts/satys.sh api-up
+ExecStart=/usr/bin/bash $ROOT/scripts/satys.sh api-run
 ExecStop=/usr/bin/bash $ROOT/scripts/satys.sh api-down
+Restart=on-failure
+RestartSec=10
 TimeoutStartSec=180
 TimeoutStopSec=60
+KillMode=control-group
 
 [Install]
 WantedBy=multi-user.target
@@ -58,6 +61,27 @@ WorkingDirectory=$ROOT
 Environment=HOME=$USER_HOME
 Environment=XDG_RUNTIME_DIR=/run/user/$USER_UID
 ExecStart=/usr/bin/bash $ROOT/scripts/satys.sh daily
+TimeoutStartSec=infinity
+KillMode=control-group
+UMask=0077
+StandardOutput=journal
+StandardError=journal
+EOF
+
+cat > "/etc/systemd/system/$INTERNOS_SERVICE" <<EOF
+[Unit]
+Description=SATyS CRT - corrida manual solo Internos IFT
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=$USER_NAME
+Group=$GROUP_NAME
+WorkingDirectory=$ROOT
+Environment=HOME=$USER_HOME
+Environment=XDG_RUNTIME_DIR=/run/user/$USER_UID
+ExecStart=/usr/bin/bash $ROOT/scripts/satys.sh internos
 TimeoutStartSec=infinity
 KillMode=control-group
 UMask=0077
@@ -88,6 +112,7 @@ if [[ "${1:-}" == "--enable-timer" ]]; then
   systemctl enable --now "$TIMER"
 fi
 
-echo "Instalados: $API_SERVICE, $DAILY_SERVICE, $TIMER"
+echo "Instalados: $API_SERVICE, $DAILY_SERVICE, $INTERNOS_SERVICE, $TIMER"
 echo "API: sudo systemctl start $API_SERVICE"
+echo "Internos manual (desacoplado de SSH): sudo systemctl start --no-block $INTERNOS_SERVICE"
 echo "Timer: sudo systemctl enable --now $TIMER (sólo tras desactivar el timer legado)"

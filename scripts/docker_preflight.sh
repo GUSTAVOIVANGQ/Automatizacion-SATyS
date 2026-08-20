@@ -21,14 +21,16 @@ fi
 python_bin="$(command -v python3 || command -v python || true)"
 if [[ -n "$python_bin" ]]; then
   "$python_bin" - "$CONFIG" <<'PY'
-import json,sys
+import json,os,sys
 from pathlib import Path
 p=Path(sys.argv[1]); d=json.loads(p.read_text(encoding='utf-8-sig'))
 user=str(d.get('satys',{}).get('usuario','')).strip(); pwd=str(d.get('satys',{}).get('password','')).strip()
 if not user or 'USUARIO_SATYS' in user: raise SystemExit('ERROR: falta satys.usuario')
 if not pwd or 'CAMBIAR' in pwd: raise SystemExit('ERROR: falta satys.password')
-w=d.get('procesamiento',{}).get('internos_workers',6)
-if not isinstance(w,int) or not 1 <= w <= 6: raise SystemExit(f'ERROR: internos_workers inválido: {w!r}')
+w_raw=os.environ.get('SATYS_INTERNOS_WORKERS',d.get('procesamiento',{}).get('internos_workers',12))
+try: w=int(w_raw)
+except (TypeError,ValueError): raise SystemExit(f'ERROR: internos_workers inválido: {w_raw!r}')
+if not isinstance(w,int) or w < 1: raise SystemExit(f'ERROR: internos_workers inválido: {w!r}')
 print(f'Config: OK (credenciales presentes, no impresas; internos_workers={w})')
 PY
 fi

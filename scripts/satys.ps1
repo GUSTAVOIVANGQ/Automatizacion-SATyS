@@ -1,6 +1,6 @@
 param(
     [Parameter(Position=0)]
-    [ValidateSet('bootstrap','doctor','build','api-up','api-down','status','logs','smoke','daily','test','help')]
+    [ValidateSet('bootstrap','doctor','build','api-up','api-down','status','logs','smoke','daily','internos','internos-check','test','help')]
     [string]$Command = 'help'
 )
 
@@ -32,7 +32,7 @@ if ($Command -eq 'doctor') {
 }
 
 if ($Command -eq 'help') {
-    Write-Host 'Uso: .\scripts\satys.ps1 bootstrap|doctor|build|api-up|api-down|status|logs|smoke|daily|test'
+    Write-Host 'Uso: .\scripts\satys.ps1 bootstrap|doctor|build|api-up|api-down|status|logs|smoke|daily|internos|internos-check|test'
     exit 0
 }
 
@@ -45,5 +45,7 @@ switch ($Command) {
     'logs'     { docker compose logs -f --tail=200 satys-api }
     'smoke'    { docker compose run --rm --entrypoint python satys-worker scripts/smoke_internos.py --workers 6 }
     'daily'    { docker compose run --rm satys-worker }
+    'internos' { docker compose run --rm --entrypoint python satys-worker automatizar_registros_diario.py --solo-internos --headless }
+    'internos-check' { docker compose run --rm --entrypoint python satys-worker automatizar_registros_diario.py --solo-internos --no-procesar --sin-email --headless }
     'test'     { docker compose run --rm --entrypoint python satys-worker -m unittest discover tests }
 }

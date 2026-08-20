@@ -23,6 +23,7 @@ import re
 import time
 import json
 import zipfile
+import shutil
 import logging
 import argparse
 import hashlib
@@ -87,7 +88,15 @@ _PROCESAMIENTO_CFG = configuracion_procesamiento()
 TIMEOUT_REGISTRO = int(_PROCESAMIENTO_CFG.get("timeout_registro", 900))
 REINTENTOS_REGISTRO = int(_PROCESAMIENTO_CFG.get("reintentos_registro", 2))  # 2 = 3 intentos totales
 WORKERS_REINTENTO_REGISTRO = int(_PROCESAMIENTO_CFG.get("workers_reintento", 2))
-INTERNOS_WORKERS_DEFAULT = int(_PROCESAMIENTO_CFG.get("internos_workers", 6))
+INTERNOS_WORKERS_DEFAULT = int(_PROCESAMIENTO_CFG.get("internos_workers", 12))
+INTERNOS_WORKER_REINTENTOS = max(
+    0,
+    int(os.getenv("SATYS_INTERNOS_WORKER_REINTENTOS", str(REINTENTOS_REGISTRO))),
+)
+INTERNOS_WORKER_ESPERA = max(
+    0.0,
+    float(os.getenv("SATYS_INTERNOS_WORKER_ESPERA", "2")),
+)
 REGISTROS_FALLIDOS_DIR = Path(__file__).resolve().parent / "registros_fallidos"
 
 # Retransmisión de logs descriptivos de cada proceso hijo al log principal.
@@ -213,20 +222,159 @@ def carpeta_para_registro(carpeta_base: Path, indice_registro: int, registro: st
     return carpeta_extra
 
 
+ZIP_MAX_ITERACIONES = max(1, int(os.getenv("SATYS_ZIP_MAX_ITERACIONES", "32")))
+ZIP_RUTA_RELATIVA_MAX = max(80, int(os.getenv("SATYS_ZIP_RUTA_RELATIVA_MAX", "140")))
+ZIP_RUTA_WINDOWS_MAX = max(180, int(os.getenv("SATYS_ZIP_RUTA_WINDOWS_MAX", "235")))
+
+
+def _limpiar_componente_zip(nombre: str) -> str:
+    """Convierte un componente ZIP en un nombre portable Windows/Linux."""
+    limpio = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", nombre).rstrip(" .")
+    limpio = limpio or "_"
+    reservados = {
+        "CON", "PRN", "AUX", "NUL",
+        *(f"COM{i}" for i in range(1, 10)),
+        *(f"LPT{i}" for i in range(1, 10)),
+    }
+    if limpio.split(".", 1)[0].upper() in reservados:
+        limpio = f"_{limpio}"
+    return limpio
+
+
+def _acortar_componente_zip(nombre: str, maximo: int, clave: str, es_archivo: bool) -> str:
+    """Acorta un nombre conservando extensión y una huella estable anticolisión."""
+    digest = hashlib.sha1(clave.encode("utf-8", errors="replace")).hexdigest()[:10]
+    sufijo = Path(nombre).suffix if es_archivo else ""
+    if len(sufijo) > 16 or len(sufijo.encode("utf-8")) > 32:
+        sufijo = ""
+    marca = f"~{digest}"
+    espacio = max(1, maximo - len(marca) - len(sufijo))
+    prefijo = nombre[:-len(sufijo)] if sufijo else nombre
+    prefijo = prefijo[:espacio].rstrip(" ._-") or "_"
+    return f"{prefijo}{marca}{sufijo}"
+
+
+def _destino_seguro_zip(carpeta: Path, nombre_miembro: str) -> tuple[Path, bool]:
+    """Resuelve un miembro ZIP sin traversal y dentro de presupuestos de ruta."""
+    nombre_normalizado = (nombre_miembro or "").replace("\\", "/")
+    if nombre_normalizado.startswith("/") or re.match(r"^[A-Za-z]:", nombre_normalizado):
+        raise ValueError(f"ruta absoluta no permitida en ZIP: {nombre_miembro!r}")
+
+    originales = []
+    for parte in nombre_normalizado.split("/"):
+        if parte in ("", "."):
+            continue
+        if parte == "..":
+            raise ValueError(f"salida de carpeta no permitida en ZIP: {nombre_miembro!r}")
+        originales.append(parte)
+    if not originales:
+        raise ValueError("miembro ZIP sin nombre utilizable")
+
+    partes = [_limpiar_componente_zip(parte) for parte in originales]
+    cambiado = partes != originales
+
+    # Un componente excesivo también falla en Linux (NAME_MAX suele ser 255 bytes).
+    for indice, parte in enumerate(list(partes)):
+        if len(parte.encode("utf-8")) > 220:
+            maximo = min(180, len(parte))
+            while True:
+                candidato = _acortar_componente_zip(
+                    parte,
+                    maximo,
+                    "/".join(originales[:indice + 1]),
+                    indice == len(partes) - 1,
+                )
+                if len(candidato.encode("utf-8")) <= 220 or maximo <= 24:
+                    partes[indice] = candidato
+                    break
+                maximo -= 1
+            cambiado = True
+
+    def ruta_actual() -> Path:
+        return carpeta.joinpath(*partes)
+
+    # El límite relativo hace que el resultado sea portable y estable al mover
+    # el proyecto entre Windows y el contenedor Linux.
+    def exceso_ruta() -> int:
+        exceso_relativo = len(str(Path(*partes))) - ZIP_RUTA_RELATIVA_MAX
+        exceso_windows = 0
+        if os.name == "nt":
+            # Reservar espacio para el sufijo temporal ".part".
+            exceso_windows = len(str(ruta_actual().absolute())) + len(".part") - ZIP_RUTA_WINDOWS_MAX
+        return max(exceso_relativo, exceso_windows, 0)
+
+    while exceso_ruta() > 0:
+        candidatos = [i for i, parte in enumerate(partes) if len(parte) > 24]
+        if not candidatos:
+            digest = hashlib.sha1(nombre_normalizado.encode("utf-8", errors="replace")).hexdigest()[:16]
+            sufijo = Path(partes[-1]).suffix
+            partes = ["_rutas_largas", f"{digest}{sufijo}"]
+            cambiado = True
+            break
+        indice = max(candidatos, key=lambda i: len(partes[i]))
+        nuevo_maximo = max(24, len(partes[indice]) - exceso_ruta())
+        partes[indice] = _acortar_componente_zip(
+            partes[indice],
+            nuevo_maximo,
+            "/".join(originales[:indice + 1]),
+            indice == len(partes) - 1,
+        )
+        cambiado = True
+
+    return ruta_actual(), cambiado
+
+
+def _extraer_contenido_zip(archivo: Path, carpeta: Path) -> tuple[list[Path], list[str]]:
+    """Extrae un ZIP de forma segura y devuelve (archivos, errores)."""
+    archivos_extraidos: list[Path] = []
+    errores: list[str] = []
+    try:
+        with zipfile.ZipFile(archivo, "r") as zip_ref:
+            for member in zip_ref.infolist():
+                if member.is_dir():
+                    continue
+                try:
+                    # No materializar enlaces simbólicos contenidos en un ZIP.
+                    if ((member.external_attr >> 16) & 0o170000) == 0o120000:
+                        raise ValueError("enlace simbolico no permitido")
+                    destino, acortado = _destino_seguro_zip(carpeta, member.filename)
+                    destino.parent.mkdir(parents=True, exist_ok=True)
+                    temporal = destino.with_name(f"{destino.name}.part")
+                    try:
+                        with zip_ref.open(member, "r") as origen, open(temporal, "wb") as salida:
+                            shutil.copyfileobj(origen, salida, length=1024 * 1024)
+                        os.replace(temporal, destino)
+                    finally:
+                        temporal.unlink(missing_ok=True)
+                    archivos_extraidos.append(destino)
+                    if acortado:
+                        log.warning(
+                            "[ZIP-PATH] Ruta acortada para portabilidad: %s -> %s",
+                            member.filename,
+                            destino.relative_to(carpeta),
+                        )
+                except Exception as exc:
+                    errores.append(f"{member.filename}: {exc}")
+    except Exception as exc:
+        errores.append(str(exc))
+    return archivos_extraidos, errores
+
+
 def extraer_zip_si_aplica(archivo: Path, carpeta: Path) -> list:
-    archivos_extraidos = []
-    if archivo.suffix.lower() == '.zip':
+    archivos_extraidos: list[Path] = []
+    if archivo.suffix.lower() == ".zip":
         log.info("[ZIP] Archivo ZIP detectado, descomprimiendo: %s", archivo.name)
-        try:
-            with zipfile.ZipFile(archivo, 'r') as zip_ref:
-                for member in zip_ref.infolist():
-                    if not member.is_dir():
-                        zip_ref.extract(member, carpeta)
-                        archivos_extraidos.append(carpeta / member.filename)
+        archivos_extraidos, errores = _extraer_contenido_zip(archivo, carpeta)
+        if errores:
+            log.error(
+                "[ZIP] Error descomprimiendo %s (%d miembro(s)): %s",
+                archivo.name,
+                len(errores),
+                " | ".join(errores[:3]),
+            )
+        else:
             log.info("[ZIP] Descomprimido correctamente: %s. Eliminando ZIP original.", archivo.name)
             archivo.unlink(missing_ok=True)
-        except Exception as e:
-            log.error("[ZIP] Error descomprimiendo %s: %s", archivo.name, e)
     return archivos_extraidos
 
 
@@ -236,34 +384,69 @@ def descomprimir_todos_zips_en_carpeta(carpeta: Path) -> int:
     Retorna el total de archivos extraidos.
     """
     total_extraidos = 0
-    iteracion = 0
-    while True:
-        iteracion += 1
-        # Buscar todos los ZIPs en la carpeta (recursivamente en subcarpetas)
-        zips_encontrados = list(carpeta.rglob("*.zip"))
+    intentados: set[tuple[str, int, int]] = set()
+    for iteracion in range(1, ZIP_MAX_ITERACIONES + 1):
+        # La firma impide reintentar indefinidamente un ZIP que permanece en
+        # disco tras fallar; un archivo realmente reemplazado sí puede entrar.
+        zips_encontrados: list[tuple[Path, tuple[str, int, int]]] = []
+        for zip_path in carpeta.rglob("*.zip"):
+            try:
+                stat_zip = zip_path.stat()
+                firma = (os.path.normcase(str(zip_path.absolute())), stat_zip.st_size, stat_zip.st_mtime_ns)
+            except OSError as exc:
+                log.error("[ZIP-ALL] No se pudo inspeccionar %s: %s", zip_path, exc)
+                continue
+            if firma not in intentados:
+                zips_encontrados.append((zip_path, firma))
         if not zips_encontrados:
-            break  # No quedan ZIPs, terminamos
+            break
         log.info("[ZIP-ALL] Iteracion %d: encontrados %d ZIP(s) en carpeta %s",
                  iteracion, len(zips_encontrados), carpeta.name)
-        for zip_path in zips_encontrados:
+        for zip_path, firma in zips_encontrados:
+            intentados.add(firma)
             # Extraer en la misma carpeta donde esta el ZIP (preserva estructura)
             carpeta_destino = zip_path.parent
-            try:
-                with zipfile.ZipFile(zip_path, 'r') as zf:
-                    miembros_extraidos = [m for m in zf.infolist() if not m.is_dir()]
-                    for member in miembros_extraidos:
-                        zf.extract(member, carpeta_destino)
+            extraidos, errores = _extraer_contenido_zip(zip_path, carpeta_destino)
+            if errores:
+                log.error(
+                    "[ZIP-ALL] Error descomprimiendo %s (%d miembro(s)); "
+                    "se conserva el ZIP y no se reintentara en este proceso: %s",
+                    zip_path.name,
+                    len(errores),
+                    " | ".join(errores[:3]),
+                )
+            else:
                 log.info("[ZIP-ALL] Extraidos %d archivos de: %s — eliminando ZIP.",
-                         len(miembros_extraidos), zip_path.name)
+                         len(extraidos), zip_path.name)
                 zip_path.unlink(missing_ok=True)
-                total_extraidos += len(miembros_extraidos)
-            except Exception as e:
-                log.error("[ZIP-ALL] Error descomprimiendo %s: %s", zip_path.name, e)
-                # Si hay error de lectura, no eliminar el ZIP y salir del loop
-                zips_encontrados = []  # Forzar salida para evitar loop infinito
-                break
-        if not list(carpeta.rglob("*.zip")):
-            break  # Confirmacion: no quedan ZIPs
+                total_extraidos += len(extraidos)
+    else:
+        pendientes_nuevos = []
+        for zip_path in carpeta.rglob("*.zip"):
+            try:
+                stat_zip = zip_path.stat()
+                firma = (os.path.normcase(str(zip_path.absolute())), stat_zip.st_size, stat_zip.st_mtime_ns)
+            except OSError:
+                continue
+            if firma not in intentados:
+                pendientes_nuevos.append(zip_path)
+        if pendientes_nuevos:
+            log.error(
+                "[ZIP-ALL] Se alcanzo el limite de %d iteraciones en %s; "
+                "se detiene la recursion con %d ZIP(s) nuevo(s) pendiente(s).",
+                ZIP_MAX_ITERACIONES,
+                carpeta,
+                len(pendientes_nuevos),
+            )
+
+    zips_pendientes = list(carpeta.rglob("*.zip"))
+    if zips_pendientes:
+        log.warning(
+            "[ZIP-ALL] Quedaron %d ZIP(s) sin eliminar en %s para diagnostico; "
+            "no se repetiran en bucle.",
+            len(zips_pendientes),
+            carpeta,
+        )
     if total_extraidos > 0:
         log.info("[ZIP-ALL] Total archivos extraidos de todos los ZIPs: %d", total_extraidos)
     return total_extraidos
@@ -5546,14 +5729,77 @@ def _worker_bandeja_internos(
         )
 
 
+_ERRORES_REINTENTABLES_WORKER_INTERNOS = {
+    "ERROR_SESION_WORKER",
+    "ERROR_TABLERO_WORKER",
+    "ERROR_WORKER_BANDEJA",
+    "EXCEPCION_WORKER_BANDEJA",
+}
+
+
+def _worker_bandeja_internos_con_reintentos(
+    bandeja: str,
+    folios_objetivo: list[str] | None = None,
+) -> tuple[str, list]:
+    """Reintenta fallos de infraestructura o un segmento vacío inesperado."""
+    ultimo_resultado: list = []
+    intentos_totales = INTERNOS_WORKER_REINTENTOS + 1
+    for intento in range(1, intentos_totales + 1):
+        nombre_bandeja, ultimo_resultado = _worker_bandeja_internos(
+            bandeja,
+            folios_objetivo,
+        )
+        codigos = {
+            str(item.get("archivo") or "")
+            for item in ultimo_resultado
+            if isinstance(item, dict)
+        }
+        segmento_vacio = bool(folios_objetivo) and not ultimo_resultado
+        fallo_infraestructura = bool(codigos & _ERRORES_REINTENTABLES_WORKER_INTERNOS)
+        if not segmento_vacio and not fallo_infraestructura:
+            return nombre_bandeja, ultimo_resultado
+        if intento >= intentos_totales:
+            break
+        motivo = "segmento vacio" if segmento_vacio else ", ".join(sorted(codigos))
+        log.warning(
+            "[INT-RETRY] Bandeja '%s' intento %d/%d no valido (%s); reintentando segmento.",
+            bandeja,
+            intento,
+            intentos_totales,
+            motivo,
+        )
+        if INTERNOS_WORKER_ESPERA:
+            time.sleep(INTERNOS_WORKER_ESPERA)
+
+    if folios_objetivo and not ultimo_resultado:
+        detalle = (
+            f"El segmento termino vacio tras {intentos_totales} intento(s), "
+            f"aunque tenia {len(folios_objetivo)} folio(s) asignado(s)."
+        )
+        log.error("[INT-RETRY] %s Bandeja=%s", detalle, bandeja)
+        ultimo_resultado = _resultado_error_bandeja_internos(
+            bandeja,
+            "ERROR_SEGMENTO_INTERNO_VACIO",
+            detalle,
+        )
+    return bandeja, ultimo_resultado
+
+
 def descargar_internos_ift(
     bandejas: list[str] | None = None,
     objetivos: list[dict] | None = None,
     workers: int | None = None,
 ) -> list:
-    """Descarga bandejas de Internos en navegadores independientes y paralelos."""
+    """Descarga Internos en navegadores independientes y paralelos.
+
+    Cuando hay objetivos explícitos, reparte los workers entre las bandejas de
+    acuerdo con su carga y divide sus folios en segmentos disjuntos. Así una
+    bandeja grande puede usar varios navegadores sin descargar el mismo folio
+    dos veces.
+    """
     objetivos = objetivos or []
     objetivos_por_bandeja: dict[str, list[str]] = {}
+    folios_vistos_por_bandeja: dict[str, set[str]] = {}
     nombres_bandeja: dict[str, str] = {}
     for item in objetivos:
         bandeja = str(item.get("bandeja") or "").strip()
@@ -5562,7 +5808,10 @@ def descargar_internos_ift(
             continue
         key = bandeja.lower()
         nombres_bandeja.setdefault(key, bandeja)
-        objetivos_por_bandeja.setdefault(key, []).append(folio)
+        vistos = folios_vistos_por_bandeja.setdefault(key, set())
+        if folio not in vistos:
+            vistos.add(folio)
+            objetivos_por_bandeja.setdefault(key, []).append(folio)
 
     if objetivos_por_bandeja:
         bandejas = [nombres_bandeja[key] for key in objetivos_por_bandeja]
@@ -5574,10 +5823,57 @@ def descargar_internos_ift(
     workers_configurados = INTERNOS_WORKERS_DEFAULT if workers is None else int(workers)
     if workers_configurados < 0:
         raise ValueError("internos_workers no puede ser negativo")
-    workers_activos = len(bandejas) if workers_configurados == 0 else min(
-        max(1, workers_configurados),
-        len(bandejas),
-    )
+
+    # Cada tarea usa un Chromium. Sin objetivos se conserva el comportamiento
+    # histórico de una tarea por bandeja. Con objetivos, los slots adicionales
+    # se asignan a la bandeja con mayor carga por worker y sus folios se reparten
+    # round-robin para que todos los segmentos avancen por páginas similares.
+    tareas: list[tuple[str, str, list[str] | None]] = []
+    if objetivos_por_bandeja:
+        claves = [bandeja.lower() for bandeja in bandejas]
+        limite_workers = len(claves) if workers_configurados == 0 else max(1, workers_configurados)
+        minimo_por_bandeja = 2 if limite_workers >= (2 * len(claves)) else 1
+        segmentos_por_bandeja = {
+            key: min(minimo_por_bandeja, len(objetivos_por_bandeja[key]))
+            for key in claves
+        }
+        slots_extra = max(0, limite_workers - sum(segmentos_por_bandeja.values()))
+        while slots_extra > 0:
+            candidatas = [
+                key for key in claves
+                if segmentos_por_bandeja[key] < len(objetivos_por_bandeja[key])
+            ]
+            if not candidatas:
+                break
+            key = max(
+                candidatas,
+                key=lambda item: (
+                    len(objetivos_por_bandeja[item]) / segmentos_por_bandeja[item],
+                    -claves.index(item),
+                ),
+            )
+            segmentos_por_bandeja[key] += 1
+            slots_extra -= 1
+
+        for bandeja in bandejas:
+            key = bandeja.lower()
+            folios = objetivos_por_bandeja[key]
+            total_segmentos = segmentos_por_bandeja[key]
+            for indice in range(total_segmentos):
+                segmento = folios[indice::total_segmentos]
+                if segmento:
+                    tarea_id = f"{key}#{indice + 1}/{total_segmentos}"
+                    tareas.append((tarea_id, bandeja, segmento))
+    else:
+        tareas = [
+            (f"{bandeja.lower()}#1/1", bandeja, None)
+            for bandeja in bandejas
+        ]
+
+    if workers_configurados == 0:
+        workers_activos = len(tareas)
+    else:
+        workers_activos = min(max(1, workers_configurados), len(tareas))
 
     try:
         sesion_lista = _validar_sesion_internos()
@@ -5598,47 +5894,57 @@ def descargar_internos_ift(
         )
 
     log.info(
-        "[INT-MAIN] Paralelismo por bandeja: %d navegador(es) para %d bandeja(s).",
+        "[INT-MAIN] Paralelismo Internos: %d navegador(es), %d segmento(s), %d bandeja(s).",
         workers_activos,
+        len(tareas),
         len(bandejas),
     )
-    resultados_por_bandeja: dict[str, list] = {}
+    for tarea_id, bandeja, folios_segmento in tareas:
+        if folios_segmento is not None:
+            log.info(
+                "[INT-MAIN] Segmento %s: bandeja='%s', %d folio(s).",
+                tarea_id,
+                bandeja,
+                len(folios_segmento),
+            )
+
+    resultados_por_tarea: dict[str, list] = {}
     with concurrent.futures.ThreadPoolExecutor(
         max_workers=workers_activos,
         thread_name_prefix="SATyS-Internos",
     ) as executor:
         futures = {
             executor.submit(
-                _worker_bandeja_internos,
+                _worker_bandeja_internos_con_reintentos,
                 bandeja,
-                objetivos_por_bandeja.get(bandeja.lower()),
-            ): bandeja
-            for bandeja in bandejas
+                folios_segmento,
+            ): (tarea_id, bandeja)
+            for tarea_id, bandeja, folios_segmento in tareas
         }
         completadas = 0
         for future in concurrent.futures.as_completed(futures):
-            bandeja = futures[future]
+            tarea_id, bandeja = futures[future]
             completadas += 1
             try:
-                bandeja_resultado, resultados = future.result()
+                _bandeja_resultado, resultados = future.result()
             except Exception as exc:
-                bandeja_resultado = bandeja
                 resultados = _resultado_error_bandeja_internos(
                     bandeja,
                     "EXCEPCION_WORKER_BANDEJA",
                     str(exc),
                 )
-            resultados_por_bandeja[bandeja_resultado.lower()] = resultados
+            resultados_por_tarea[tarea_id] = resultados
             log.info(
-                "[INT-CONC] [%d/%d] Bandeja '%s' completada.",
+                "[INT-CONC] [%d/%d] Segmento %s de '%s' completado.",
                 completadas,
-                len(bandejas),
+                len(tareas),
+                tarea_id,
                 bandeja,
             )
 
     todos_resultados = []
-    for bandeja in bandejas:
-        todos_resultados.extend(resultados_por_bandeja.get(bandeja.lower(), []))
+    for tarea_id, _bandeja, _folios_segmento in tareas:
+        todos_resultados.extend(resultados_por_tarea.get(tarea_id, []))
 
     carpeta_resumen = DESCARGA_BASE / "internos"
     try:

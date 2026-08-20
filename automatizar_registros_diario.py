@@ -35,6 +35,22 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
+
+def configurar_salida_utf8() -> None:
+    """Permite imprimir el log Unicode también con el Python embebido de Windows."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if not callable(reconfigure):
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (OSError, ValueError):
+            pass
+
+
+configurar_salida_utf8()
+
+
 from proceso_lock import ProcesoLock, LockOcupadoError
 from estado_ejecucion import EstadoEjecucion
 from estado_descargas import registro_esta_completo
@@ -66,6 +82,7 @@ SHEET_INTERNOS_DEFAULT = "Internos"
 HEADER_FOLIO_INTERNOS_DEFAULT = "Folio Internos"
 PROCESAMIENTO_CFG = configuracion_procesamiento()
 WORKERS_DEFAULT = int(PROCESAMIENTO_CFG.get("workers", 10))
+INTERNOS_WORKERS_DEFAULT = int(PROCESAMIENTO_CFG.get("internos_workers", 12))
 TIMEOUT_REGISTRO_DEFAULT = int(PROCESAMIENTO_CFG.get("timeout_registro", 900))
 REINTENTOS_REGISTRO_DEFAULT = int(PROCESAMIENTO_CFG.get("reintentos_registro", 2))
 WORKERS_REINTENTO_DEFAULT = int(PROCESAMIENTO_CFG.get("workers_reintento", 2))
@@ -317,6 +334,40 @@ def construir_objetivos_internos(resumen_internos: dict, folios: Iterable[str]) 
     return objetivos
 
 
+def limitar_objetivos_internos(objetivos: Iterable[dict], limite: int) -> list[dict]:
+    """Limita el lote y lo reparte entre bandejas para aprovechar paralelismo."""
+    if limite < 0:
+        raise ValueError("El limite de Folios Internos no puede ser negativo.")
+    items = list(objetivos)
+    if limite == 0 or limite >= len(items):
+        return items
+
+    orden_bandejas: list[str] = []
+    por_bandeja: dict[str, list[dict]] = {}
+    for item in items:
+        bandeja = str(item.get("bandeja") or "").strip()
+        if bandeja not in por_bandeja:
+            orden_bandejas.append(bandeja)
+            por_bandeja[bandeja] = []
+        por_bandeja[bandeja].append(item)
+
+    seleccionados: list[dict] = []
+    indice = 0
+    while len(seleccionados) < limite:
+        agregados = 0
+        for bandeja in orden_bandejas:
+            cola = por_bandeja[bandeja]
+            if indice < len(cola):
+                seleccionados.append(cola[indice])
+                agregados += 1
+                if len(seleccionados) == limite:
+                    break
+        if agregados == 0:
+            break
+        indice += 1
+    return seleccionados
+
+
 def guardar_objetivos_internos(path: Path, objetivos: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -431,60 +482,89 @@ def validar_resumen_extractor(output_path: Path, registros: list[str]) -> dict:
         )
         return resultado
 
-    por_anio = resumen.get("por_anio")
-    if not isinstance(por_anio, list) or not por_anio:
-        resultado["error"] = "el resumen no contiene detalle por año"
-        return resultado
     estados_validos = {"ENCONTRADOS_COMPLETOS", "VACIO_CONFIRMADO"}
-    total_filas = 0
-    todos_vacios = True
-    for item in por_anio:
-        estado = item.get("estado")
-        if estado not in estados_validos:
-            resultado["error"] = f"año {item.get('anio')}: estado indeterminado {estado!r}"
+    oficialia_omitida = bool(
+        resumen.get("oficialia_omitida")
+        or resumen.get("modo") == "solo_internos"
+    )
+    if oficialia_omitida:
+        if registros or resumen.get("registros") or int(resumen.get("total_filas_satys", -1)) != 0:
+            resultado["error"] = "Oficialia omitida contiene registros o filas inesperadas"
             return resultado
-        total = int(item.get("total_reportado_satys") or 0)
-        filas = int(item.get("filas_leidas") or 0)
-        guardados = int(item.get("total_guardados_anio") or 0)
-        invalidas = int(item.get("filas_invalidas") or 0)
-        if invalidas != 0:
-            resultado["error"] = f"año {item.get('anio')}: {invalidas} fila(s) inválida(s)"
+        if resumen.get("por_anio") not in (None, []):
+            resultado["error"] = "Oficialia omitida no debe contener detalle por año"
             return resultado
-        if estado == "ENCONTRADOS_COMPLETOS":
-            todos_vacios = False
-            if total <= 0 or filas != total or guardados <= 0:
+        if not bool(resumen.get("vacio_confirmado")):
+            resultado["error"] = "Oficialia omitida debe declarar vacio_confirmado"
+            return resultado
+        todos_vacios = True
+    else:
+        por_anio = resumen.get("por_anio")
+        if not isinstance(por_anio, list) or not por_anio:
+            resultado["error"] = "el resumen no contiene detalle por año"
+            return resultado
+        total_filas = 0
+        todos_vacios = True
+        for item in por_anio:
+            estado = item.get("estado")
+            if estado not in estados_validos:
+                resultado["error"] = f"año {item.get('anio')}: estado indeterminado {estado!r}"
+                return resultado
+            total = int(item.get("total_reportado_satys") or 0)
+            filas = int(item.get("filas_leidas") or 0)
+            guardados = int(item.get("total_guardados_anio") or 0)
+            invalidas = int(item.get("filas_invalidas") or 0)
+            contador_tab = item.get("contador_tab")
+            tamanio_pagina = item.get("tamanio_pagina")
+            if contador_tab is None or int(contador_tab) != total:
                 resultado["error"] = (
-                    f"año {item.get('anio')}: conciliación incompleta "
-                    f"total={total}, filas={filas}, guardados={guardados}"
+                    f"año {item.get('anio')}: contador de pestaña inconsistente "
+                    f"contador={contador_tab!r}, total={total}"
                 )
                 return resultado
-        else:
-            if total != 0 or filas != 0 or guardados != 0:
+            if tamanio_pagina is None or int(tamanio_pagina) != 100:
+                resultado["error"] = (
+                    f"año {item.get('anio')}: el selector Mostrar no quedó en 100 "
+                    f"(valor={tamanio_pagina!r})"
+                )
+                return resultado
+            if invalidas != 0:
+                resultado["error"] = f"año {item.get('anio')}: {invalidas} fila(s) inválida(s)"
+                return resultado
+            if estado == "ENCONTRADOS_COMPLETOS":
+                todos_vacios = False
+                if total <= 0 or filas != total or guardados <= 0:
+                    resultado["error"] = (
+                        f"año {item.get('anio')}: conciliación incompleta "
+                        f"total={total}, filas={filas}, guardados={guardados}"
+                    )
+                    return resultado
+            elif total != 0 or filas != 0 or guardados != 0:
                 resultado["error"] = (
                     f"año {item.get('anio')}: VACIO_CONFIRMADO inconsistente "
                     f"total={total}, filas={filas}, guardados={guardados}"
                 )
                 return resultado
-        total_filas += filas
+            total_filas += filas
 
-    if int(resumen.get("total_filas_satys", -1)) != total_filas:
-        resultado["error"] = (
-            f"total_filas_satys inconsistente: resumen={resumen.get('total_filas_satys')!r}, "
-            f"suma={total_filas}"
-        )
-        return resultado
-    vacio_declarado = bool(resumen.get("vacio_confirmado"))
-    if vacio_declarado != todos_vacios:
-        resultado["error"] = (
-            f"bandera vacio_confirmado inconsistente: declarada={vacio_declarado}, calculada={todos_vacios}"
-        )
-        return resultado
-    if todos_vacios and registros:
-        resultado["error"] = "el resumen confirma vacío pero el TXT contiene registros"
-        return resultado
-    if not todos_vacios and not registros:
-        resultado["error"] = "el resumen reporta filas pero el TXT quedó vacío"
-        return resultado
+        if int(resumen.get("total_filas_satys", -1)) != total_filas:
+            resultado["error"] = (
+                f"total_filas_satys inconsistente: resumen={resumen.get('total_filas_satys')!r}, "
+                f"suma={total_filas}"
+            )
+            return resultado
+        vacio_declarado = bool(resumen.get("vacio_confirmado"))
+        if vacio_declarado != todos_vacios:
+            resultado["error"] = (
+                f"bandera vacio_confirmado inconsistente: declarada={vacio_declarado}, calculada={todos_vacios}"
+            )
+            return resultado
+        if todos_vacios and registros:
+            resultado["error"] = "el resumen confirma vacío pero el TXT contiene registros"
+            return resultado
+        if not todos_vacios and not registros:
+            resultado["error"] = "el resumen reporta filas pero el TXT quedó vacío"
+            return resultado
 
     internos = resumen.get("internos")
     if not isinstance(internos, dict):
@@ -607,11 +687,19 @@ def extraer_registros_satys_con_reintentos(
         validacion = validar_resumen_extractor(output_path, registros) if rc == 0 else {
             "ok": False, "vacio_confirmado": False, "error": "el extractor terminó con error"
         }
+        resumen_validado = validacion.get("resumen") or {}
+        solo_internos_validado = bool(
+            resumen_validado.get("oficialia_omitida")
+            or resumen_validado.get("modo") == "solo_internos"
+        )
+        folios_internos_validados = validacion.get("folios_internos") or []
         motivo = "ok"
         if rc != 0:
             motivo = f"extractor terminó con código {rc}"
         elif not validacion.get("ok"):
             motivo = f"certificado de integridad inválido: {validacion.get('error')}"
+        elif solo_internos_validado:
+            motivo = "INTERNOS_VALIDADO"
         elif validacion.get("vacio_confirmado"):
             motivo = "VACIO_CONFIRMADO"
 
@@ -622,6 +710,7 @@ def extraer_registros_satys_con_reintentos(
             "fecha_fin": datetime.now().isoformat(),
             "return_code": rc,
             "total_registros": len(registros),
+            "total_folios_internos": len(folios_internos_validados),
             "vacio_confirmado": bool(validacion.get("vacio_confirmado")),
             "integridad_ok": bool(validacion.get("ok")),
             "error_integridad": validacion.get("error", ""),
@@ -630,7 +719,12 @@ def extraer_registros_satys_con_reintentos(
         historial.append(detalle)
 
         if rc == 0 and validacion.get("ok"):
-            if registros:
+            if solo_internos_validado:
+                print(
+                    f"✅ Extracción Internos válida en intento {numero_intento}/{total_intentos}: "
+                    f"{len(folios_internos_validados)} Folio(s) en seis bandejas, integridad conciliada."
+                )
+            elif registros:
                 print(
                     f"✅ Extracción SATyS válida en intento {numero_intento}/{total_intentos}: "
                     f"{len(registros)} Registro(s), integridad conciliada."
@@ -767,6 +861,8 @@ def construir_parser() -> argparse.ArgumentParser:
                         help="Ruta a reconciliar_metadata_global.py.")
     parser.add_argument("--sin-reconciliacion-global", action="store_true",
                         help="Desactiva la reconciliación completa de TrámitesCRT.xlsx; solo diagnóstico.")
+    parser.add_argument("--solo-internos", action="store_true",
+                        help="Omite Oficialia; inventaria las seis bandejas de Internos y procesa solo Folios nuevos.")
     parser.add_argument("--excel", type=Path, default=EXCEL_DEFAULT,
                         help="Ruta a TrámitesCRT.xlsx.")
     parser.add_argument("--sheet", default=SHEET_DEFAULT,
@@ -787,6 +883,10 @@ def construir_parser() -> argparse.ArgumentParser:
                         help="Carpeta donde se guardan logs y resúmenes.")
     parser.add_argument("--workers", type=int, default=WORKERS_DEFAULT,
                         help="Workers iniciales de Playwright. Configuración local: 10.")
+    parser.add_argument("--internos-workers", type=int, default=INTERNOS_WORKERS_DEFAULT,
+                        help="Navegadores paralelos para Internos IFT. Default: 12; acepta cualquier entero positivo.")
+    parser.add_argument("--max-folios-internos", type=int, default=0,
+                        help="Tamaño máximo del lote de Internos. 0 procesa todos; para prueba local usa 4.")
     parser.add_argument("--timeout-registro", type=int, default=TIMEOUT_REGISTRO_DEFAULT,
                         help="Timeout duro por Registro en segundos. Si un Registro se traba, se mata su proceso hijo y sigue el lote.")
     parser.add_argument("--reintentos-registro", type=int, default=REINTENTOS_REGISTRO_DEFAULT,
@@ -822,7 +922,14 @@ def construir_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = construir_parser().parse_args()
+    if args.internos_workers < 1:
+        raise SystemExit("--internos-workers debe ser un entero positivo.")
+    if args.max_folios_internos < 0:
+        raise SystemExit("--max-folios-internos debe ser 0 o un entero positivo.")
     headless = bool(args.headless and not args.visible)
+    reconciliacion_habilitada = bool(
+        not args.sin_reconciliacion_global and not args.solo_internos
+    )
 
     fecha = datetime.now().strftime("%Y%m%d_%H%M%S")
     args.registros_dir.mkdir(parents=True, exist_ok=True)
@@ -839,8 +946,12 @@ def main() -> int:
 
     resumen: dict = {
         "fecha_ejecucion": datetime.now().isoformat(),
+        "modo": "solo_internos" if args.solo_internos else "diario_completo",
+        "reconciliacion_global_habilitada": reconciliacion_habilitada,
         "headless": headless,
         "workers": args.workers,
+        "internos_workers": args.internos_workers,
+        "max_folios_internos": args.max_folios_internos,
         "timeout_registro_segundos": args.timeout_registro,
         "reintentos_registro": args.reintentos_registro,
         "workers_reintento": args.workers_reintento,
@@ -937,6 +1048,8 @@ def main() -> int:
             "--intentos-pagina", str(args.intentos_pagina_extraccion),
             "--modo-anios", "todos",
         ]
+        if args.solo_internos:
+            cmd_extraer.append("--solo-internos")
         cmd_extraer.append("--headless" if headless else "--visible")
         try:
             registros_satys, intentos_extraccion = extraer_registros_satys_con_reintentos(
@@ -988,9 +1101,17 @@ def main() -> int:
 
         # 2) Leer evidencia Excel, columna 1711.
         estado.actualizar(stage="leyendo_excel_control", excel=str(args.excel))
-        procesados_excel, excel_info = cargar_registros_procesados_excel(
-            args.excel, args.sheet, args.header_registro
-        )
+        if args.solo_internos:
+            procesados_excel = set()
+            excel_info = {
+                "omitido": True,
+                "motivo": "modo solo_internos",
+                "sheet": args.sheet,
+            }
+        else:
+            procesados_excel, excel_info = cargar_registros_procesados_excel(
+                args.excel, args.sheet, args.header_registro
+            )
         resumen["excel_info"] = excel_info
         procesados_internos_excel, excel_internos_info = cargar_folios_internos_procesados_excel(
             args.excel,
@@ -1010,15 +1131,19 @@ def main() -> int:
             folio for folio in folios_internos_satys
             if folio not in procesados_internos_excel
         ]
-        objetivos_internos = construir_objetivos_internos(
+        objetivos_internos_detectados = construir_objetivos_internos(
             resumen_internos,
             folios_internos_nuevos,
         )
-        if len(objetivos_internos) != len(folios_internos_nuevos):
+        if len(objetivos_internos_detectados) != len(folios_internos_nuevos):
             raise RuntimeError(
                 "No fue posible asociar cada Folio Internos nuevo con su bandeja: "
-                f"folios={len(folios_internos_nuevos)}, objetivos={len(objetivos_internos)}."
+                f"folios={len(folios_internos_nuevos)}, objetivos={len(objetivos_internos_detectados)}."
             )
+        objetivos_internos = limitar_objetivos_internos(
+            objetivos_internos_detectados,
+            args.max_folios_internos,
+        )
         guardar_objetivos_internos(internos_nuevos_hist, objetivos_internos)
         guardar_objetivos_internos(args.internos_latest, objetivos_internos)
 
@@ -1030,7 +1155,7 @@ def main() -> int:
         # Registros en Excel pero sin una descarga real válida. La decisión usa
         # la misma regla central que Parte 1 y main_procesar.py: los JSON de
         # metadata, archivos vacíos, temporales y auxiliares nunca cuentan.
-        incompletos_en_excel = [
+        incompletos_en_excel = [] if args.solo_internos else [
             reg for reg in registros_satys
             if reg in procesados_excel
             and not registro_esta_completo(DESCARGA_BASE_DIARIO, reg)
@@ -1060,6 +1185,7 @@ def main() -> int:
         resumen["registros_nuevos"] = nuevos
         resumen["total_folios_internos_procesados_excel"] = len(procesados_internos_excel)
         resumen["total_folios_internos_nuevos"] = len(folios_internos_nuevos)
+        resumen["total_objetivos_internos_seleccionados"] = len(objetivos_internos)
         resumen["folios_internos_nuevos"] = folios_internos_nuevos
         resumen["objetivos_internos_nuevos"] = objetivos_internos
         estado.actualizar(
@@ -1089,6 +1215,7 @@ def main() -> int:
         print(f"Folios Internos en SATyS:      {len(folios_internos_satys)}")
         print(f"Folios Internos en Excel:      {len(procesados_internos_excel)}")
         print(f"Folios Internos nuevos:        {len(folios_internos_nuevos)}")
+        print(f"Folios seleccionados en lote:  {len(objetivos_internos)}")
         print(f"JSON Internos para main:       {args.internos_latest}")
         if folios_internos_nuevos:
             print(
@@ -1099,7 +1226,7 @@ def main() -> int:
 
         if not nuevos and not objetivos_internos:
             rc_reconciliacion = 0
-            if not args.sin_reconciliacion_global:
+            if reconciliacion_habilitada:
                 rc_reconciliacion = ejecutar_reconciliacion_global(
                     python_exe=args.python_exe,
                     script=args.reconciliar_script,
@@ -1109,7 +1236,13 @@ def main() -> int:
                 )
             resumen["return_code_reconciliacion_global"] = rc_reconciliacion
             resumen["ok"] = rc_reconciliacion == 0
-            if vacio_confirmado_satys and not folios_internos_satys:
+            if args.solo_internos:
+                base_mensaje = "No hay Folios Internos nuevos."
+                mensaje_notificacion = (
+                    f"Se revisaron {len(folios_internos_satys)} folios de Internos; "
+                    "todos existen en la hoja Internos de TrámitesCRT.xlsx."
+                )
+            elif vacio_confirmado_satys and not folios_internos_satys:
                 base_mensaje = "SATyS confirmó cero registros."
                 mensaje_notificacion = "SATyS confirmó cero registros en todos los años consultados."
             else:
@@ -1119,9 +1252,12 @@ def main() -> int:
                     f"{len(folios_internos_satys)} folios de Internos; "
                     "todos existen en TrámitesCRT.xlsx."
                 )
-            resumen["mensaje"] = (
-                f"{base_mensaje} Reconciliación global de TrámitesCRT.xlsx: código {rc_reconciliacion}."
+            detalle_reconciliacion = (
+                f"Reconciliación global de TrámitesCRT.xlsx: código {rc_reconciliacion}."
+                if reconciliacion_habilitada
+                else "Reconciliación global omitida en modo solo Internos."
             )
+            resumen["mensaje"] = f"{base_mensaje} {detalle_reconciliacion}"
             notificar_windows(
                 "SATyS CRT — sin registros nuevos",
                 mensaje_notificacion,
@@ -1140,7 +1276,7 @@ def main() -> int:
         # 4) Ejecutar main_procesar.py por Registro.
         if args.no_procesar:
             rc_reconciliacion = 0
-            if not args.sin_reconciliacion_global:
+            if reconciliacion_habilitada:
                 rc_reconciliacion = ejecutar_reconciliacion_global(
                     python_exe=args.python_exe,
                     script=args.reconciliar_script,
@@ -1150,14 +1286,24 @@ def main() -> int:
                 )
             resumen["return_code_reconciliacion_global"] = rc_reconciliacion
             resumen["ok"] = rc_reconciliacion == 0
+            alcance_listas = "Internos" if args.solo_internos else "Oficialia e Internos"
             resumen["mensaje"] = (
-                "Se generaron las listas de nuevos de Oficialia e Internos, "
+                f"Se generaron las listas de nuevos de {alcance_listas}, "
                 "pero no se procesaron por --no-procesar. "
-                f"Reconciliación global: código {rc_reconciliacion}."
+                + (
+                    f"Reconciliación global: código {rc_reconciliacion}."
+                    if reconciliacion_habilitada
+                    else "Reconciliación global omitida en modo solo Internos."
+                )
+            )
+            detalle_nuevos = (
+                f"Internos: {len(objetivos_internos)} nuevo(s)."
+                if args.solo_internos
+                else f"Oficialia: {len(nuevos)} nuevo(s). Internos: {len(objetivos_internos)} nuevo(s)."
             )
             notificar_windows(
                 "SATyS CRT — registros nuevos detectados",
-                f"Oficialia: {len(nuevos)} nuevo(s). Internos: {len(objetivos_internos)} nuevo(s).",
+                detalle_nuevos,
                 habilitado=not args.sin_notificacion,
             )
             estado.finalizar(
@@ -1201,6 +1347,7 @@ def main() -> int:
                 str(args.main_script),
                 "--internos",
                 "--internos-objetivos", str(args.internos_latest),
+                "--internos-workers", str(args.internos_workers),
                 "--sin-lock",
             ]
             if headless:
@@ -1222,7 +1369,7 @@ def main() -> int:
         resumen["return_code_main_internos"] = rc_main_internos
 
         rc_reconciliacion = 0
-        if not args.sin_reconciliacion_global:
+        if reconciliacion_habilitada:
             rc_reconciliacion = ejecutar_reconciliacion_global(
                 python_exe=args.python_exe,
                 script=args.reconciliar_script,
@@ -1239,17 +1386,30 @@ def main() -> int:
         resumen["registros_fallidos_controlados"] = fallidos
         resumen["total_fallidos_controlados"] = len(fallidos)
         resumen["ok"] = rc_final == 0
-        resumen["mensaje"] = (
-            f"Procesados {len(nuevos)} registro(s) de Oficialia y "
-            f"{len(objetivos_internos)} folio(s) de Internos. "
-            f"Codigos main: Oficialia={rc_main}, Internos={rc_main_internos}. "
-            f"Reconciliación global: {rc_reconciliacion}. Fallidos controlados: {len(fallidos)}."
-        )
+        if args.solo_internos:
+            resumen["mensaje"] = (
+                f"Procesados {len(objetivos_internos)} folio(s) nuevos de Internos. "
+                f"Código main Internos={rc_main_internos}. "
+                f"Fallidos controlados: {len(fallidos)}."
+            )
+        else:
+            resumen["mensaje"] = (
+                f"Procesados {len(nuevos)} registro(s) de Oficialia y "
+                f"{len(objetivos_internos)} folio(s) de Internos. "
+                f"Codigos main: Oficialia={rc_main}, Internos={rc_main_internos}. "
+                f"Reconciliación global: {rc_reconciliacion}. Fallidos controlados: {len(fallidos)}."
+            )
 
+        detalle_final = (
+            f"Internos: {len(objetivos_internos)} | Fallidos: {len(fallidos)} | "
+            f"Código main: {rc_main_internos} | Log: {log_path.name}"
+            if args.solo_internos
+            else f"Oficialia: {len(nuevos)} | Internos: {len(objetivos_internos)} | "
+                 f"Fallidos: {len(fallidos)} | Codigos main: {rc_main}/{rc_main_internos} | Log: {log_path.name}"
+        )
         notificar_windows(
             "SATyS CRT — proceso diario finalizado",
-            f"Oficialia: {len(nuevos)} | Internos: {len(objetivos_internos)} | "
-            f"Fallidos: {len(fallidos)} | Codigos main: {rc_main}/{rc_main_internos} | Log: {log_path.name}",
+            detalle_final,
             habilitado=not args.sin_notificacion,
         )
 
@@ -1290,13 +1450,16 @@ def main() -> int:
         )
         # Correo de aviso de fallo
         if _EMAIL_DISPONIBLE and not args.sin_email:
+            total_fallido = max(1, int(resumen.get("total_nuevos", 0) or 0))
             _email_mod.enviar_notificacion(
-                total_registros=resumen.get("total_nuevos", 0),
+                total_registros=total_fallido,
                 exitosos=0,
                 sin_operador=0,
-                errores=resumen.get("total_nuevos", 0),
+                errores=total_fallido,
                 registros=[],
                 fecha_ejecucion=resumen.get("fecha_ejecucion"),
+                modo="ERROR MONITOR DIARIO",
+                log_path=str(log_path),
             )
         estado.finalizar(ok=False, mensaje=str(exc), errores=resumen.get("errores", []), traceback=resumen.get("traceback", ""))
         return 1

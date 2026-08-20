@@ -35,6 +35,8 @@ class ReintentosExtraccionSatysTest(unittest.TestCase):
                 "filas_leidas": total,
                 "total_guardados_anio": len(registros),
                 "filas_invalidas": 0,
+                "contador_tab": total,
+                "tamanio_pagina": 100,
             }],
             "internos": {
                 "estado": "COMPLETO",

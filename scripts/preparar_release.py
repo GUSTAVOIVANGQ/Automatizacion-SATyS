@@ -67,6 +67,7 @@ REQUIRED_MEMBERS = {
     "scripts/preflight_despliegue.sh",
     "scripts/run_satys_diario.sh",
     "scripts/run_satys_internos.sh",
+    "scripts/run_satys_internos_nuevos.sh",
     "scripts/smoke_internos.py",
     "tests/test_internos_diario.py",
     "config/configuracion_local.example.json",
@@ -147,7 +148,9 @@ def archivos_release(project_root: Path) -> list[Path]:
         if not path.exists():
             raise FileNotFoundError(f"Falta archivo requerido por el empaquetador: {path}")
         rel = path.relative_to(project_root)
-        if permitido(rel):
+        # Evita incluir borradores Markdown vacíos que puedan existir en el
+        # workspace local sin formar parte del producto desplegable.
+        if permitido(rel) and not (path.suffix.lower() == ".md" and path.stat().st_size == 0):
             resultado.append(path)
     return sorted(resultado, key=lambda item: item.relative_to(project_root).as_posix())
 

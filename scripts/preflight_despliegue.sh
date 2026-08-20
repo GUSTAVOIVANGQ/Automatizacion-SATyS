@@ -62,6 +62,7 @@ required=(
   main_procesar.py
   scripts/run_satys_diario.sh
   scripts/run_satys_internos.sh
+  scripts/run_satys_internos_nuevos.sh
   scripts/instalar_linux_1am.sh
   scripts/desplegar_release_completa.sh
   scripts/smoke_internos.py
@@ -137,6 +138,8 @@ grep -q 'def descargar_internos_ift' "$RELEASE_DIR/Parte1_descarga.py"
 grep -q 'internos_workers' "$RELEASE_DIR/Parte1_descarga.py"
 grep -q 'def _cerrar_paginas_emergentes' "$RELEASE_DIR/Parte1_descarga.py"
 grep -q -- '--internos-workers' "$RELEASE_DIR/main_procesar.py"
+grep -q -- '--solo-internos' "$RELEASE_DIR/extraer_registros_documentos.py"
+grep -q -- '--solo-internos' "$RELEASE_DIR/automatizar_registros_diario.py"
 
 TMP_CACHE="$(mktemp -d)"
 trap 'rm -rf "$TMP_CACHE"' EXIT
@@ -154,12 +157,12 @@ from pathlib import Path
 path = Path(sys.argv[1])
 data = json.loads(path.read_text(encoding="utf-8"))
 workers = data.get("procesamiento", {}).get("internos_workers")
-if workers != 6:
-    raise SystemExit(f"internos_workers esperado=6, recibido={workers!r}")
+if workers != 12:
+    raise SystemExit(f"internos_workers esperado=12, recibido={workers!r}")
 PY_RELEASE
 
 echo "OK release: $(cat "$RELEASE_DIR/VERSION")"
-echo "OK sintaxis Python, Bash, manifest y configuracion de seis workers Internos"
+echo "OK sintaxis Python, Bash, manifest y configuracion de doce workers Internos"
 
 if (( CHECK_SERVER == 0 )); then
   exit 0
@@ -198,8 +201,8 @@ if not excel.is_absolute():
     excel = project_dir / excel
 if not excel.exists():
     raise SystemExit(f"No existe el Excel productivo configurado: {excel}")
-workers = data.get("procesamiento", {}).get("internos_workers", 6)
-if not isinstance(workers, int) or not 0 <= workers <= 6:
+workers = data.get("procesamiento", {}).get("internos_workers", 12)
+if not isinstance(workers, int) or workers < 1:
     raise SystemExit(f"internos_workers invalido: {workers!r}")
 print(f"OK configuracion productiva; internos_workers efectivo={workers}")
 PY_CONFIG

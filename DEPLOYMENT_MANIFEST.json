@@ -1,10 +1,10 @@
 {
   "product": "Automatizacion-SATyS",
-  "version": "2026.08.17-portable-oci-api-v1-8082-ui2",
+  "version": "2026.08.18-portable-oci-api-v1-8082-internos4",
   "git_commit": "unknown",
-  "created_utc": "2026-08-18T01:02:28.789881+00:00",
+  "created_utc": "2026-08-18T19:59:55.737089+00:00",
   "contains_secrets": false,
-  "file_count": 119,
+  "file_count": 122,
   "files": [
     {
       "path": ".dockerignore",
@@ -13,8 +13,8 @@
     },
     {
       "path": ".env.example",
-      "bytes": 847,
-      "sha256": "e7285a4ea25e43228559fbb4a0b8216c0321a4117868862ada0a57806671976b"
+      "bytes": 853,
+      "sha256": "a0e36b33726692229d9c12679f8d6db5f918a7231f1c843ea1e3ab08d6b516a9"
     },
     {
       "path": ".github/workflows/ci.yml",
@@ -48,8 +48,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 3761,
-      "sha256": "4097b2ca99c3512dd123f72a80a3eea75f0345f0ce95b9001f9c700c6e2c708d"
+      "bytes": 4290,
+      "sha256": "357e2e833170f4f946a85a1bd892b3461789f9bf95dc593e1cdbb744434db05d"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -72,6 +72,11 @@
       "sha256": "74bc353cf536f22cd470463e81ac6c4c2e50b431b4d6a2cc5f3bf2431454422b"
     },
     {
+      "path": "DESPLIEGUE_INTERNOS_IFT_8082.md",
+      "bytes": 1075,
+      "sha256": "32acc1a187ace1e0b5fb3ccb2f0427890470e26d90b25e74020dd8f195c5b249"
+    },
+    {
       "path": "DESPLIEGUE_LINUX_V3.md",
       "bytes": 785,
       "sha256": "39120726991ce5e4de6fe12d91201232b36cd6cd0d7d72a819283121d6b2ec4f"
@@ -83,8 +88,8 @@
     },
     {
       "path": "DESPLIEGUE_UI2_8082.md",
-      "bytes": 1878,
-      "sha256": "574cdef937a6778130a80dae3aa16453f3e04268a54c6e0dd03e365dfe7c7b28"
+      "bytes": 1884,
+      "sha256": "8d6fc8f57f6b0db3b5764f4a72dd4dd0755a80ee79e3e1b9f05e45c15ece8919"
     },
     {
       "path": "Dockerfile",
@@ -128,13 +133,13 @@
     },
     {
       "path": "QUICKSTART_PORTABLE.md",
-      "bytes": 2372,
-      "sha256": "eb6dc4a0facabbba095e14cbd41f4500d9adca147595188e1b9d76ae0bb8204e"
+      "bytes": 2378,
+      "sha256": "32cbf0b62df5e7842c785b64f0fbfd21524e052e327e8e849c66e8113a52e9e9"
     },
     {
       "path": "README.md",
-      "bytes": 26054,
-      "sha256": "1f095db8ae2700789b74bc2ee0e3661f185b196a49aa2b679a11fdf391d35143"
+      "bytes": 26594,
+      "sha256": "4fd337e72a3d893df6e9ee8df060c161ee7129fe627ff0ca66f66b45474f6aa4"
     },
     {
       "path": "README_BACKEND_LINUX.md",
@@ -168,8 +173,8 @@
     },
     {
       "path": "VERSION",
-      "bytes": 40,
-      "sha256": "d6a96e45979a0431ebed8d68b149a32a05366d27708770e57456cdf96f26e4b9"
+      "bytes": 46,
+      "sha256": "dc32816f707d4a384f51baad586682f55289f5168142e7cd4a4d790da4dcd8d4"
     },
     {
       "path": "api_models.py",
@@ -178,8 +183,8 @@
     },
     {
       "path": "automatizar_registros_diario.py",
-      "bytes": 57318,
-      "sha256": "150929d673e954a759131154908e15171136259b5f6b0fb2a7523afecb28e4f4"
+      "bytes": 61295,
+      "sha256": "9f18d295b5c6ddd9439cb2d5b932ceb37c79540a003ec35e53cf37abb81915b6"
     },
     {
       "path": "buscar_concesionario.py",
@@ -208,13 +213,13 @@
     },
     {
       "path": "deploy/satys.env.example",
-      "bytes": 469,
-      "sha256": "3ac6fd031ccb05b6aff3dd2a80ad166aa3482c1bdd378d8fa60f7b69131c33c1"
+      "bytes": 475,
+      "sha256": "dd0caac0e82b1f738633aec7b95194cb632b241ca2516f6d56d92aeb306e323e"
     },
     {
       "path": "deploy/srvmbcudaqa01.env.example",
-      "bytes": 799,
-      "sha256": "14b041f980ddc04aed0c48843aa319a34c1761ac795a9050609a6755ad22f09b"
+      "bytes": 805,
+      "sha256": "94e025c7003d8e2b7713ba25bbccf2df1c961953e33f962663cc3565eb2c0308"
     },
     {
       "path": "descargar_concesiones_rpc.py",
@@ -223,8 +228,8 @@
     },
     {
       "path": "docker-compose.yml",
-      "bytes": 2187,
-      "sha256": "3c25155dc5436237bff75ff3ca187fbf0f52b266de1e2d1997a8a241b918bd74"
+      "bytes": 2199,
+      "sha256": "188863db229644e1a0cc86fddd66af3c958f26074cd43919f226a98708903b7b"
     },
     {
       "path": "docs/API.md",
@@ -268,8 +273,8 @@
     },
     {
       "path": "extraer_registros_documentos.py",
-      "bytes": 96187,
-      "sha256": "f27c8fd788a5d783b349f031d20e7b5e0cc98dfc56b2700ec8493cca3a69d782"
+      "bytes": 97243,
+      "sha256": "5faa4a91ad36ecd0c560dbb1c9147f8bd98acd664cc259266c4efa7bedca172b"
     },
     {
       "path": "generar_excel_folios.py",
@@ -393,8 +398,8 @@
     },
     {
       "path": "scripts/docker_satys.sh",
-      "bytes": 1077,
-      "sha256": "9177f0e5647af6c052add79b379f8907d70e8846564a81da81e8dfc1c7136adf"
+      "bytes": 1222,
+      "sha256": "ea75716c78696f77f4db307bc3fc43d826ca40f9f97c7bb932d502007b74fefe"
     },
     {
       "path": "scripts/doctor_portable.sh",
@@ -413,8 +418,8 @@
     },
     {
       "path": "scripts/instalar_container_systemd.sh",
-      "bytes": 2531,
-      "sha256": "d44cedb47dd0985da3818605920bf834740a3fe56148a74fac78e8db13ab7083"
+      "bytes": 3226,
+      "sha256": "ab904a98b10d72305079ed81be6a9c2ed97ff2e1b9988a8f7a1dd768f600f8f4"
     },
     {
       "path": "scripts/instalar_linux_1am.sh",
@@ -428,18 +433,18 @@
     },
     {
       "path": "scripts/podman_satys.sh",
-      "bytes": 4245,
-      "sha256": "bc66e5b7e22eeebfdb4a126de1cb6cb5d7a13813933ebad27b297a6a57b90e6a"
+      "bytes": 5014,
+      "sha256": "f904163a81d54854a6a12912b416bdf61fbd00d91350476be59cde1bcfe1a8ae"
     },
     {
       "path": "scripts/preflight_despliegue.sh",
-      "bytes": 8516,
-      "sha256": "14975f7a3b51df881b86767d87a7cd5fd2a1c98d199636d7ae6b87524d0cdfca"
+      "bytes": 8707,
+      "sha256": "52f710018a1526d6084854ec43c2c0747cab336d807fc73238fc935f59528552"
     },
     {
       "path": "scripts/preparar_release.py",
-      "bytes": 11027,
-      "sha256": "cff351f753099ea854668b502ea9a536b7ae317f9c312e60cdfab9251e39e8c1"
+      "bytes": 11071,
+      "sha256": "02235d72459f1337a67caa2a0bfcdc10e8abea2095ce0a9ae610dc04ddefdfd8"
     },
     {
       "path": "scripts/publicar_imagen.sh",
@@ -467,9 +472,19 @@
       "sha256": "ad124a250ffc3633b79ac56e03c2362ddab6d879d3e7c4804e5163c2a48092c3"
     },
     {
+      "path": "scripts/run_satys_internos_nuevos.ps1",
+      "bytes": 1150,
+      "sha256": "0da7740ed3b58ffce6dec86716075808cdb4dc4c834445e1a71f2ebb8ce9e19d"
+    },
+    {
+      "path": "scripts/run_satys_internos_nuevos.sh",
+      "bytes": 828,
+      "sha256": "115c23db7ab90359b638087bc81d9a954f32ef47a0cc1e35a48f2bc53d116c8a"
+    },
+    {
       "path": "scripts/satys.ps1",
-      "bytes": 2156,
-      "sha256": "22dcdaa5cbc156942181bc801edce1956f4a3f93b2e57f1a8a5809962754eee0"
+      "bytes": 2311,
+      "sha256": "1895868f4584430d1abd8fffbcbf0812f073920da95d6730f72e08cc1a2b57ad"
     },
     {
       "path": "scripts/satys.sh",
@@ -548,13 +563,13 @@
     },
     {
       "path": "tests/test_internos_diario.py",
-      "bytes": 11602,
-      "sha256": "36f8570c8842c98e959435aa17d38504dad7887d0ea23e5bbb66365e00c9cbc0"
+      "bytes": 16043,
+      "sha256": "5835e6c620e609053f1ab77f53f83b22dfa812bdf99315cd1b21e4d077eece7c"
     },
     {
       "path": "tests/test_portable_deployment.py",
-      "bytes": 2714,
-      "sha256": "9bc468f15680378ddb45c4ddc2194d4c837bb64c28016f7baf07f78535649325"
+      "bytes": 3284,
+      "sha256": "0b648497d6a66c00d292bcee57c8e9ff61723695f6e9f9249d465f2e4571c7f7"
     },
     {
       "path": "tests/test_reintentos_extraccion_satys.py",

@@ -1,8 +1,8 @@
 param(
     [switch]$Visible,
     [switch]$SinEmail,
-    [ValidateRange(0, 6)]
-    [int]$Workers = 6
+    [ValidateScript({ $_ -ge 0 })]
+    [int]$Workers = 12
 )
 
 $ErrorActionPreference = "Stop"

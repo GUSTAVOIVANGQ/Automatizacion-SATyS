@@ -16,6 +16,17 @@ SHARED="${SATYS_SHARED_HOST_DIR:-$RUNTIME/shared}"
 CONFIG="${SATYS_CONFIG_HOST_FILE:-./config/configuracion_local.json}"
 LOCKS="${SATYS_LOCK_HOST_DIR:-$RUNTIME/locks}"
 TZV="${SATYS_TZ:-America/Mexico_City}"
+INTERNOS_WORKERS="${SATYS_INTERNOS_WORKERS:-12}"
+INTERNOS_WORKER_REINTENTOS="${SATYS_INTERNOS_WORKER_REINTENTOS:-2}"
+INTERNOS_WORKER_ESPERA="${SATYS_INTERNOS_WORKER_ESPERA:-2}"
+ZIP_MAX_ITERACIONES="${SATYS_ZIP_MAX_ITERACIONES:-32}"
+ZIP_RUTA_RELATIVA_MAX="${SATYS_ZIP_RUTA_RELATIVA_MAX:-140}"
+SHM_SIZE="${SATYS_SHM_SIZE:-6g}"
+
+[[ "$INTERNOS_WORKERS" =~ ^[1-9][0-9]*$ ]] || {
+  echo "ERROR: SATYS_INTERNOS_WORKERS debe ser un entero positivo" >&2
+  exit 2
+}
 
 abs(){ case "$1" in /*) printf '%s' "$1";; *) printf '%s/%s' "$ROOT" "${1#./}";; esac; }
 RUNTIME="$(abs "$RUNTIME")"; SHARED="$(abs "$SHARED")"; CONFIG="$(abs "$CONFIG")"; LOCKS="$(abs "$LOCKS")"
@@ -28,12 +39,16 @@ mkdir -p "$RUNTIME" "$RUNTIME/descargas" "$RUNTIME/output" "$RUNTIME/logs" "$RUN
 common=(
   --user 0:0
   --security-opt label=disable
-  --shm-size=2g
+  --shm-size="$SHM_SIZE"
   -e "TZ=$TZV"
   -e HOME=/tmp
   -e SATYS_PYTHON=/opt/satys-venv/bin/python
   -e SATYS_HEADLESS=1
-  -e SATYS_INTERNOS_WORKERS=6
+  -e "SATYS_INTERNOS_WORKERS=$INTERNOS_WORKERS"
+  -e "SATYS_INTERNOS_WORKER_REINTENTOS=$INTERNOS_WORKER_REINTENTOS"
+  -e "SATYS_INTERNOS_WORKER_ESPERA=$INTERNOS_WORKER_ESPERA"
+  -e "SATYS_ZIP_MAX_ITERACIONES=$ZIP_MAX_ITERACIONES"
+  -e "SATYS_ZIP_RUTA_RELATIVA_MAX=$ZIP_RUTA_RELATIVA_MAX"
   -e SATYS_API_ALLOW_MANUAL=1
   -e SATYS_API_ALLOW_REPAIR=1
   -e SATYS_API_ALLOW_START=0
@@ -67,6 +82,12 @@ case "$cmd" in
       --build-arg "SATYS_GIT_COMMIT=${SATYS_GIT_COMMIT:-unknown}" \
       -t "$IMAGE" .
     ;;
+  api-run)
+    # Modo foreground para que systemd supervise el proceso real del contenedor.
+    podman rm -f satys-api >/dev/null 2>&1 || true
+    exec podman run --rm --name satys-api "${common[@]}" --network "$API_NETWORK" -p "$BIND:$PORT:8082" \
+      "$IMAGE" uvicorn satys_api:app --host 0.0.0.0 --port 8082 --proxy-headers
+    ;;
   api-up)
     podman rm -f satys-api >/dev/null 2>&1 || true
     podman run -d --name satys-api "${common[@]}" --network "$API_NETWORK" -p "$BIND:$PORT:8082" \
@@ -94,9 +115,19 @@ case "$cmd" in
     exec podman run --rm --name "satys-worker-$(date +%Y%m%d-%H%M%S)" "${common[@]}" \
       "$IMAGE" python automatizar_registros_diario.py --headless --workers 10
     ;;
+  internos)
+    [[ -f "$RUNTIME/TrámitesCRT.xlsx" ]] || { echo "ERROR: falta $RUNTIME/TrámitesCRT.xlsx" >&2; exit 3; }
+    exec podman run --rm --name "satys-internos-$(date +%Y%m%d-%H%M%S)" "${common[@]}" \
+      "$IMAGE" python automatizar_registros_diario.py --solo-internos --headless
+    ;;
+  internos-check)
+    [[ -f "$RUNTIME/TrámitesCRT.xlsx" ]] || { echo "ERROR: falta $RUNTIME/TrámitesCRT.xlsx" >&2; exit 3; }
+    exec podman run --rm --name "satys-internos-check-$(date +%Y%m%d-%H%M%S)" "${common[@]}" \
+      "$IMAGE" python automatizar_registros_diario.py --solo-internos --no-procesar --sin-email --headless
+    ;;
   smoke)
     exec podman run --rm --name "satys-smoke-$$" "${common[@]}" \
-      "$IMAGE" python scripts/smoke_internos.py --workers 6
+      "$IMAGE" python scripts/smoke_internos.py --workers "$INTERNOS_WORKERS"
     ;;
   test)
     exec podman run --rm --name "satys-test-$$" "${common[@]}" \
@@ -106,12 +137,15 @@ case "$cmd" in
     cat <<EOF
 Uso: scripts/podman_satys.sh COMANDO
   build      Construir imagen OCI
+  api-run    Ejecutar API en foreground (uso de systemd)
   api-up     Levantar API en ${BIND}:${PORT}
   api-down   Detener API
   status     Estado del contenedor API
   logs       Logs en vivo
   smoke      Smoke test SATyS Internos IFT
   daily      Ejecutar worker diario
+  internos   Inventariar seis bandejas y procesar solo Folios Internos nuevos
+  internos-check  Validar acceso, inventario y comparación sin procesar Folios
   test       Ejecutar tests dentro de la imagen
 EOF
     ;;

@@ -8,6 +8,16 @@ Orden de precedencia:
 
 El archivo ``.env`` de la raíz se carga al importar este módulo para que el
 mismo mecanismo funcione en Windows, macOS, Linux, Docker/Podman y venv.
+
+NOTA DE SEGURIDAD — CREDENCIALES EN TEXTO PLANO:
+Las credenciales de SATyS y de Gmail se almacenan directamente en
+config/configuracion_local.json. Esto es aceptado deliberadamente porque
+el proyecto se ejecuta ÚNICAMENTE en entornos aislados y controlados por
+nuestro servidor (red interna CRT / DEPI). El archivo nunca se expone a
+redes públicas ni se sube a repositorios remotos (.gitignore lo excluye).
+Si en el futuro el despliegue cambia, migrar las credenciales a variables
+de entorno (SATYS_USUARIO, SATYS_PASSWORD, SATYS_EMAIL_APP_PASSWORD, etc.)
+usando el mecanismo de precedencia ya implementado en este módulo.
 """
 
 from __future__ import annotations
@@ -115,8 +125,31 @@ def configuracion_email() -> dict[str, Any]:
     return cfg
 
 
+_PROCESAMIENTO_ENV_ENTERO = {
+    "workers": "SATYS_WORKERS",
+    "internos_workers": "SATYS_INTERNOS_WORKERS",
+    "timeout_registro": "SATYS_TIMEOUT_REGISTRO",
+    "reintentos_registro": "SATYS_REINTENTOS_REGISTRO",
+    "workers_reintento": "SATYS_WORKERS_REINTENTO",
+    "reintentos_extraccion": "SATYS_REINTENTOS_EXTRACCION",
+    "timeout_tabla": "SATYS_TIMEOUT_TABLA",
+    "espera_reintento_extraccion": "SATYS_ESPERA_REINTENTO_EXTRACCION",
+}
+
+
 def configuracion_procesamiento() -> dict[str, Any]:
-    return dict(_seccion("procesamiento"))
+    cfg = dict(_seccion("procesamiento"))
+    for clave, env_name in _PROCESAMIENTO_ENV_ENTERO.items():
+        valor = _env_texto(env_name)
+        if valor is None:
+            continue
+        try:
+            cfg[clave] = int(valor)
+        except ValueError as exc:
+            raise ConfiguracionError(
+                f"{env_name} debe ser un entero; valor recibido: {valor!r}."
+            ) from exc
+    return cfg
 
 
 _RUTA_ENV = {

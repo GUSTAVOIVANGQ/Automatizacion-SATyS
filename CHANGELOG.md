@@ -1,3 +1,35 @@
+# 2026.08.18-portable-oci-api-v1-8082-internos12
+
+- Eleva a 12 los navegadores predeterminados de Internos y elimina los topes
+  artificiales en CLI, configuración, smoke tests y preflight de servidor.
+- Reserva primero dos segmentos por cada bandeja activa y distribuye los slots
+  restantes según la carga, sin asignar un mismo Folio a dos navegadores.
+- Hace efectivo `SATYS_INTERNOS_WORKERS` dentro de Docker/Podman y parametriza
+  la memoria compartida con `SATYS_SHM_SIZE` (6 GB por defecto).
+- Evita ciclos infinitos al descomprimir ZIPs: cada archivo fallido se intenta
+  una sola vez por proceso y la recursión queda acotada.
+- Acorta rutas ZIP largas de forma determinista y portable entre Windows y
+  Linux; los ZIPs `121195` y `138146` se validaron completos.
+- Reintenta los segmentos de Internos que fallan al cargar el tablero y evita
+  aceptar como éxito un segmento vacío con folios asignados.
+
+- Corrige la navegación inicial de Internos IFT en Playwright/RHEL evitando
+  `wait_for_function`, cuya inyección fallaba dentro del portal SATyS.
+- Los correos de excepción del monitor ahora informan al menos un error y
+  dejan de usar el asunto incorrecto "Proceso sin errores - 0 registros".
+- Agrega `scripts/satys.sh internos-check` para validar las seis bandejas sin
+  descargar documentos ni modificar `TrámitesCRT.xlsx`.
+- Activa las seis bandejas por los IDs estables `1` a `6`, evitando que el
+  contador pegado al texto, por ejemplo `Recibidos0`, rompa la selección.
+- Verifica por separado que SATyS marque el botón como activo, incluso cuando
+  el clic provoca que `page.evaluate` devuelva una respuesta vacía.
+
+- Añade modo OCI/Podman `scripts/satys.sh internos` para inventariar exclusivamente Internos IFT y procesar sólo `Folio Internos` nuevos.
+- Conserva `daily` sin convertirlo a modo Internos.
+- Añade `satys-container-internos.service` para corridas manuales independientes de SSH.
+- La API systemd pasa a foreground supervisado (`Restart=on-failure`) en lugar de `active (exited)`.
+- Release sanitizada: sin `TrámitesCRT.xlsx`, sesiones, logs, screenshots ni datos operativos.
+
 ## 2026.08.17 - UI2 (documentación sincronizada)
 
 - `/docs` usa el mismo tema claro/oscuro que el panel principal mediante `localStorage["theme"]`.

@@ -273,7 +273,10 @@ if not isinstance(data, dict):
 procesamiento = data.setdefault("procesamiento", {})
 if not isinstance(procesamiento, dict):
     raise SystemExit("La seccion procesamiento no es un objeto JSON")
-procesamiento.setdefault("internos_workers", 6)
+# Migra únicamente el antiguo valor por defecto (6). Cualquier otro valor
+# configurado explícitamente por el operador se conserva sin imponer un máximo.
+if procesamiento.get("internos_workers", 6) == 6:
+    procesamiento["internos_workers"] = 12
 rutas = data.setdefault("rutas", {})
 if not isinstance(rutas, dict):
     raise SystemExit("La seccion rutas no es un objeto JSON")

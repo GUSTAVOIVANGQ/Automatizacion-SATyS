@@ -66,11 +66,11 @@ def inspeccionar_bandeja(_context, page, bandeja, max_pasadas=3, folios_objetivo
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--workers", type=int, default=6, help="Navegadores paralelos; default: 6.")
+    parser.add_argument("--workers", type=int, default=12, help="Navegadores paralelos; default: 12.")
     parser.add_argument("--visible", action="store_true", help="Muestra los navegadores.")
     args = parser.parse_args()
-    if not 1 <= args.workers <= 6:
-        parser.error("--workers debe estar entre 1 y 6")
+    if args.workers < 1:
+        parser.error("--workers debe ser un entero positivo")
 
     satys.HEADLESS = not args.visible
     satys.procesar_bandeja_internos = inspeccionar_bandeja

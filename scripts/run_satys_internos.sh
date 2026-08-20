@@ -9,10 +9,10 @@ cd "$PROJECT_DIR"
 export PYTHONUNBUFFERED=1
 export PYTHONIOENCODING=utf-8
 export SATYS_LOCK_DIR="${SATYS_LOCK_DIR:-$PROJECT_DIR/.lock}"
-INTERNOS_WORKERS="${SATYS_INTERNOS_WORKERS:-6}"
+INTERNOS_WORKERS="${SATYS_INTERNOS_WORKERS:-12}"
 
-if ! [[ "$INTERNOS_WORKERS" =~ ^[0-6]$ ]]; then
-  echo "SATYS_INTERNOS_WORKERS debe ser un entero entre 0 y 6." >&2
+if ! [[ "$INTERNOS_WORKERS" =~ ^[0-9]+$ ]]; then
+  echo "SATYS_INTERNOS_WORKERS debe ser un entero no negativo." >&2
   exit 2
 fi
 
@@ -24,5 +24,5 @@ if [[ "${SATYS_SIN_EMAIL:-0}" == "1" ]]; then
   ARGS+=(--sin-email)
 fi
 
-echo "SATyS Internos: seis bandejas, navegadores paralelos: $INTERNOS_WORKERS."
+echo "SATyS Internos: seis bandejas, navegadores paralelos configurados: $INTERNOS_WORKERS."
 exec "$PYTHON_BIN" "${ARGS[@]}"

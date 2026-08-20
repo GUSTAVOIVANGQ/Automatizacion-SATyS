@@ -1,19 +1,23 @@
 name: satys
 
 x-satys-common: &satys-common
-  image: ${SATYS_IMAGE:-satys-api:2026.08.17-portable-oci-api-v1-8082-ui2}
+  image: ${SATYS_IMAGE:-satys-api:2026.08.18-portable-oci-api-v1-8082-internos12}
   build:
     context: .
     args:
       PLAYWRIGHT_VERSION: "1.57.0"
-      SATYS_VERSION: "2026.08.17-portable-oci-api-v1-8082-ui2"
+      SATYS_VERSION: "2026.08.18-portable-oci-api-v1-8082-internos12"
       SATYS_GIT_COMMIT: ${SATYS_GIT_COMMIT:-unknown}
   environment:
     TZ: ${SATYS_TZ:-America/Mexico_City}
     HOME: /tmp
     SATYS_PYTHON: /opt/satys-venv/bin/python
     SATYS_HEADLESS: "1"
-    SATYS_INTERNOS_WORKERS: "6"
+    SATYS_INTERNOS_WORKERS: "${SATYS_INTERNOS_WORKERS:-12}"
+    SATYS_INTERNOS_WORKER_REINTENTOS: "${SATYS_INTERNOS_WORKER_REINTENTOS:-2}"
+    SATYS_INTERNOS_WORKER_ESPERA: "${SATYS_INTERNOS_WORKER_ESPERA:-2}"
+    SATYS_ZIP_MAX_ITERACIONES: "${SATYS_ZIP_MAX_ITERACIONES:-32}"
+    SATYS_ZIP_RUTA_RELATIVA_MAX: "${SATYS_ZIP_RUTA_RELATIVA_MAX:-140}"
     SATYS_API_ALLOW_MANUAL: "1"
     SATYS_API_ALLOW_REPAIR: "1"
     SATYS_API_ALLOW_START: "0"
@@ -37,7 +41,7 @@ x-satys-common: &satys-common
     - ${SATYS_RUNTIME_DIR:-./runtime}/registros_fallidos:/app/registros_fallidos
     - ${SATYS_SHARED_HOST_DIR:-./runtime/shared}:/shared
     - ${SATYS_LOCK_HOST_DIR:-./runtime/locks}:/locks
-  shm_size: "2gb"
+  shm_size: "${SATYS_SHM_SIZE:-6gb}"
   init: true
   user: "${SATYS_UID:-10001}:${SATYS_GID:-10001}"
 

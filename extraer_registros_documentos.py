@@ -66,6 +66,14 @@ BANDEJAS_INTERNOS = (
     "Ultimos Movimientos",
     "Fuera de tiempo",
 )
+INTERNOS_BANDEJA_IDS = {
+    "Recibidos": "1",
+    "En proceso": "2",
+    "Copias Marcadas": "3",
+    "Atendidos": "4",
+    "Ultimos Movimientos": "5",
+    "Fuera de tiempo": "6",
+}
 
 
 logging.basicConfig(
@@ -142,10 +150,46 @@ def esperar_sin_spinner(page, timeout_ms: int = 30_000) -> bool:
     return False
 
 
+_SIN_ARGUMENTO_JS = object()
+
+
+def esperar_condicion_js(
+    page,
+    expresion: str,
+    *,
+    arg=_SIN_ARGUMENTO_JS,
+    timeout_ms: int = 12_000,
+    intervalo_ms: int = 250,
+    descripcion: str = "condicion JavaScript",
+) -> None:
+    """Sondea el DOM sin usar wait_for_function ni su selector inyectado."""
+    inicio = time.monotonic()
+    ultimo_error = None
+    while (time.monotonic() - inicio) * 1000 < max(1, timeout_ms):
+        try:
+            listo = (
+                page.evaluate(expresion)
+                if arg is _SIN_ARGUMENTO_JS
+                else page.evaluate(expresion, arg)
+            )
+            if listo:
+                return
+        except Exception as exc:
+            # Una navegacion AJAX puede destruir brevemente el contexto JS.
+            ultimo_error = exc
+        page.wait_for_timeout(max(50, intervalo_ms))
+
+    detalle = f" Ultimo error: {ultimo_error}" if ultimo_error else ""
+    raise TimeoutError(
+        f"Tiempo agotado esperando {descripcion} ({timeout_ms} ms).{detalle}"
+    )
+
+
 def esperar_datatables(page, timeout_ms: int = 12_000) -> None:
     page.wait_for_timeout(800)  # Wait for AJAX to trigger and UI to show processing
     try:
-        page.wait_for_function(
+        esperar_condicion_js(
+            page,
             """
             () => {
               const processing = Array.from(document.querySelectorAll('.dataTables_processing'));
@@ -155,7 +199,8 @@ def esperar_datatables(page, timeout_ms: int = 12_000) -> None:
               });
             }
             """,
-            timeout=timeout_ms,
+            timeout_ms=timeout_ms,
+            descripcion="que DataTables termine de procesar",
         )
     except Exception:
         page.wait_for_timeout(900)
@@ -186,7 +231,20 @@ def login(page, usuario: str, password: str) -> bool:
 
         esperar_sin_spinner(page, timeout_ms=20_000)
         if page.locator("input[type='password']").count() > 0 and "login" in page.url.lower():
-            log.error("[LOGIN] El portal sigue en login. Revisa usuario/contrasena.")
+            try:
+                texto_login = page.locator("body").inner_text(timeout=3_000)
+            except Exception:
+                texto_login = ""
+            if re.search(r"credenciales?\s+inv[aá]lidas?", texto_login, re.I):
+                log.error(
+                    "[LOGIN] SATyS rechazo las credenciales configuradas. "
+                    "Actualiza SATYS_USUARIO/SATYS_PASSWORD o config/configuracion_local.json."
+                )
+            else:
+                log.error(
+                    "[LOGIN] SATyS devolvio el formulario de acceso sin explicar el motivo. "
+                    "Revisa credenciales, conectividad y posibles cambios del portal."
+                )
             screenshot(page, "login_fallido")
             return False
 
@@ -475,7 +533,12 @@ def preparar_observador_tabla(page) -> int:
 
 
 def seleccionar_anio(page, opcion: dict) -> dict:
-    """Selecciona el año exacto sin disparar un AJAX innecesario si ya estaba activo."""
+    """Selecciona el año exacto y fuerza una consulta nueva, incluso si ya estaba activo.
+
+    SATyS conserva en ``rawDataCache`` los resultados de todos los años visitados y
+    luego vuelve a clasificar la unión completa. Por eso no basta con comprobar el
+    valor visual del ``select``: cada extracción necesita un ciclo AJAX observable.
+    """
     year = int(opcion["year"])
     payload = json.dumps({
         "year": year,
@@ -534,18 +597,17 @@ def seleccionar_anio(page, opcion: dict) -> dict:
                 }}
               }}
             }} catch (_) {{}}
-            if (changed && select.disabled) return {{ok: false, reason: 'selector deshabilitado durante carga AJAX'}};
-            if (changed) {{
-              select.value = option.value;
-              option.selected = true;
-              select.dispatchEvent(new Event('input', {{bubbles: true}}));
-              select.dispatchEvent(new Event('change', {{bubbles: true}}));
-            }}
+            if (select.disabled) return {{ok: false, reason: 'selector deshabilitado durante carga AJAX'}};
+            select.value = option.value;
+            option.selected = true;
+            select.dispatchEvent(new Event('input', {{bubbles: true}}));
+            select.dispatchEvent(new Event('change', {{bubbles: true}}));
             const selectedText = `${{select.options[select.selectedIndex]?.textContent || ''}} ${{select.value || ''}}`;
             const selectedMatch = selectedText.match(/\\b(20\\d{{2}})\\b/);
             return {{
               ok: true,
               changed,
+              refreshRequested: true,
               text: (option.textContent || option.value || '').trim(),
               selectedYear: selectedMatch ? Number(selectedMatch[1]) : null,
               drawAntes
@@ -562,10 +624,16 @@ def seleccionar_anio(page, opcion: dict) -> dict:
     if seleccionado != year:
         raise RuntimeError(f"SATyS no confirmó el Año {year}; el selector quedó en {seleccionado!r}.")
     if resultado.get("changed"):
-        log.info("[CFG] Año seleccionado y verificado: %s (cambio solicitado).", resultado.get("text") or year)
-        page.wait_for_timeout(300)
+        log.info(
+            "[CFG] Año seleccionado y verificado: %s (cambio y refresco solicitados).",
+            resultado.get("text") or year,
+        )
     else:
-        log.info("[CFG] Año seleccionado y verificado: %s (ya estaba activo).", resultado.get("text") or year)
+        log.info(
+            "[CFG] Año seleccionado y verificado: %s (ya estaba activo; refresco forzado).",
+            resultado.get("text") or year,
+        )
+    page.wait_for_timeout(300)
     resultado["mutationCounterAntes"] = mutation_counter_antes
     return resultado
 
@@ -652,6 +720,11 @@ def leer_estado_tabla(page) -> dict:
         "pageKey": "",
         "activePage": None,
         "selectedYear": None,
+        "yearSelectDisabled": False,
+        "tableLoadingVisible": False,
+        "loadError": "",
+        "activeTabCount": None,
+        "selectedPageLength": None,
         "mutationCounter": 0,
         "ready": False,
         "error": "",
@@ -683,9 +756,16 @@ def leer_estado_tabla(page) -> dict:
                 .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
                 .replace(/\s+/g, ' ').trim();
               const compact = txt => norm(txt).replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+              const numberFromText = txt => {
+                const matches = norm(txt).match(/\d[\d,.]*/g);
+                if (!matches || !matches.length) return null;
+                const cleaned = matches[matches.length - 1].replace(/\D/g, '');
+                return cleaned ? Number(cleaned) : null;
+              };
               const tableCount = Array.from(document.querySelectorAll('table')).filter(visible).length;
 
               let selectedYear = null;
+              let yearSelectDisabled = false;
               const yearCandidates = [];
               for (const select of Array.from(document.querySelectorAll('select')).filter(visible)) {
                 const options = Array.from(select.options || []);
@@ -704,9 +784,38 @@ def leer_estado_tabla(page) -> dict:
               if (yearCandidates.length) {
                 const {select, options} = yearCandidates[0];
                 const selected = options.find(opt => opt.value === select.value) || options[select.selectedIndex];
-                const match = `${selected?.textContent || ''} ${selected?.value || select.value || ''}`.match(/\b(20\d{2})\b/);
-                if (match) selectedYear = Number(match[1]);
+                 const match = `${selected?.textContent || ''} ${selected?.value || select.value || ''}`.match(/\b(20\d{2})\b/);
+                 if (match) selectedYear = Number(match[1]);
+                 yearSelectDisabled = !!select.disabled;
               }
+
+              let selectedPageLength = null;
+              for (const select of Array.from(document.querySelectorAll('select')).filter(visible)) {
+                const values = Array.from(select.options || []).map(opt => norm(opt.value || opt.textContent || ''));
+                if (['10', '25', '50', '100'].every(value => values.includes(value))) {
+                  selectedPageLength = numberFromText(select.value);
+                  break;
+                }
+              }
+
+              const activeProcessTab = document.querySelector(
+                '.js-gestor-sigedo-estatus-tab.active[data-estatus="0"]'
+              );
+              const activeTabCount = activeProcessTab
+                ? numberFromText(
+                    activeProcessTab.querySelector('.gestor-sigedo-tab-count')?.textContent
+                      || activeProcessTab.innerText || activeProcessTab.textContent || ''
+                  )
+                : null;
+              const tableLoadingVisible = [
+                '#gestorSigedoTablaLoading', '#pantalla-carga', '.dataTables_processing'
+              ].some(selector => Array.from(document.querySelectorAll(selector)).some(visible));
+              const errorNodes = Array.from(document.querySelectorAll(
+                '.ui-pnotify, .alert-danger, .jGrowl-notification, .toast-error, [class*="pnotify"]'
+              )).filter(visible);
+              const loadError = errorNodes
+                .map(node => norm(node.innerText || node.textContent || ''))
+                .find(text => /Error al consultar las solicitudes|Error en el servicio|Fallo al conectar/i.test(text)) || '';
 
               const candidatos = [];
               for (const table of Array.from(document.querySelectorAll('table')).filter(visible)) {
@@ -795,8 +904,11 @@ def leer_estado_tabla(page) -> dict:
 
                 candidatos.push({
                   score, registros, info, hasNext, pageKey, activePage, selectedYear,
+                  yearSelectDisabled, tableLoadingVisible, loadError, activeTabCount,
+                  selectedPageLength,
                   mutationCounter: Number(window.__satysTableMutationCounter || 0),
-                  ready: !processingVisible && (dataTableReady || !!table),
+                  ready: !processingVisible && !yearSelectDisabled && !tableLoadingVisible
+                    && !loadError && (dataTableReady || !!table),
                   recordsDisplay, recordsTotal, pageLength, pageStart, pageEnd, pages,
                   draw, serverSide, dataTableReady, realRowCount, invalidRegistroCount,
                   emptyRowVisible, zeroUi
@@ -806,6 +918,8 @@ def leer_estado_tabla(page) -> dict:
               candidatos.sort((a, b) => b.score - a.score);
               if (!candidatos.length) return {
                 tableCount, found: false, selectedYear,
+                yearSelectDisabled, tableLoadingVisible, loadError, activeTabCount,
+                selectedPageLength,
                 mutationCounter: Number(window.__satysTableMutationCounter || 0)
               };
               return {tableCount, found: true, ...candidatos[0]};
@@ -826,6 +940,10 @@ def firma_estado_tabla(estado: dict) -> tuple:
     registros = tuple(estado.get("registros") or [])
     return (
         estado.get("selectedYear"),
+        estado.get("yearSelectDisabled"),
+        estado.get("tableLoadingVisible"),
+        estado.get("activeTabCount"),
+        estado.get("selectedPageLength"),
         estado.get("draw"),
         estado.get("pageStart"),
         estado.get("pageEnd"),
@@ -848,6 +966,7 @@ def esperar_tabla_registros_lista(
     desde_minimo: int | None = None,
     mutation_minima: int | None = None,
     draw_minimo: int | None = None,
+    tamanio_pagina_esperado: int | None = None,
     permitir_vacio_confirmado: bool = False,
     vacio_estable_segundos: int = VACIO_ESTABLE_SEGUNDOS_DEFAULT,
     contexto: str = "tabla de Registros",
@@ -867,6 +986,31 @@ def esperar_tabla_registros_lista(
         registros = ultimo_estado.get("registros") or []
         paginacion = parsear_info_paginacion(ultimo_estado.get("info"))
         firma_actual = firma_estado_tabla(ultimo_estado)
+        load_error = (ultimo_estado.get("loadError") or "").strip()
+        if load_error:
+            raise RuntimeError(f"SATyS reportó un error al cargar {contexto}: {load_error}")
+
+        total_estado = ultimo_estado.get("recordsDisplay")
+        if total_estado is None:
+            total_estado = paginacion.get("total")
+        contador_tab = ultimo_estado.get("activeTabCount")
+        contador_ok = (
+            contador_tab is None
+            or total_estado is None
+            or int(contador_tab) == int(total_estado)
+        )
+        tamanio_actual = ultimo_estado.get("pageLength")
+        if tamanio_actual is None:
+            tamanio_actual = ultimo_estado.get("selectedPageLength")
+        tamanio_ok = (
+            tamanio_pagina_esperado is None
+            or tamanio_actual is not None
+            and int(tamanio_actual) == int(tamanio_pagina_esperado)
+        )
+        solicitud_anio_completa = (
+            not bool(ultimo_estado.get("yearSelectDisabled"))
+            and not bool(ultimo_estado.get("tableLoadingVisible"))
+        )
         anio_ok = anio_esperado is None or ultimo_estado.get("selectedYear") == anio_esperado
         cambio_ok = firma_anterior is None or firma_actual != firma_anterior
         rango_ok = desde_minimo is None or (
@@ -890,14 +1034,14 @@ def esperar_tabla_registros_lista(
             and cambio_ok
             and rango_ok
             and evidencia_cambio_ok
+            and solicitud_anio_completa
+            and contador_ok
+            and tamanio_ok
         )
         if estado_base_ok and registros:
             ultimo_estado["emptyConfirmed"] = False
             return ultimo_estado
 
-        total_estado = ultimo_estado.get("recordsDisplay")
-        if total_estado is None:
-            total_estado = paginacion.get("total")
         candidato_vacio = (
             permitir_vacio_confirmado
             and estado_base_ok
@@ -933,10 +1077,13 @@ def esperar_tabla_registros_lista(
         if transcurrido >= siguiente_aviso:
             log.info(
                 "[WAIT] Esperando %s: %.0fs/%ds | año=%s (esperado=%s), registros=%d, "
-                "total=%s, info=%r, ready=%s, draw=%s/%s, mutación=%s/%s",
+                "total=%s, contador_tab=%s, tamaño=%s/%s, info=%r, ready=%s, "
+                "selector_deshabilitado=%s, loader=%s, draw=%s/%s, mutación=%s/%s",
                 contexto, transcurrido, int(limite), ultimo_estado.get("selectedYear"),
-                anio_esperado, len(registros), total_estado, ultimo_estado.get("info") or "",
-                ultimo_estado.get("ready"), ultimo_estado.get("draw"), draw_minimo,
+                anio_esperado, len(registros), total_estado, contador_tab,
+                tamanio_actual, tamanio_pagina_esperado, ultimo_estado.get("info") or "",
+                ultimo_estado.get("ready"), ultimo_estado.get("yearSelectDisabled"),
+                ultimo_estado.get("tableLoadingVisible"), ultimo_estado.get("draw"), draw_minimo,
                 ultimo_estado.get("mutationCounter"), mutation_minima,
             )
             siguiente_aviso += 30
@@ -1027,6 +1174,7 @@ def extraer_registros_detallado(
         anio_esperado=year,
         mutation_minima=mutation_minima,
         draw_minimo=draw_minimo,
+        tamanio_pagina_esperado=100,
         permitir_vacio_confirmado=permitir_vacio_confirmado,
         contexto=f"primera página del Año {anio_label}" if anio_label else "primera página",
     )
@@ -1045,6 +1193,8 @@ def extraer_registros_detallado(
             "paginas_leidas": 0,
             "primera_info": info,
             "ultima_info": info,
+            "contador_tab": estado.get("activeTabCount"),
+            "tamanio_pagina": estado.get("pageLength") or estado.get("selectedPageLength"),
         }
 
     pagina = 1
@@ -1135,6 +1285,7 @@ def extraer_registros_detallado(
                         anio_esperado=year,
                         firma_anterior=firma_anterior,
                         desde_minimo=desde_minimo,
+                        tamanio_pagina_esperado=100,
                         contexto=f"página siguiente del Año {anio_label}" if anio_label else "página siguiente",
                     )
                     break
@@ -1161,8 +1312,9 @@ def extraer_registros_detallado(
     if hasta is None and estado.get("pageEnd") is not None:
         hasta = int(estado["pageEnd"])
     log.info(
-        "%s Validacion final: hasta=%s, total_esperado=%s, filas_leidas=%d, registros_unicos=%d",
-        prefijo, hasta, total_esperado, filas_leidas, len(registros),
+        "%s Validacion final: hasta=%s, total_esperado=%s, contador_tab=%s, "
+        "filas_leidas=%d, registros_unicos=%d",
+        prefijo, hasta, total_esperado, estado.get("activeTabCount"), filas_leidas, len(registros),
     )
     if total_esperado <= 0:
         raise RuntimeError(f"{prefijo} Se obtuvo cero sin cumplir la confirmación de vacío.")
@@ -1176,6 +1328,12 @@ def extraer_registros_detallado(
             f"{prefijo} EXTRACCIÓN INCOMPLETA: SATyS reporta {total_esperado} filas "
             f"pero se leyeron {filas_leidas}. No se asumirá que la diferencia son duplicados."
         )
+    contador_tab = estado.get("activeTabCount")
+    if contador_tab is not None and int(contador_tab) != int(total_esperado):
+        raise RuntimeError(
+            f"{prefijo} El contador de la pestaña ({contador_tab}) no coincide con "
+            f"el total de DataTables ({total_esperado})."
+        )
 
     return {
         "estado": "ENCONTRADOS_COMPLETOS",
@@ -1188,6 +1346,8 @@ def extraer_registros_detallado(
         "paginas_leidas": paginas_leidas,
         "primera_info": primera_info,
         "ultima_info": ultima_info,
+        "contador_tab": contador_tab,
+        "tamanio_pagina": estado.get("pageLength") or estado.get("selectedPageLength"),
     }
 
 
@@ -1203,13 +1363,102 @@ def extraer_registros(
     )["registros"]
 
 
+def limpiar_cache_anios_satys(page, *, contexto: str) -> dict:
+    """Vacía la unión persistente de años que mantiene el frontend de SATyS.
+
+    ``GestorSigedo`` conserva el caché en ``window._gsPersist``, por lo que volver
+    a abrir el tablero mediante su navegación AJAX no lo descarta. La limpieza se
+    realiza únicamente después de comprobar que terminó la petición automática
+    del año predeterminado; así esa petición no puede repoblar el caché a destiempo.
+    """
+    deadline = time.monotonic() + (TIMEOUT_TABLA_REGISTROS / 1000)
+    ultimo_estado: dict = {}
+    while time.monotonic() < deadline:
+        raw_estado = page.evaluate(
+            """
+            JSON.stringify((() => {
+              const gestor = window.GestorSigedo;
+              const app = gestor && gestor.App;
+              const persist = window._gsPersist;
+              const select = document.querySelector('#gestorSigedoAnioSelect');
+              const year = select ? String(select.value || '') : '';
+              const cache0 = app && app.rawDataCache && app.rawDataCache[0];
+              return {
+                disponible: !!(app && persist && select),
+                year,
+                cargaActiva: !!(app && app.tabLoadingState && app.tabLoadingState[0]),
+                selectorDeshabilitado: !!(select && select.disabled),
+                cacheInicialCompleto: !!(
+                  year && cache0 && Object.prototype.hasOwnProperty.call(cache0, year)
+                )
+              };
+            })())
+            """
+        )
+        ultimo_estado = json.loads(raw_estado or "{}")
+        if (
+            ultimo_estado.get("disponible")
+            and ultimo_estado.get("cacheInicialCompleto")
+            and not ultimo_estado.get("cargaActiva")
+            and not ultimo_estado.get("selectorDeshabilitado")
+        ):
+            break
+        time.sleep(0.2)
+    else:
+        raise RuntimeError(
+            f"SATyS no terminó la carga automática previa a {contexto}. "
+            f"Último estado: {ultimo_estado}"
+        )
+
+    raw_resultado = page.evaluate(
+        """
+        JSON.stringify((() => {
+          const gestor = window.GestorSigedo;
+          const app = gestor && gestor.App;
+          const persist = window._gsPersist;
+          if (!app || !persist) return { ok: false };
+
+          const cacheAnterior = app.rawDataCache || {};
+          let aniosDescartados = 0;
+          Object.keys(cacheAnterior).forEach((estatus) => {
+            aniosDescartados += Object.keys(cacheAnterior[estatus] || {}).length;
+          });
+
+          app.rawDataCache = {};
+          persist.rawDataCache = app.rawDataCache;
+          app.tabData = { 0: [], 1: [], 2: [], 5: [], 9: [], 10: [] };
+          persist.tabData = app.tabData;
+          app.tabDataIsLoaded = false;
+          persist.tabDataIsLoaded = false;
+          app.tabLoadingState = {};
+          return { ok: true, aniosDescartados };
+        })())
+        """
+    )
+    resultado = json.loads(raw_resultado or "{}")
+    if not resultado or not resultado.get("ok"):
+        raise RuntimeError(f"No fue posible limpiar el caché persistente de SATyS para {contexto}.")
+    log.info(
+        "[AISLAMIENTO] Caché interno de años limpio para %s (%d entrada(s) descartada(s)).",
+        contexto,
+        int(resultado.get("aniosDescartados") or 0),
+    )
+    return resultado
+
+
+def reabrir_tablero_limpio(page, *, contexto: str) -> None:
+    """Reabre el tablero y descarta su caché JavaScript persistente de años."""
+    log.info("[AISLAMIENTO] Reabriendo el tablero para %s y limpiando el caché de la página...", contexto)
+    if not sesion_activa(page):
+        raise RuntimeError(f"La sesión SATyS dejó de estar activa durante {contexto}.")
+    if not navegar_a_enlace_oficialia(page):
+        raise RuntimeError(f"No fue posible reabrir el tablero de Documentos en Proceso para {contexto}.")
+    limpiar_cache_anios_satys(page, contexto=contexto)
+
+
 def reabrir_tablero_para_reintento(page) -> None:
     """Regresa al tablero con una navegación limpia, conservando la sesión."""
-    log.info("[REINTENTO] Reabriendo el tablero de Documentos en Proceso...")
-    if not sesion_activa(page):
-        raise RuntimeError("La sesión SATyS dejó de estar activa durante el reintento por año.")
-    if not navegar_a_enlace_oficialia(page):
-        raise RuntimeError("No fue posible reabrir el tablero de Documentos en Proceso.")
+    reabrir_tablero_limpio(page, contexto="el reintento del Año")
 
 
 def extraer_un_anio_con_reintentos(
@@ -1238,17 +1487,16 @@ def extraer_un_anio_con_reintentos(
             seleccion = seleccionar_anio(page, opcion)
             mutation_minima = None
             draw_minimo = None
-            if seleccion.get("changed"):
+            if seleccion.get("refreshRequested"):
                 mutation_minima = int(seleccion.get("mutationCounterAntes") or 0) + 1
                 draw_antes = seleccion.get("drawAntes")
-                if draw_antes is not None and int(draw_antes) > 0:
+                if draw_antes is not None:
                     draw_minimo = int(draw_antes) + 1
-            # No se vuelve a consultar inmediatamente el selector: SATyS puede
-            # deshabilitarlo mientras inicia el AJAX. Cuando hubo cambio de año,
-            # primero se confirma el draw/mutación del filtro y solo después se
-            # cambia el tamaño de página. Así el redraw de "Mostrar 100" no puede
-            # hacerse pasar por la respuesta del nuevo año.
-            if seleccion.get("changed"):
+            # No se vuelve a consultar inmediatamente el selector: SATyS lo
+            # deshabilita mientras realiza el AJAX. El ciclo se exige incluso si
+            # el año ya estaba seleccionado, para no certificar el cero temporal
+            # de la carga inicial como si fuera una respuesta real.
+            if seleccion.get("refreshRequested"):
                 esperar_tabla_registros_lista(
                     page,
                     timeout_ms=timeout_primera_pagina_ms,
@@ -1317,6 +1565,8 @@ def extraer_registros_por_anio(
             "paginas_leidas": detalle.get("paginas_leidas"),
             "primera_info": detalle.get("primera_info"),
             "ultima_info": detalle.get("ultima_info"),
+            "contador_tab": detalle.get("contador_tab"),
+            "tamanio_pagina": detalle.get("tamanio_pagina"),
         }
         return {
             "estado": "COMPLETO",
@@ -1338,6 +1588,11 @@ def extraer_registros_por_anio(
 
     for idx, year in enumerate(anios, start=1):
         log.info("[CFG] ══════ Procesando Año %s (%d/%d) ══════", year, idx, len(anios))
+        # El portal conserva rawDataCache[estatus][año] en window._gsPersist y
+        # reclassifyAllData() vuelve a sumar todos los años visitados. El helper
+        # espera la consulta automática inicial y limpia ese estado persistente
+        # antes de solicitar exclusivamente el año que se va a auditar.
+        reabrir_tablero_limpio(page, contexto=f"el Año {year}")
         detalle, historial = extraer_un_anio_con_reintentos(
             page,
             year,
@@ -1370,6 +1625,8 @@ def extraer_registros_por_anio(
             "paginas_leidas": detalle.get("paginas_leidas"),
             "primera_info": detalle.get("primera_info"),
             "ultima_info": detalle.get("ultima_info"),
+            "contador_tab": detalle.get("contador_tab"),
+            "tamanio_pagina": detalle.get("tamanio_pagina"),
             "intentos_anio": detalle.get("intentos_anio"),
             "historial_intentos": historial,
         }
@@ -1475,7 +1732,8 @@ def navegar_a_internos_ift(page) -> bool:
             raise RuntimeError("No se encontro el submenu +TyS/SIGEDO/Internos IFT.")
 
         esperar_datatables(page, timeout_ms=20_000)
-        page.wait_for_function(
+        esperar_condicion_js(
+            page,
             r"""
             () => {
               const norm = txt => (txt || '').normalize('NFD')
@@ -1485,7 +1743,8 @@ def navegar_a_internos_ift(page) -> bool:
                 && text.includes('fuera de tiempo');
             }
             """,
-            timeout=TIMEOUT_NAV,
+            timeout_ms=TIMEOUT_NAV,
+            descripcion="el tablero de Internos IFT",
         )
         log.info("[INT-NAV] Tablero de Internos IFT cargado.")
         return True
@@ -1496,71 +1755,109 @@ def navegar_a_internos_ift(page) -> bool:
 
 
 def seleccionar_bandeja_internos(page, bandeja: str) -> None:
-    """Activate one of the six Internos dashboard tabs by its visible label."""
+    """Activa una bandeja por el ID fijo publicado por el tablero Internos."""
+    tab_id = INTERNOS_BANDEJA_IDS.get(bandeja)
+    if not tab_id:
+        raise RuntimeError(f"Bandeja de Internos no reconocida: {bandeja}")
     resultado = page.evaluate(
         r"""
-        (wantedRaw) => {
-          const visible = el => {
-            const style = window.getComputedStyle(el);
-            return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null;
-          };
-          const norm = txt => (txt || '').normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
-          const wanted = norm(wantedRaw);
-          const candidates = Array.from(document.querySelectorAll('a, button, [role="tab"]'))
-            .filter(visible)
-            .map(el => {
-              const raw = norm(el.innerText || el.textContent || '');
-              const label = raw.replace(/\s+[\d,.]+\s*$/, '').trim();
-              const inTabs = !!el.closest('.nav-tabs, .nav-pills, [role="tablist"]');
-              return {el, label, score: (inTabs ? 1000 : 0) - raw.length};
-            })
-            .filter(item => item.label === wanted)
-            .sort((a, b) => b.score - a.score);
-          if (!candidates.length) return {ok: false};
-          const target = candidates[0].el;
-          const parent = target.closest('li, [role="presentation"]');
-          const alreadyActive = target.disabled || target.getAttribute('aria-selected') === 'true'
-            || target.classList.contains('active') || !!parent?.classList.contains('active');
+        (id) => {
+          const target = document.getElementById(id);
+          if (!target) return 'NO_EXISTE';
+          if (target.disabled) return 'ACTIVA';
           target.scrollIntoView({block: 'center', inline: 'center'});
-          if (!alreadyActive) target.click();
-          return {ok: true, alreadyActive};
+          target.click();
+          return 'CLICK';
         }
         """,
-        bandeja,
-    ) or {}
-    if not resultado.get("ok"):
-        raise RuntimeError(f"No se encontro la bandeja de Internos: {bandeja}")
-    if not resultado.get("alreadyActive"):
-        page.wait_for_function(
+        tab_id,
+    ) or ""
+    if resultado == "NO_EXISTE":
+        diagnostico = page.evaluate(
             r"""
-            (wantedRaw) => {
-              const visible = el => {
-                const style = window.getComputedStyle(el);
-                return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null;
-              };
-              const norm = txt => (txt || '').normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
-              const wanted = norm(wantedRaw);
-              return Array.from(document.querySelectorAll('a, button, [role="tab"]'))
-                .filter(visible)
-                .some(el => {
-                  const label = norm(el.innerText || el.textContent || '')
-                    .replace(/\s+[\d,.]+\s*$/, '').trim();
-                  const parent = el.closest('li, [role="presentation"]');
-                  return label === wanted && (
-                    el.disabled || el.getAttribute('aria-selected') === 'true'
-                    || el.classList.contains('active') || !!parent?.classList.contains('active')
-                  );
-                });
-            }
-            """,
-            arg=bandeja,
-            timeout=TIMEOUT_NAV,
+            () => JSON.stringify(Array.from(document.querySelectorAll('a, button, [role="tab"]'))
+              .map(el => ({id: el.id || '', text: (el.innerText || el.textContent || '').trim()}))
+              .filter(item => item.id || item.text))
+            """
+        ) or "[]"
+        raise RuntimeError(
+            f"No se encontro la bandeja de Internos: {bandeja} (id={tab_id}, "
+            f"controles={diagnostico[:1200]})"
         )
+    if resultado not in ("ACTIVA", "CLICK"):
+        log.warning(
+            "[INT-TAB] SATyS no devolvio confirmacion tras activar %s (resultado=%r); "
+            "se verificara el estado del boton.",
+            bandeja,
+            resultado,
+        )
+    esperar_condicion_js(
+        page,
+        r"""
+        (id) => {
+          const target = document.getElementById(id);
+          if (!target || !target.disabled) return false;
+          const overlay = document.querySelector('#pantalla-carga');
+          if (overlay) {
+            const style = window.getComputedStyle(overlay);
+            if (style.display !== 'none' && style.visibility !== 'hidden') return false;
+          }
+          return true;
+        }
+        """,
+        arg=tab_id,
+        timeout_ms=TIMEOUT_NAV,
+        descripcion=f"la activacion de la bandeja {bandeja}",
+    )
+    if resultado != "ACTIVA":
         page.wait_for_timeout(300)
         esperar_sin_spinner(page, timeout_ms=30_000)
     esperar_datatables(page, timeout_ms=30_000)
+    esperar_condicion_js(
+        page,
+        r"""
+        (id) => {
+          const visible = el => {
+            if (!el) return false;
+            const style = window.getComputedStyle(el);
+            return style.display !== 'none' && style.visibility !== 'hidden'
+              && !el.hidden && el.offsetParent !== null;
+          };
+          const numero = txt => {
+            const encontrados = (txt || '').match(/\d[\d,.]*/g);
+            if (!encontrados?.length) return null;
+            const limpio = encontrados[encontrados.length - 1].replace(/\D/g, '');
+            return limpio ? Number(limpio) : null;
+          };
+          const target = document.getElementById(id);
+          if (!target || !target.disabled) return false;
+          const esperado = numero(target.innerText || target.textContent || '');
+          if (esperado === null) return false;
+
+          for (const table of Array.from(document.querySelectorAll('table')).filter(visible)) {
+            const headerRow = table.querySelector('thead tr') || table.querySelector('tr');
+            const headers = headerRow ? Array.from(headerRow.querySelectorAll('th, td')) : [];
+            const tieneFolio = headers.some(th =>
+              (th.innerText || th.textContent || '').replace(/[^A-Za-z0-9]/g, '').toLowerCase() === 'folio'
+            );
+            if (!tieneFolio) continue;
+            const wrapper = table.closest('.dataTables_wrapper') || table.parentElement || document.body;
+            const procesando = Array.from(wrapper.querySelectorAll('.dataTables_processing')).some(visible);
+            if (procesando) continue;
+            const infoEl = wrapper.querySelector('.dataTables_info, [id$="_info"]');
+            const info = (infoEl?.innerText || infoEl?.textContent || '').replace(/\s+/g, ' ').trim();
+            const match = info.match(
+              /(?:Mostrando|Showing)\s+[\d,.]+\s+(?:a|to)\s+[\d,.]+\s+(?:de|of)\s+([\d,.]+)/i
+            );
+            if (match && numero(match[1]) === esperado) return true;
+          }
+          return false;
+        }
+        """,
+        arg=tab_id,
+        timeout_ms=TIMEOUT_NAV,
+        descripcion=f"la tabla actualizada de la bandeja {bandeja}",
+    )
     log.info("[INT-TAB] Bandeja activa: %s", bandeja)
 
 
@@ -1748,6 +2045,14 @@ def esperar_tabla_folios_lista(
         total = estado.get("recordsDisplay")
         if total is None:
             total = paginacion.get("total")
+        cero_reportado_explicitamente = (
+            estado.get("recordsDisplay") == 0
+            or (
+                paginacion.get("desde") == 0
+                and paginacion.get("hasta") == 0
+                and paginacion.get("total") == 0
+            )
+        )
         candidato_vacio = (
             permitir_vacio_confirmado
             and estado_base_ok
@@ -1756,7 +2061,13 @@ def esperar_tabla_folios_lista(
             and bool(estado.get("zeroUi"))
             and int(estado.get("realRowCount") or 0) == 0
             and int(estado.get("invalidFolioCount") or 0) == 0
-            and bool(estado.get("dataTableReady"))
+            # Algunas vistas nuevas de SATyS ya no exponen la instancia de
+            # DataTables mediante window.jQuery. El contador visible 0/0/0,
+            # estable durante varios sondeos, es la confirmacion equivalente.
+            and (
+                bool(estado.get("dataTableReady"))
+                or cero_reportado_explicitamente
+            )
         )
         if candidato_vacio:
             if firma_vacio == firma_actual:
@@ -1765,7 +2076,10 @@ def esperar_tabla_folios_lista(
                 firma_vacio = firma_actual
                 inicio_vacio = time.monotonic()
                 lecturas_vacio = 1
-            estable = time.monotonic() - (inicio_vacio or time.monotonic())
+            referencia_vacio = (
+                inicio_vacio if inicio_vacio is not None else time.monotonic()
+            )
+            estable = time.monotonic() - referencia_vacio
             if lecturas_vacio >= 3 and estable >= VACIO_ESTABLE_SEGUNDOS_DEFAULT:
                 estado["emptyConfirmed"] = True
                 return estado
@@ -2038,6 +2352,22 @@ def guardar_resumen_extraccion(output: Path, resumen: dict) -> Path:
     return resumen_path
 
 
+def resumen_oficialia_omitida() -> dict:
+    """Certificado neutro cuando la corrida consulta exclusivamente Internos IFT."""
+    return {
+        "estado": "COMPLETO",
+        "integridad": "VALIDADA",
+        "vacio_confirmado": True,
+        "oficialia_omitida": True,
+        "total_filas_satys": 0,
+        "modo": "solo_internos",
+        "anios_detectados": [],
+        "por_anio": [],
+        "registros": [],
+        "total_registros": 0,
+    }
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Extrae Registros de Oficialia y Folios de Internos IFT desde SATyS."
@@ -2081,10 +2411,16 @@ def parse_args() -> argparse.Namespace:
         default="todos",
         help="todos=detecta y recorre cada Año disponible; actual=solo el Año visible.",
     )
-    parser.add_argument(
+    modos = parser.add_mutually_exclusive_group()
+    modos.add_argument(
         "--sin-internos",
         action="store_true",
         help="Omite la extraccion adicional de Folios en Internos IFT.",
+    )
+    modos.add_argument(
+        "--solo-internos",
+        action="store_true",
+        help="Omite Oficialia y extrae exclusivamente las seis bandejas de Internos IFT.",
     )
     return parser.parse_args()
 
@@ -2121,51 +2457,57 @@ def main() -> int:
                 except Exception as exc:
                     log.warning("[SESION] No se pudo guardar sesion: %s", exc)
 
-            if not navegar_a_enlace_oficialia(page):
-                return 1
-
-            modo_anios = "actual" if args.sin_todos_los_anios else args.modo_anios
-            if modo_anios == "todos":
-                resumen = extraer_registros_por_anio(
-                    page,
-                    max_paginas=args.max_paginas,
-                    timeout_primera_pagina_ms=args.timeout_tabla * 1000,
-                    intentos_anio=args.intentos_anio,
-                    intentos_pagina=args.intentos_pagina,
-                )
+            if args.solo_internos:
+                log.info("[MODO] Solo Internos IFT: se omite Enlace/Oficialia de Partes.")
+                resumen = resumen_oficialia_omitida()
             else:
-                if not cambiar_mostrar_a_100(page):
-                    raise RuntimeError("No pude configurar 'Mostrar 100 tramites'.")
-                detalle = extraer_registros_detallado(
-                    page,
-                    max_paginas=args.max_paginas,
-                    timeout_primera_pagina_ms=args.timeout_tabla * 1000,
-                    intentos_pagina=args.intentos_pagina,
-                    permitir_vacio_confirmado=True,
-                )
-                resumen = {
-                    "estado": "COMPLETO",
-                    "vacio_confirmado": detalle.get("estado") == "VACIO_CONFIRMADO",
-                    "integridad": "VALIDADA",
-                    "total_filas_satys": detalle.get("filas_leidas", 0),
-                    "modo": "actual",
-                    "anios_detectados": [],
-                    "por_anio": [{
-                        "anio": None,
-                        "estado": detalle.get("estado"),
-                        "total_reportado_satys": detalle.get("total_esperado"),
-                        "filas_leidas": detalle.get("filas_leidas", 0),
-                        "total_guardados_anio": len(detalle["registros"]),
-                        "registros_unicos": detalle.get("registros_unicos", len(detalle["registros"])),
-                        "duplicados_internos": detalle.get("duplicados_internos", 0),
-                        "filas_invalidas": detalle.get("filas_invalidas", 0),
-                        "paginas_leidas": detalle.get("paginas_leidas"),
-                        "primera_info": detalle.get("primera_info"),
-                        "ultima_info": detalle.get("ultima_info"),
-                    }],
-                    "registros": detalle["registros"],
-                    "total_registros": len(detalle["registros"]),
-                }
+                if not navegar_a_enlace_oficialia(page):
+                    return 1
+
+                modo_anios = "actual" if args.sin_todos_los_anios else args.modo_anios
+                if modo_anios == "todos":
+                    resumen = extraer_registros_por_anio(
+                        page,
+                        max_paginas=args.max_paginas,
+                        timeout_primera_pagina_ms=args.timeout_tabla * 1000,
+                        intentos_anio=args.intentos_anio,
+                        intentos_pagina=args.intentos_pagina,
+                    )
+                else:
+                    if not cambiar_mostrar_a_100(page):
+                        raise RuntimeError("No pude configurar 'Mostrar 100 tramites'.")
+                    detalle = extraer_registros_detallado(
+                        page,
+                        max_paginas=args.max_paginas,
+                        timeout_primera_pagina_ms=args.timeout_tabla * 1000,
+                        intentos_pagina=args.intentos_pagina,
+                        permitir_vacio_confirmado=True,
+                    )
+                    resumen = {
+                        "estado": "COMPLETO",
+                        "vacio_confirmado": detalle.get("estado") == "VACIO_CONFIRMADO",
+                        "integridad": "VALIDADA",
+                        "total_filas_satys": detalle.get("filas_leidas", 0),
+                        "modo": "actual",
+                        "anios_detectados": [],
+                        "por_anio": [{
+                            "anio": None,
+                            "estado": detalle.get("estado"),
+                            "total_reportado_satys": detalle.get("total_esperado"),
+                            "filas_leidas": detalle.get("filas_leidas", 0),
+                            "total_guardados_anio": len(detalle["registros"]),
+                            "registros_unicos": detalle.get("registros_unicos", len(detalle["registros"])),
+                            "duplicados_internos": detalle.get("duplicados_internos", 0),
+                            "filas_invalidas": detalle.get("filas_invalidas", 0),
+                            "paginas_leidas": detalle.get("paginas_leidas"),
+                            "primera_info": detalle.get("primera_info"),
+                            "ultima_info": detalle.get("ultima_info"),
+                            "contador_tab": detalle.get("contador_tab"),
+                            "tamanio_pagina": detalle.get("tamanio_pagina"),
+                        }],
+                        "registros": detalle["registros"],
+                        "total_registros": len(detalle["registros"]),
+                    }
 
             if args.sin_internos:
                 resumen["internos"] = {

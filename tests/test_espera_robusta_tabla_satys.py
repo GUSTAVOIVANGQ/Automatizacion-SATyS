@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import extraer_registros_documentos as extractor
 
@@ -39,11 +39,17 @@ class EsperaRobustaTablaSatysTest(unittest.TestCase):
             "pageKey": registros[0] if registros else "",
             "activePage": active_page,
             "selectedYear": year,
+            "yearSelectDisabled": False,
+            "tableLoadingVisible": False,
+            "loadError": "",
+            "activeTabCount": len(registros),
+            "selectedPageLength": 100,
             "mutationCounter": mutation,
             "ready": ready,
             "error": "",
             "recordsDisplay": len(registros),
             "recordsTotal": len(registros),
+            "pageLength": 100,
             "dataTableReady": True,
             "draw": 1,
             "realRowCount": len(registros),
@@ -124,6 +130,59 @@ class EsperaRobustaTablaSatysTest(unittest.TestCase):
                 )
 
         self.assertEqual(clock.value, 3.0)
+
+    def test_no_acepta_filas_hasta_que_termine_la_solicitud_del_anio(self):
+        clock = FakeClock()
+        page = FakePage(clock)
+        cargando = self.estado(
+            registros=["CRT26-000001"],
+            info="Mostrando 1 a 1 de 1 tramites",
+        )
+        cargando["yearSelectDisabled"] = True
+        cargando["tableLoadingVisible"] = True
+        cargando["ready"] = True  # La espera debe validar el ciclo, no confiar solo en ready.
+        listo = dict(cargando)
+        listo["yearSelectDisabled"] = False
+        listo["tableLoadingVisible"] = False
+        estados = [cargando, listo]
+
+        with patch.object(extractor.time, "monotonic", side_effect=clock.monotonic), \
+             patch.object(extractor, "leer_estado_tabla", side_effect=lambda _p: estados.pop(0)), \
+             patch.object(extractor, "screenshot"):
+            resultado = extractor.esperar_tabla_registros_lista(
+                page,
+                timeout_ms=10_000,
+                anio_esperado=2026,
+                contexto="refresco 2026",
+            )
+
+        self.assertFalse(resultado["yearSelectDisabled"])
+        self.assertEqual(clock.value, 1.0)
+
+    def test_no_acepta_total_hasta_que_coincida_con_contador_de_pestana(self):
+        clock = FakeClock()
+        page = FakePage(clock)
+        inconsistente = self.estado(
+            registros=["CRT26-000001"],
+            info="Mostrando 1 a 1 de 1 tramites",
+        )
+        inconsistente["activeTabCount"] = 2
+        consistente = dict(inconsistente)
+        consistente["activeTabCount"] = 1
+        estados = [inconsistente, consistente]
+
+        with patch.object(extractor.time, "monotonic", side_effect=clock.monotonic), \
+             patch.object(extractor, "leer_estado_tabla", side_effect=lambda _p: estados.pop(0)), \
+             patch.object(extractor, "screenshot"):
+            resultado = extractor.esperar_tabla_registros_lista(
+                page,
+                timeout_ms=10_000,
+                anio_esperado=2026,
+                contexto="contador 2026",
+            )
+
+        self.assertEqual(resultado["activeTabCount"], 1)
+        self.assertEqual(clock.value, 1.0)
 
     def test_paginacion_rechaza_pagina_duplicada_hasta_que_avanza(self):
         clock = FakeClock()
@@ -208,7 +267,7 @@ class EsperaRobustaTablaSatysTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "paginacion no llego al final|EXTRACCIÓN INCOMPLETA"):
                 extractor.extraer_registros_detallado(page, anio_label="2026")
 
-    def test_cambio_de_anio_se_confirma_antes_de_cambiar_mostrar(self):
+    def test_refresco_de_anio_se_confirma_antes_de_cambiar_mostrar_aunque_ya_este_activo(self):
         page = object()
         detalle_ok = {
             "estado": "ENCONTRADOS_COMPLETOS",
@@ -238,7 +297,8 @@ class EsperaRobustaTablaSatysTest(unittest.TestCase):
 
         with patch.object(extractor, "descubrir_anios_disponibles", return_value=[{"year": 2025, "value": "2025"}]), \
              patch.object(extractor, "seleccionar_anio", return_value={
-                 "changed": True, "mutationCounterAntes": 4, "drawAntes": 7
+                 "changed": False, "refreshRequested": True,
+                 "mutationCounterAntes": 4, "drawAntes": 7
              }), \
              patch.object(extractor, "esperar_tabla_registros_lista", side_effect=confirmar) as esperar, \
              patch.object(extractor, "cambiar_mostrar_a_100", side_effect=mostrar), \
@@ -293,6 +353,69 @@ class EsperaRobustaTablaSatysTest(unittest.TestCase):
         reabrir.assert_called_once_with(page)
         obtener.assert_not_called()
 
+    def test_recorrido_aisla_el_cache_de_la_pagina_antes_de_cada_anio(self):
+        detalle_2026 = {
+            "estado": "ENCONTRADOS_COMPLETOS",
+            "registros": ["CRT26-000001"],
+            "total_esperado": 1,
+            "filas_leidas": 1,
+            "registros_unicos": 1,
+            "duplicados_internos": 0,
+            "filas_invalidas": 0,
+            "paginas_leidas": 1,
+            "primera_info": "Mostrando 1 a 1 de 1 tramites",
+            "ultima_info": "Mostrando 1 a 1 de 1 tramites",
+            "contador_tab": 1,
+            "tamanio_pagina": 100,
+            "intentos_anio": 1,
+        }
+        detalle_2025 = dict(detalle_2026)
+        detalle_2025["registros"] = ["CRT25-000001"]
+
+        with patch.object(extractor, "descubrir_anios_disponibles", return_value=[
+            {"year": 2026, "value": "2026"},
+            {"year": 2025, "value": "2025"},
+        ]), patch.object(extractor, "reabrir_tablero_limpio") as reabrir, \
+             patch.object(
+                 extractor,
+                 "extraer_un_anio_con_reintentos",
+                 side_effect=[(detalle_2026, []), (detalle_2025, [])],
+             ):
+            resumen = extractor.extraer_registros_por_anio(object(), intentos_anio=1)
+
+        self.assertEqual(resumen["registros"], ["CRT26-000001", "CRT25-000001"])
+        self.assertEqual(
+            [call.kwargs["contexto"] for call in reabrir.call_args_list],
+            ["el Año 2026", "el Año 2025"],
+        )
+
+    def test_limpia_cache_persistente_despues_de_la_carga_inicial(self):
+        page = Mock()
+        page.evaluate.side_effect = [
+            """{
+                "disponible": true,
+                "year": "2026",
+                "cargaActiva": false,
+                "selectorDeshabilitado": false,
+                "cacheInicialCompleto": true
+            }""",
+            """{"ok": true, "aniosDescartados": 1}""",
+        ]
+
+        resultado = extractor.limpiar_cache_anios_satys(page, contexto="el Año 2025")
+
+        self.assertEqual(resultado["aniosDescartados"], 1)
+        self.assertEqual(page.evaluate.call_count, 2)
+
+    def test_reabrir_tablero_tambien_limpia_el_cache_persistente(self):
+        page = object()
+        with patch.object(extractor, "sesion_activa", return_value=True), \
+             patch.object(extractor, "navegar_a_enlace_oficialia", return_value=True), \
+             patch.object(extractor, "limpiar_cache_anios_satys") as limpiar:
+            extractor.reabrir_tablero_limpio(page, contexto="el Año 2025")
+
+        limpiar.assert_called_once_with(page, contexto="el Año 2025")
+
     def test_internos_concilia_folios_y_duplicados_de_una_bandeja(self):
         page = object()
         estado = self.estado_folios(
@@ -313,6 +436,28 @@ class EsperaRobustaTablaSatysTest(unittest.TestCase):
         self.assertEqual(detalle["filas_leidas"], 2)
         self.assertEqual(detalle["folios"], ["148326"])
         self.assertEqual(detalle["duplicados_internos"], 1)
+
+    def test_internos_acepta_cero_estable_sin_jquery_global(self):
+        clock = FakeClock()
+        page = FakePage(clock)
+        estado_cero = self.estado_folios()
+        estado_cero["dataTableReady"] = False
+        estado_cero["recordsDisplay"] = None
+        estado_cero["recordsTotal"] = None
+
+        with patch.object(extractor.time, "monotonic", side_effect=clock.monotonic), \
+             patch.object(extractor, "leer_estado_tabla_folios", return_value=estado_cero), \
+             patch.object(extractor, "VACIO_ESTABLE_SEGUNDOS_DEFAULT", 3), \
+             patch.object(extractor, "screenshot"):
+            resultado = extractor.esperar_tabla_folios_lista(
+                page,
+                timeout_ms=10_000,
+                permitir_vacio_confirmado=True,
+                contexto="Internos/Recibidos sin jQuery global",
+            )
+
+        self.assertTrue(resultado["emptyConfirmed"])
+        self.assertGreaterEqual(clock.value, 3.0)
 
     def test_internos_deduplica_folio_repetido_entre_bandejas(self):
         detalles = []

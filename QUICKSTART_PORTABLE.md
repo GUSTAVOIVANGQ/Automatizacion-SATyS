@@ -1,6 +1,6 @@
 # SATyS — Quickstart portable
 
-Versión: `2026.08.17-portable-oci-api-v1-8082-ui2`
+Versión: `2026.08.18-portable-oci-api-v1-8082-internos12`
 
 ## Objetivo
 
@@ -67,6 +67,11 @@ Por defecto viven en `./runtime/`:
 - `runtime/shared/`
 
 Se cambian con `.env`; no se modifica el código.
+
+El procesamiento de Internos usa 12 Chromium por defecto y 6 GB de memoria
+compartida. Se puede ajustar sin editar código mediante
+`SATYS_INTERNOS_WORKERS` y `SATYS_SHM_SIZE`; no existe un máximo artificial de
+workers, aunque el host y el portal SATyS siguen siendo los límites reales.
 
 ## Credenciales
 
