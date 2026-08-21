@@ -1,7 +1,10 @@
 param(
     [Parameter(Position=0)]
-    [ValidateSet('bootstrap','doctor','build','api-up','api-down','status','logs','smoke','daily','internos','internos-check','test','help')]
-    [string]$Command = 'help'
+    [ValidateSet('bootstrap','doctor','build','api-up','api-down','status','logs','smoke','daily','internos','internos-check','folio','test','help')]
+    [string]$Command = 'help',
+
+    [Parameter(Position=1)]
+    [string]$Folio = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -32,7 +35,7 @@ if ($Command -eq 'doctor') {
 }
 
 if ($Command -eq 'help') {
-    Write-Host 'Uso: .\scripts\satys.ps1 bootstrap|doctor|build|api-up|api-down|status|logs|smoke|daily|internos|internos-check|test'
+    Write-Host 'Uso: .\scripts\satys.ps1 bootstrap|doctor|build|api-up|api-down|status|logs|smoke|daily|internos|internos-check|folio NUMERO|test'
     exit 0
 }
 
@@ -47,5 +50,9 @@ switch ($Command) {
     'daily'    { docker compose run --rm satys-worker }
     'internos' { docker compose run --rm --entrypoint python satys-worker automatizar_registros_diario.py --solo-internos --headless }
     'internos-check' { docker compose run --rm --entrypoint python satys-worker automatizar_registros_diario.py --solo-internos --no-procesar --sin-email --headless }
+    'folio' {
+        if ($Folio -notmatch '^\d{1,15}$') { throw 'Uso: .\scripts\satys.ps1 folio NUMERO' }
+        docker compose run --rm --entrypoint python satys-worker automatizar_registros_diario.py --folio-internos $Folio --sin-email --headless
+    }
     'test'     { docker compose run --rm --entrypoint python satys-worker -m unittest discover tests }
 }

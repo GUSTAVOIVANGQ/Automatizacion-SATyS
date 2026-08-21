@@ -125,6 +125,14 @@ case "$cmd" in
     exec podman run --rm --name "satys-internos-check-$(date +%Y%m%d-%H%M%S)" "${common[@]}" \
       "$IMAGE" python automatizar_registros_diario.py --solo-internos --no-procesar --sin-email --headless
     ;;
+  folio)
+    [[ -f "$RUNTIME/TrámitesCRT.xlsx" ]] || { echo "ERROR: falta $RUNTIME/TrámitesCRT.xlsx" >&2; exit 3; }
+    folio="${1:-}"
+    [[ "$folio" =~ ^[0-9]{1,15}$ ]] || { echo "Uso: scripts/podman_satys.sh folio NUMERO" >&2; exit 2; }
+    exec podman run --rm --name "satys-folio-${folio}-$(date +%Y%m%d-%H%M%S)" "${common[@]}" \
+      "$IMAGE" python automatizar_registros_diario.py --folio-internos "$folio" \
+      --internos-workers "$INTERNOS_WORKERS" --sin-email --headless
+    ;;
   smoke)
     exec podman run --rm --name "satys-smoke-$$" "${common[@]}" \
       "$IMAGE" python scripts/smoke_internos.py --workers "$INTERNOS_WORKERS"
@@ -146,6 +154,7 @@ Uso: scripts/podman_satys.sh COMANDO
   daily      Ejecutar worker diario
   internos   Inventariar seis bandejas y procesar solo Folios Internos nuevos
   internos-check  Validar acceso, inventario y comparación sin procesar Folios
+  folio NUMERO     Procesar de principio a fin un Folio Internos, sin correo
   test       Ejecutar tests dentro de la imagen
 EOF
     ;;

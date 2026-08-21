@@ -1,6 +1,6 @@
 # SATyS — Quickstart portable
 
-Versión: `2026.08.20-portable-oci-api-v1-8082-internos-audit1`
+Versión: `2026.08.21-portable-oci-api-v1-8082-folio-modal1`
 
 ## Objetivo
 
@@ -52,6 +52,18 @@ Para una corrida real:
 ```bash
 bash scripts/podman_satys.sh daily
 ```
+
+Para revisar de principio a fin un único Folio de Internos, sin enviar correo:
+
+```bash
+bash scripts/podman_satys.sh folio 148326
+```
+
+El comando inventaría las seis bandejas, procesa todas las apariciones del
+Folio y verifica `TrámitesCRT.xlsx` y la carpeta final de `output/`. Esta
+revisión puntual no sincroniza todo el histórico hacia DEPI, así que termina
+al completar las salidas locales. Si un anexo muestra la ventana intermedia
+`Archivo PDF`, el segundo botón `VER DOCUMENTO` se procesa automáticamente.
 
 ## Datos persistentes
 

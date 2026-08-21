@@ -49,6 +49,112 @@ class InternosDiarioTest(unittest.TestCase):
         self.assertEqual(main_procesar.cargar_objetivos_internos(path), objetivos)
         self.assertEqual(Parte1_descarga._cargar_objetivos_internos(path), objetivos)
 
+    def test_folio_unico_conserva_todas_sus_bandejas_y_fuerza_sin_email(self):
+        resumen = {
+            "por_bandeja": [
+                {"bandeja": "En proceso", "folios": ["148326"]},
+                {"bandeja": "Atendidos", "folios": ["148326", "190823"]},
+                {"bandeja": "Fuera de tiempo", "folios": ["148326"]},
+            ]
+        }
+        objetivos = monitor.seleccionar_objetivos_folio_internos(resumen, " 148326 ")
+        self.assertEqual(objetivos, [
+            {"bandeja": "En proceso", "folio": "148326"},
+            {"bandeja": "Atendidos", "folio": "148326"},
+            {"bandeja": "Fuera de tiempo", "folio": "148326"},
+        ])
+
+        args = SimpleNamespace(
+            folio_internos="148326",
+            solo_internos=False,
+            sin_email=False,
+        )
+        monitor.configurar_modo_folio_internos(args)
+        self.assertTrue(args.solo_internos)
+        self.assertTrue(args.sin_email)
+
+        with self.assertRaisesRegex(LookupError, "no aparece"):
+            monitor.seleccionar_objetivos_folio_internos(resumen, "999999")
+        with self.assertRaisesRegex(ValueError, "1 y 15"):
+            monitor.seleccionar_objetivos_folio_internos(resumen, "ABC")
+
+    def test_valida_excel_y_output_del_folio_unico(self):
+        output_a = self.tmp / "output" / "operador" / "148326"
+        output_b = self.tmp / "output" / "_sin_operador" / "148326"
+        output_a.mkdir(parents=True)
+        output_b.mkdir(parents=True)
+        log_path = self.tmp / "procesamiento_log_internos.json"
+        log_path.write_text(json.dumps({
+            "resultados": [
+                {
+                    "bandeja_internos": "En proceso",
+                    "folio_tabla_internos": "148326",
+                    "excel_ok": True,
+                    "output_dir": str(output_a),
+                },
+                {
+                    "bandeja_internos": "Atendidos",
+                    "folio_tabla_internos": "148326",
+                    "excel_ok": True,
+                    "sin_operador_dir": str(output_b),
+                },
+            ]
+        }), encoding="utf-8")
+
+        objetivos = [
+            {"bandeja": "En proceso", "folio": "148326"},
+            {"bandeja": "Atendidos", "folio": "148326"},
+        ]
+        with patch.object(
+            monitor,
+            "cargar_folios_internos_procesados_excel",
+            return_value=({"148326"}, {}),
+        ):
+            validacion = monitor.validar_salidas_folio_internos(
+                folio="148326",
+                objetivos=objetivos,
+                procesamiento_log=log_path,
+                excel_path=self.tmp / "TrámitesCRT.xlsx",
+                sheet="Internos",
+                header_folio="Folio Internos",
+                project_dir=self.tmp,
+            )
+
+        self.assertTrue(validacion["ok"], validacion)
+        self.assertCountEqual(
+            validacion["output_dirs"],
+            [str(output_a.resolve()), str(output_b.resolve())],
+        )
+
+    def test_folio_unico_falla_si_no_quedo_en_excel_o_output(self):
+        log_path = self.tmp / "procesamiento_log_internos.json"
+        log_path.write_text(json.dumps({
+            "resultados": [{
+                "bandeja_internos": "Atendidos",
+                "folio_tabla_internos": "148326",
+                "excel_ok": False,
+                "output_dir": str(self.tmp / "no_existe"),
+            }]
+        }), encoding="utf-8")
+
+        with patch.object(
+            monitor,
+            "cargar_folios_internos_procesados_excel",
+            return_value=(set(), {}),
+        ):
+            validacion = monitor.validar_salidas_folio_internos(
+                folio="148326",
+                objetivos=[{"bandeja": "Atendidos", "folio": "148326"}],
+                procesamiento_log=log_path,
+                excel_path=self.tmp / "TrámitesCRT.xlsx",
+                sheet="Internos",
+                header_folio="Folio Internos",
+                project_dir=self.tmp,
+            )
+
+        self.assertFalse(validacion["ok"])
+        self.assertEqual(len(validacion["errores"]), 3)
+
     def test_auditoria_internos_exige_metadata_y_todos_los_archivos(self):
         carpeta = self.tmp / "descargas" / "internos" / "atendidos" / "190823"
         carpeta.mkdir(parents=True)
@@ -286,6 +392,21 @@ class InternosDiarioTest(unittest.TestCase):
         self.assertIn("InternosWorkers", powershell)
         self.assertIn("[int]$InternosWorkers = 12", powershell)
         self.assertNotIn("ValidateRange(1, 6)", powershell)
+
+        for contenido in (podman, docker):
+            self.assertIn("folio)", contenido)
+            self.assertIn('--folio-internos "$folio"', contenido)
+            self.assertIn("--sin-email", contenido)
+
+        folio_ps1 = (root / "scripts" / "procesar_folio_internos.ps1").read_text(encoding="utf-8")
+        folio_sh = (root / "scripts" / "procesar_folio_internos.sh").read_text(encoding="utf-8")
+        for contenido in (folio_ps1, folio_sh):
+            self.assertIn("--folio-internos", contenido)
+            self.assertIn("--sin-email", contenido)
+        self.assertIn("Get-Command python", folio_ps1)
+
+        monitor_source = (root / "automatizar_registros_diario.py").read_text(encoding="utf-8")
+        self.assertIn('cmd_main_internos.append("--sin-sincronizar")', monitor_source)
 
     def test_extractor_solo_internos_no_navega_a_oficialia(self):
         output = self.tmp / "solo_internos.txt"
@@ -706,6 +827,143 @@ class InternosDiarioTest(unittest.TestCase):
         self.assertEqual(principal.close_calls, 0)
         self.assertEqual(popup_abierto.close_calls, 1)
         self.assertEqual(popup_ya_cerrado.close_calls, 0)
+
+    def test_descarga_directa_no_pulsa_segundo_boton(self):
+        class Boton:
+            def __init__(self, al_click=None):
+                self.click_calls = 0
+                self.al_click = al_click
+
+            def click(self, **kwargs):
+                self.click_calls += 1
+                if self.al_click:
+                    self.al_click()
+
+        class Page:
+            def __init__(self):
+                self.handlers = {}
+
+            def on(self, evento, callback):
+                self.handlers[evento] = callback
+
+            def remove_listener(self, evento, callback):
+                self.handlers.pop(evento, None)
+
+            def wait_for_timeout(self, milisegundos):
+                pass
+
+        class Context:
+            def __init__(self):
+                self.handlers = {}
+
+            def on(self, evento, callback):
+                self.handlers[evento] = callback
+
+            def remove_listener(self, evento, callback):
+                self.handlers.pop(evento, None)
+
+        page = Page()
+        context = Context()
+        descarga = SimpleNamespace(suggested_filename="directo.pdf")
+        boton = Boton(lambda: page.handlers["download"](descarga))
+
+        with patch.object(
+            Parte1_descarga,
+            "_encontrar_boton_documento_modal",
+            return_value=None,
+        ) as buscar_modal:
+            dl_obj, popup_obj = Parte1_descarga._click_y_esperar_descarga(page, context, boton)
+
+        self.assertIs(dl_obj, descarga)
+        self.assertIsNone(popup_obj)
+        self.assertEqual(boton.click_calls, 1)
+        buscar_modal.assert_called_once_with(page)
+
+    def test_ventana_intermedia_pulsa_segundo_ver_documento_y_captura_popup(self):
+        class Boton:
+            def __init__(self, al_click=None):
+                self.click_calls = 0
+                self.al_click = al_click
+
+            def click(self, **kwargs):
+                self.click_calls += 1
+                if self.al_click:
+                    self.al_click()
+
+        class Page:
+            def __init__(self):
+                self.handlers = {}
+
+            def on(self, evento, callback):
+                self.handlers[evento] = callback
+
+            def remove_listener(self, evento, callback):
+                self.handlers.pop(evento, None)
+
+            def wait_for_timeout(self, milisegundos):
+                pass
+
+        class Context:
+            def __init__(self):
+                self.handlers = {}
+
+            def on(self, evento, callback):
+                self.handlers[evento] = callback
+
+            def remove_listener(self, evento, callback):
+                self.handlers.pop(evento, None)
+
+        page = Page()
+        context = Context()
+        popup = SimpleNamespace(url="https://satys.ift.org.mx/upload/anexo.pdf")
+        boton_gris = Boton()
+        boton_morado = Boton(lambda: context.handlers["page"](popup))
+        busquedas = iter([None, boton_morado])
+
+        with patch.object(
+            Parte1_descarga,
+            "_encontrar_boton_documento_modal",
+            side_effect=lambda pagina: next(busquedas),
+        ):
+            dl_obj, popup_obj = Parte1_descarga._click_y_esperar_descarga(
+                page,
+                context,
+                boton_gris,
+            )
+
+        self.assertIsNone(dl_obj)
+        self.assertIs(popup_obj, popup)
+        self.assertEqual(boton_gris.click_calls, 1)
+        self.assertEqual(boton_morado.click_calls, 1)
+
+    def test_cierra_modal_pdf_con_boton_cerrar(self):
+        class BotonCerrar:
+            def __init__(self):
+                self.click_calls = 0
+
+            def is_visible(self):
+                return True
+
+            def click(self, **kwargs):
+                self.click_calls += 1
+
+        boton = BotonCerrar()
+        locator = SimpleNamespace(count=lambda: 1, last=boton)
+        page = SimpleNamespace(
+            locator=lambda selector: locator,
+            wait_for_timeout=lambda milisegundos: None,
+        )
+
+        self.assertTrue(Parte1_descarga._cerrar_modal_documento(page))
+        self.assertEqual(boton.click_calls, 1)
+
+    def test_sin_sincronizar_omite_merge_completo_depi(self):
+        with patch.object(main_procesar, "sincronizar_carpeta_compartida") as sincronizar:
+            main_procesar._sincronizar_si_corresponde(
+                SimpleNamespace(sin_sincronizar=True)
+            )
+
+        sincronizar.assert_not_called()
 
     def test_certificado_valida_las_seis_bandejas_y_sus_totales(self):
         output = self.tmp / "registros.txt"

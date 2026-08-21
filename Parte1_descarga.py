@@ -606,6 +606,63 @@ def _return_both_none(retry_state):
     return None, None
 
 
+def _encontrar_boton_documento_modal(page):
+    """Retorna el VER DOCUMENTO visible de la ventana intermedia, si existe."""
+    selectores = (
+        ".modal:visible button:has-text('VER DOCUMENTO'), "
+        ".modal:visible a:has-text('VER DOCUMENTO'), "
+        ".modal:visible input[value='VER DOCUMENTO']",
+        "[role='dialog']:visible button:has-text('VER DOCUMENTO'), "
+        "[role='dialog']:visible a:has-text('VER DOCUMENTO'), "
+        "[role='dialog']:visible input[value='VER DOCUMENTO']",
+    )
+    for selector in selectores:
+        try:
+            candidatos = page.locator(selector)
+            for indice in range(candidatos.count()):
+                candidato = candidatos.nth(indice)
+                if not candidato.is_visible():
+                    continue
+                try:
+                    if not candidato.is_enabled():
+                        continue
+                except Exception:
+                    pass
+                return candidato
+        except Exception:
+            continue
+    return None
+
+
+def _cerrar_modal_documento(page) -> bool:
+    """Cierra la ventana intermedia de Archivo PDF antes del siguiente anexo."""
+    selectores = (
+        ".modal:visible button:has-text('CERRAR')",
+        ".modal:visible [data-dismiss='modal']",
+        ".modal:visible [data-bs-dismiss='modal']",
+        ".modal:visible button.close",
+        "[role='dialog']:visible button:has-text('CERRAR')",
+    )
+    for selector in selectores:
+        try:
+            botones = page.locator(selector)
+            if botones.count() == 0:
+                continue
+            boton = botones.last
+            if not boton.is_visible():
+                continue
+            try:
+                boton.click(timeout=3_000)
+            except Exception:
+                boton.click(force=True, timeout=3_000)
+            page.wait_for_timeout(200)
+            log.info("[MODAL-PDF] Ventana intermedia cerrada.")
+            return True
+        except Exception:
+            continue
+    return False
+
+
 def _cerrar_paginas_emergentes(context, page_principal, motivo: str = "descarga") -> int:
     """Cierra pestañas auxiliares sin tocar la página principal del worker."""
     cerradas = 0
@@ -634,20 +691,55 @@ def _cerrar_paginas_emergentes(context, page_principal, motivo: str = "descarga"
 def _click_y_esperar_descarga(page, context, boton_ver_doc):
     dl_obj = None
     np_obj = None
+    modal_pulsado = False
+
     def on_dl(d): nonlocal dl_obj; dl_obj = d
     def on_pg(p): nonlocal np_obj; np_obj = p
+
     page.on("download", on_dl)
     context.on("page", on_pg)
     try:
-        try:
-            boton_ver_doc.click()
-        except Exception:
-            boton_ver_doc.click(force=True)
+        # Si un intento anterior dejo abierto el modal, continuar desde el
+        # boton morado sin volver a pulsar el boton gris de la tabla.
+        boton_modal = _encontrar_boton_documento_modal(page)
+        if boton_modal is not None:
+            log.info("  [MODAL-PDF] Ventana intermedia ya abierta; continuando con VER DOCUMENTO.")
+            try:
+                boton_modal.click(timeout=3_000)
+            except Exception:
+                boton_modal.click(force=True, timeout=3_000)
+            modal_pulsado = True
+        else:
+            try:
+                boton_ver_doc.click()
+            except Exception:
+                boton_ver_doc.click(force=True)
+
         import time
         start_t = time.time()
         while time.time() - start_t < (TIMEOUT_DL / 1000.0):
             if dl_obj or np_obj:
                 break
+
+            # Algunos anexos muestran primero el modal morado "Archivo PDF"
+            # y exigen un segundo clic. Resolverlo dentro del mismo timeout
+            # conserva tambien los flujos de descarga directa ya existentes.
+            if not modal_pulsado:
+                boton_modal = _encontrar_boton_documento_modal(page)
+                if boton_modal is not None:
+                    log.info("  [MODAL-PDF] Ventana Archivo PDF detectada; pulsando VER DOCUMENTO.")
+                    try:
+                        boton_modal.click(timeout=3_000)
+                    except Exception:
+                        try:
+                            boton_modal.click(force=True, timeout=3_000)
+                        except Exception as exc:
+                            log.debug("  [MODAL-PDF] El boton intermedio aun no esta listo: %s", exc)
+                            page.wait_for_timeout(200)
+                            continue
+                    modal_pulsado = True
+                    continue
+
             page.wait_for_timeout(200)
     finally:
         page.remove_listener("download", on_dl)
@@ -4477,6 +4569,7 @@ def descargar_via_documentos_anexos(context, page, folio: str, carpeta: Path) ->
                 # Fallback: si el boton abre nueva pestana (PDF en viewer), capturar URL
                 if not descargado:
                     boton_ver_doc.scroll_into_view_if_needed()
+                    url_popup = ""
                     try:
                         dl_obj, np_obj = _click_y_esperar_descarga(page, context, boton_ver_doc)
 
@@ -4567,6 +4660,7 @@ def descargar_via_documentos_anexos(context, page, folio: str, carpeta: Path) ->
                         })
                         continue
                     finally:
+                        _cerrar_modal_documento(page)
                         _cerrar_paginas_emergentes(
                             context,
                             page,

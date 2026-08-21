@@ -315,6 +315,15 @@ bash scripts/run_satys_internos_nuevos.sh
 # El mismo modo filtrado en Windows PowerShell:
 powershell -ExecutionPolicy Bypass -File .\scripts\run_satys_internos_nuevos.ps1
 
+# Revisar de principio a fin un solo Folio de Internos en Windows, sin correo:
+powershell -ExecutionPolicy Bypass -File .\scripts\procesar_folio_internos.ps1 148326 -Visible
+
+# La misma revisión en Linux con Python/venv:
+bash scripts/procesar_folio_internos.sh 148326
+
+# En Docker o Podman portable:
+bash scripts/satys.sh folio 148326
+
 # Solo procesar archivos ya descargados (sin entrar al SATyS):
 python main_procesar.py --solo-procesar
 
@@ -332,6 +341,14 @@ python automatizar_registros_diario.py --solo-internos --headless
 que compare `Folio Internos` y procese únicamente pendientes, usa
 `automatizar_registros_diario.py --solo-internos` o el lanzador
 `run_satys_internos_nuevos`.
+
+`--folio-internos FOLIO` fuerza el recorrido completo de un Folio numérico,
+aunque ya exista en Excel, y deshabilita siempre el correo. Después comprueba
+la hoja `Internos` y cada carpeta final declarada bajo `output/`. El modo
+puntual omite la sincronización masiva del histórico hacia DEPI para que la
+terminal cierre al terminar las salidas locales. También resuelve de forma
+automática los anexos que abren primero la ventana morada `Archivo PDF`: pulsa
+su segundo `VER DOCUMENTO`, captura la pestaña emergente y descarga el archivo.
 
 ### Argumentos de `main_procesar.py`
 

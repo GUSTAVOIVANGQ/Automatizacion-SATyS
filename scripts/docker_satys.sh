@@ -25,6 +25,12 @@ case "$cmd" in
   daily) exec docker compose run --rm satys-worker ;;
   internos) exec docker compose run --rm --entrypoint python satys-worker automatizar_registros_diario.py --solo-internos --headless ;;
   internos-check) exec docker compose run --rm --entrypoint python satys-worker automatizar_registros_diario.py --solo-internos --no-procesar --sin-email --headless ;;
+  folio)
+    folio="${1:-}"
+    [[ "$folio" =~ ^[0-9]{1,15}$ ]] || { echo "Uso: scripts/docker_satys.sh folio NUMERO" >&2; exit 2; }
+    exec docker compose run --rm --entrypoint python satys-worker automatizar_registros_diario.py \
+      --folio-internos "$folio" --internos-workers "$INTERNOS_WORKERS" --sin-email --headless
+    ;;
   test) exec docker compose run --rm --entrypoint python satys-worker -m unittest discover tests ;;
-  *) echo "Uso: scripts/docker_satys.sh {build|api-up|api-down|status|logs|smoke|daily|internos|internos-check|test}" ;;
+  *) echo "Uso: scripts/docker_satys.sh {build|api-up|api-down|status|logs|smoke|daily|internos|internos-check|folio NUMERO|test}" ;;
 esac

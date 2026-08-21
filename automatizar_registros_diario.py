@@ -338,6 +338,141 @@ def construir_objetivos_internos(
     return objetivos
 
 
+def seleccionar_objetivos_folio_internos(
+    resumen_internos: dict,
+    folio: object,
+) -> list[dict]:
+    """Localiza un Folio exacto en todas las bandejas de Internos.
+
+    El mismo Folio puede aparecer en más de una bandeja. El modo de revisión
+    individual debe conservar todas esas apariciones para descargar y auditar
+    sus archivos de manera independiente.
+    """
+    folio_normalizado = normalizar_folio_interno(folio)
+    if not folio_normalizado:
+        raise ValueError("--folio-internos debe contener entre 1 y 15 dígitos.")
+
+    objetivos = construir_objetivos_internos(
+        resumen_internos,
+        [folio_normalizado],
+    )
+    if not objetivos:
+        raise LookupError(
+            f"El Folio Internos {folio_normalizado} no aparece en ninguna de "
+            "las seis bandejas inventariadas de SATyS."
+        )
+    return objetivos
+
+
+def validar_salidas_folio_internos(
+    *,
+    folio: str,
+    objetivos: list[dict],
+    procesamiento_log: Path,
+    excel_path: Path,
+    sheet: str,
+    header_folio: str,
+    project_dir: Path = PROJECT_DIR,
+) -> dict:
+    """Comprueba que el Folio terminó en Excel y en una carpeta de output."""
+    errores: list[str] = []
+    salidas: list[str] = []
+    resultados: list[dict] = []
+
+    try:
+        payload = json.loads(
+            procesamiento_log.read_text(encoding="utf-8-sig", errors="replace")
+        )
+        resultados = payload.get("resultados") or []
+        if not isinstance(resultados, list):
+            raise ValueError("el campo resultados no es una lista")
+    except Exception as exc:
+        return {
+            "ok": False,
+            "folio": folio,
+            "procesamiento_log": str(procesamiento_log),
+            "excel": str(excel_path),
+            "output_dirs": [],
+            "errores": [f"No se pudo leer el log de procesamiento: {exc}"],
+        }
+
+    por_clave: dict[tuple[str, str], list[dict]] = {}
+    for resultado in resultados:
+        if not isinstance(resultado, dict):
+            continue
+        folio_resultado = normalizar_folio_interno(
+            resultado.get("folio_tabla_internos") or resultado.get("folio")
+        )
+        bandeja_resultado = str(resultado.get("bandeja_internos") or "").strip().casefold()
+        if folio_resultado and bandeja_resultado:
+            por_clave.setdefault((bandeja_resultado, folio_resultado), []).append(resultado)
+
+    for objetivo in objetivos:
+        bandeja = str(objetivo.get("bandeja") or "").strip()
+        folio_objetivo = normalizar_folio_interno(objetivo.get("folio"))
+        clave = (bandeja.casefold(), folio_objetivo)
+        candidatos = por_clave.get(clave, [])
+        if not candidatos:
+            errores.append(f"Sin resultado final para {bandeja}/{folio_objetivo}.")
+            continue
+
+        resultado = candidatos[-1]
+        if resultado.get("excel_ok") is not True:
+            errores.append(f"Excel no fue actualizado para {bandeja}/{folio_objetivo}.")
+
+        output_raw = str(
+            resultado.get("output_dir") or resultado.get("sin_operador_dir") or ""
+        ).strip()
+        if not output_raw:
+            errores.append(f"Sin carpeta output para {bandeja}/{folio_objetivo}.")
+            continue
+        output_path = Path(output_raw)
+        if not output_path.is_absolute():
+            output_path = project_dir / output_path
+        output_path = output_path.resolve()
+        if not output_path.is_dir():
+            errores.append(
+                f"La carpeta output no existe para {bandeja}/{folio_objetivo}: {output_path}"
+            )
+        else:
+            salidas.append(str(output_path))
+
+    try:
+        folios_excel, _info_excel = cargar_folios_internos_procesados_excel(
+            excel_path,
+            sheet,
+            header_folio,
+        )
+        if folio not in folios_excel:
+            errores.append(
+                f"El Folio {folio} no quedó escrito en la hoja {sheet!r} del Excel."
+            )
+    except Exception as exc:
+        errores.append(f"No se pudo verificar el Excel final: {exc}")
+
+    return {
+        "ok": not errores,
+        "folio": folio,
+        "objetivos_esperados": len(objetivos),
+        "resultados_en_log": len(resultados),
+        "procesamiento_log": str(procesamiento_log),
+        "excel": str(excel_path),
+        "output_dirs": list(dict.fromkeys(salidas)),
+        "errores": errores,
+    }
+
+
+def configurar_modo_folio_internos(args: argparse.Namespace) -> None:
+    """Normaliza el Folio y aplica las garantías del comando individual."""
+    if not args.folio_internos:
+        return
+    args.folio_internos = normalizar_folio_interno(args.folio_internos)
+    if not args.folio_internos:
+        raise ValueError("--folio-internos debe contener entre 1 y 15 dígitos.")
+    args.solo_internos = True
+    args.sin_email = True
+
+
 def clasificar_objetivos_internos(
     resumen_internos: dict,
     descargas_base: Path,
@@ -885,6 +1020,12 @@ def construir_parser() -> argparse.ArgumentParser:
                         help="Desactiva la reconciliación completa de TrámitesCRT.xlsx; solo diagnóstico.")
     parser.add_argument("--solo-internos", action="store_true",
                         help="Omite Oficialia; inventaria las seis bandejas de Internos y procesa solo Folios nuevos.")
+    parser.add_argument("--folio-internos", default="", metavar="FOLIO",
+                        help=(
+                            "Procesa de principio a fin un único Folio numérico de Internos. "
+                            "Implica --solo-internos y --sin-email, y conserva todas sus "
+                            "apariciones entre las seis bandejas."
+                        ))
     parser.add_argument("--excel", type=Path, default=EXCEL_DEFAULT,
                         help="Ruta a TrámitesCRT.xlsx.")
     parser.add_argument("--sheet", default=SHEET_DEFAULT,
@@ -944,6 +1085,12 @@ def construir_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = construir_parser().parse_args()
+    try:
+        # Este modo existe para una revisión manual individual. Nunca debe
+        # generar correo, incluso si quien lo invoca omite --sin-email.
+        configurar_modo_folio_internos(args)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
     if args.internos_workers < 1:
         raise SystemExit("--internos-workers debe ser un entero positivo.")
     if args.max_folios_internos < 0:
@@ -968,7 +1115,14 @@ def main() -> int:
 
     resumen: dict = {
         "fecha_ejecucion": datetime.now().isoformat(),
-        "modo": "solo_internos" if args.solo_internos else "diario_completo",
+        "modo": (
+            "folio_internos"
+            if args.folio_internos
+            else "solo_internos"
+            if args.solo_internos
+            else "diario_completo"
+        ),
+        "folio_internos_objetivo": args.folio_internos or None,
         "reconciliacion_global_habilitada": reconciliacion_habilitada,
         "headless": headless,
         "workers": args.workers,
@@ -1171,20 +1325,31 @@ def main() -> int:
             resumen_internos,
             folios_internos_nuevos_excel,
         )
-        objetivos_internos_detectados: list[dict] = []
-        claves_objetivos_internos: set[tuple[str, str]] = set()
-        for objetivo in objetivos_internos_descarga_pendiente + objetivos_internos_sin_excel:
-            clave = (objetivo["bandeja"].casefold(), objetivo["folio"])
-            if clave not in claves_objetivos_internos:
-                claves_objetivos_internos.add(clave)
-                objetivos_internos_detectados.append(objetivo)
-        folios_internos_nuevos = unicos_folios_internos(
-            item["folio"] for item in objetivos_internos_detectados
-        )
-        objetivos_internos = limitar_objetivos_internos(
-            objetivos_internos_detectados,
-            args.max_folios_internos,
-        )
+        if args.folio_internos:
+            # Una revisión individual es intencionalmente forzada: vuelve a
+            # recorrer el detalle y los anexos aunque el Folio ya exista en
+            # Excel o conserve una descarga previa completa.
+            objetivos_internos_detectados = seleccionar_objetivos_folio_internos(
+                resumen_internos,
+                args.folio_internos,
+            )
+            objetivos_internos = list(objetivos_internos_detectados)
+            folios_internos_nuevos = [args.folio_internos]
+        else:
+            objetivos_internos_detectados = []
+            claves_objetivos_internos: set[tuple[str, str]] = set()
+            for objetivo in objetivos_internos_descarga_pendiente + objetivos_internos_sin_excel:
+                clave = (objetivo["bandeja"].casefold(), objetivo["folio"])
+                if clave not in claves_objetivos_internos:
+                    claves_objetivos_internos.add(clave)
+                    objetivos_internos_detectados.append(objetivo)
+            folios_internos_nuevos = unicos_folios_internos(
+                item["folio"] for item in objetivos_internos_detectados
+            )
+            objetivos_internos = limitar_objetivos_internos(
+                objetivos_internos_detectados,
+                args.max_folios_internos,
+            )
         guardar_objetivos_internos(internos_nuevos_hist, objetivos_internos)
         guardar_objetivos_internos(args.internos_latest, objetivos_internos)
 
@@ -1277,6 +1442,13 @@ def main() -> int:
         print(f"Objetivos pendientes (unión):  {len(objetivos_internos_detectados)}")
         print(f"Objetivos seleccionados lote:  {len(objetivos_internos)}")
         print(f"JSON Internos para main:       {args.internos_latest}")
+        if args.folio_internos:
+            ubicaciones = ", ".join(
+                item["bandeja"] for item in objetivos_internos
+            )
+            print(f"Modo Folio único:              {args.folio_internos}")
+            print(f"Bandeja(s) donde aparece:      {ubicaciones}")
+            print("Correo electrónico:            DESHABILITADO obligatoriamente")
         if folios_internos_nuevos:
             print(
                 "Folios Internos pendientes (únicos):",
@@ -1399,6 +1571,11 @@ def main() -> int:
                 cmd_main_internos.append("--headless")
             if args.sin_email:
                 cmd_main_internos.append("--sin-email")
+            if args.folio_internos:
+                # La validación de un Folio termina en Excel y output locales.
+                # Evitar el merge completo de miles de archivos a DEPI mantiene
+                # esta revisión puntual rápida y evita una espera engañosa al final.
+                cmd_main_internos.append("--sin-sincronizar")
             estado.actualizar(
                 stage="procesando_folios_internos_nuevos",
                 total_folios_internos_nuevos=len(objetivos_internos),
@@ -1412,6 +1589,32 @@ def main() -> int:
                 etapa="procesando_folios_internos_nuevos",
             )
         resumen["return_code_main_internos"] = rc_main_internos
+
+        if args.folio_internos and rc_main_internos == 0:
+            procesamiento_log_folio = (
+                DESCARGA_BASE_DIARIO / "internos" / "procesamiento_log_internos.json"
+            )
+            validacion_folio = validar_salidas_folio_internos(
+                folio=args.folio_internos,
+                objetivos=objetivos_internos,
+                procesamiento_log=procesamiento_log_folio,
+                excel_path=args.excel,
+                sheet=args.sheet_internos,
+                header_folio=args.header_folio_internos,
+            )
+            resumen["validacion_folio_internos"] = validacion_folio
+            print("\n" + "=" * 90)
+            print(f"SALIDAS VERIFICADAS DEL FOLIO {args.folio_internos}")
+            print("=" * 90)
+            print(f"Excel actualizado:             {validacion_folio['excel']}")
+            for output_dir in validacion_folio["output_dirs"]:
+                print(f"Carpeta organizada:            {output_dir}")
+            print(f"Log de procesamiento:          {validacion_folio['procesamiento_log']}")
+            if not validacion_folio["ok"]:
+                for error in validacion_folio["errores"]:
+                    print(f"ERROR VALIDACIÓN:              {error}")
+                rc_main_internos = 3
+                resumen["return_code_main_internos"] = rc_main_internos
 
         rc_main = 0
         if nuevos:
@@ -1502,7 +1705,12 @@ def main() -> int:
             return_code_reconciliacion_global=rc_reconciliacion,
         )
         # ─────────────────────────────────────────────────────────────────────
-        sincronizar_estado_diario_depi()
+        if args.folio_internos:
+            resumen["sincronizacion_depi_omitida"] = True
+            resumen["motivo_sincronizacion_depi_omitida"] = "--folio-internos"
+            print("ℹ️  Sincronización DEPI omitida: la revisión de un Folio conserva salidas locales.")
+        else:
+            sincronizar_estado_diario_depi()
 
         return rc_final
 

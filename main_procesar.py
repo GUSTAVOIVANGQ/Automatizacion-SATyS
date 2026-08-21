@@ -1130,6 +1130,8 @@ Ejemplos:
                         help="JSON con pares bandeja/folio nuevos; limita descarga y Partes 3-4 a esos objetivos.")
     parser.add_argument("--sin-email", action="store_true",
                         help="No enviar notificación por correo al finalizar esta corrida.")
+    parser.add_argument("--sin-sincronizar", action="store_true",
+                        help="No copiar TrámitesCRT.xlsx, output/ ni descargas/ a la carpeta compartida.")
     parser.add_argument("--email-to", type=str, default="",
                         help="Destinatarios de correo separados por coma. Si se omite, usa los destinatarios configurados por el proyecto.")
     parser.add_argument("--sin-lock", action="store_true",
@@ -1259,7 +1261,7 @@ Ejemplos:
                     )
             if not carpetas_internos:
                 log.error("❌ No se encontraron carpetas procesables en %s.", DESCARGA_BASE / "internos")
-                sincronizar_carpeta_compartida()
+                _sincronizar_si_corresponde(args)
                 return 1
 
             if not EXCEL_PATH.exists():
@@ -1329,7 +1331,7 @@ Ejemplos:
                 log.error("❌ Error al generar Excel consolidado Internos: %s", e_meta_i)
                 rc_descarga_internos = 1
 
-            sincronizar_carpeta_compartida()
+            _sincronizar_si_corresponde(args)
             _enviar_email_fin_proceso(
                 resultados=resultados_i,
                 modo="internos",
@@ -1434,7 +1436,7 @@ Ejemplos:
 
             if not carpetas_para_procesar:
                 log.error("❌ No se encontraron carpetas procesables en %s. No se ejecutan Partes 3-4.", DESCARGA_BASE)
-                sincronizar_carpeta_compartida()
+                _sincronizar_si_corresponde(args)
                 return 1
 
             log.info(
@@ -1567,7 +1569,7 @@ Ejemplos:
                 rc_descarga_registros = 1
 
             # Sincronizar output/ y Excel con la carpeta compartida de red
-            sincronizar_carpeta_compartida()
+            _sincronizar_si_corresponde(args)
 
             # Notificación final por correo para cualquier corrida en modo registro.
             _enviar_email_fin_proceso(
@@ -1825,7 +1827,7 @@ Ejemplos:
             log.error("❌ Error al generar/reconciliar el Excel consolidado de metadatos JSON: %s", e)
 
         # -- Sincronizar con carpeta compartida de red --
-        sincronizar_carpeta_compartida()
+        _sincronizar_si_corresponde(args)
 
         # Notificación final por correo para cualquier corrida en modo folios.
         _enviar_email_fin_proceso(
@@ -1845,6 +1847,13 @@ Ejemplos:
                 log.info("🔓 Lock compartido liberado al finalizar main_procesar.py.")
             except Exception as e:
                 log.warning("⚠️  No se pudo liberar el lock compartido: %s", e)
+
+
+def _sincronizar_si_corresponde(args) -> None:
+    if getattr(args, "sin_sincronizar", False):
+        log.info("🌐 Sincronización DEPI omitida por --sin-sincronizar.")
+        return
+    sincronizar_carpeta_compartida()
 
 
 def sincronizar_carpeta_compartida() -> None:

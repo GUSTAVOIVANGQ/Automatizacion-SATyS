@@ -1,4 +1,33 @@
-# 2026.08.20-portable-oci-api-v1-8082-internos-audit1
+# 2026.08.21-portable-oci-api-v1-8082-folio-modal1
+
+- Soporta anexos de Internos cuyo primer botón gris `VER DOCUMENTO` abre la
+  ventana morada `Archivo PDF`: detecta el modal, pulsa su segundo
+  `VER DOCUMENTO`, captura la pestaña emergente y descarga la URL autenticada.
+- Cierra el modal intermedio después de cada intento para que no bloquee el
+  siguiente documento ni altere los índices de los botones de la tabla.
+- Conserva sin cambios los flujos que descargan directamente o abren el PDF
+  con el primer clic; ambos caminos tienen pruebas de regresión.
+- El modo puntual `--folio-internos` omite el merge histórico completo hacia
+  DEPI después de generar Excel y `output/`, por lo que la terminal termina al
+  concluir la validación local; el correo continúa deshabilitado.
+- El lanzador PowerShell resuelve `python.exe` a una ruta absoluta cuando no
+  existe un entorno virtual ni se definió `SATYS_PYTHON`.
+
+## 2026.08.21-portable-oci-api-v1-8082-folio1
+
+- Agrega `--folio-internos FOLIO` para ejecutar el recorrido completo de un
+  único Folio: inventario de seis bandejas, descarga de datos y anexos, RPC,
+  organización en `output/` y escritura en la hoja `Internos` del Excel.
+- El modo individual conserva todas las parejas `(bandeja, folio)`, fuerza el
+  reprocesamiento aunque exista evidencia previa y deshabilita siempre el
+  correo electrónico.
+- Valida al finalizar que cada aparición del Folio tenga resultado, que
+  `TrámitesCRT.xlsx` contenga el Folio y que la carpeta declarada en `output/`
+  exista; una salida parcial devuelve código distinto de cero.
+- Incluye lanzadores locales para PowerShell/Linux y el comando portable
+  `scripts/satys.sh folio NUMERO` para Docker o Podman.
+
+## 2026.08.20-portable-oci-api-v1-8082-internos-audit1
 
 - Cambia la unidad de conciliación de Internos de Folio único a
   `(bandeja, folio)`, conservando las apariciones repetidas entre las seis

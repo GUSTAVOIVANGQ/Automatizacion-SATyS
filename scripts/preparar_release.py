@@ -70,6 +70,8 @@ REQUIRED_MEMBERS = {
     "scripts/run_satys_diario.sh",
     "scripts/run_satys_internos.sh",
     "scripts/run_satys_internos_nuevos.sh",
+    "scripts/procesar_folio_internos.sh",
+    "scripts/procesar_folio_internos.ps1",
     "scripts/smoke_internos.py",
     "tests/test_internos_diario.py",
     "tests/test_guardado_seguro.py",
