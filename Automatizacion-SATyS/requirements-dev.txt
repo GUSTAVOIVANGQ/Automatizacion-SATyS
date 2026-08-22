@@ -1,0 +1,3 @@
+-r requirements-linux.lock.txt
+pip-tools==7.6.1
+ruff==0.16.3

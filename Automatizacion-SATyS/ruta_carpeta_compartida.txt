@@ -1,0 +1,5 @@
+# Este archivo se conserva únicamente como fallback del lock.
+# Las rutas de descargas, output, Excel y CRT Recurso DEPI se configuran en:
+#   config/configuracion_local.json
+#
+# El lock de systemd se define con SATYS_LOCK_DIR y debe permanecer en disco local.

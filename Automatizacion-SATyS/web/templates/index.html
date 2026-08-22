@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SATyS — Gestor CRT</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <img src="/static/logo_satys_crt.png" alt="CRT Logo" class="brand-logo-img">
+      <div>
+        <div class="brand-kicker">Automatización</div>
+        <div class="brand-title">SATyS</div>
+      </div>
+    </div>
+
+    <nav class="nav" aria-label="Secciones">
+      <button class="nav-item active" data-view="automatizacion"><i class="ph ph-clock-countdown"></i> Automatización</button>
+      <button class="nav-item" data-view="procesar"><i class="ph ph-play-circle"></i> Procesar</button>
+      <button class="nav-item" data-view="reparacion"><i class="ph ph-first-aid-kit"></i> Reparar IDs</button>
+      <button class="nav-item" data-view="historial"><i class="ph ph-clock-counter-clockwise"></i> Historial</button>
+      <button class="nav-item" data-view="salidas"><i class="ph ph-folder-notch-open"></i> Salidas</button>
+    </nav>
+
+    <div class="sidebar-footer">© CRT 2026</div>
+  </aside>
+
+  <main class="main">
+    <header class="header">
+      <div>
+        <div id="eyebrow" class="eyebrow">SATyS — Monitor diario</div>
+        <h1 id="page-title">Automatización diaria</h1>
+      </div>
+      <div class="header-actions">
+        <button id="theme-toggle" class="btn ghost" title="Cambiar tema"><i class="ph ph-moon"></i></button>
+        <a class="btn secondary" href="/docs" title="Abrir documentación interactiva de la API"><i class="ph ph-code-block"></i> API Docs</a>
+        <a class="btn ghost" href="/api/v1/download/output" title="Descarga output/ como ZIP"><i class="ph ph-file-zip"></i> output/</a>
+        <a class="btn ghost" href="/api/v1/download/excel" title="Descarga TrámitesCRT.xlsx"><i class="ph ph-file-xls"></i> Excel</a>
+        <button id="refresh-btn" class="btn secondary"><i class="ph ph-arrows-clockwise"></i> Actualizar</button>
+      </div>
+    </header>
+
+    <section id="view-automatizacion" class="view active-view">
+      <div class="grid two">
+        <article class="card hero-card">
+          <div class="card-head">
+            <div>
+              <h2>Tarea diaria del servidor</h2>
+              <p>Revisa SATyS, detecta registros nuevos y ejecuta el procesamiento automático.</p>
+            </div>
+            <span id="status-pill" class="pill neutral">Consultando</span>
+          </div>
+
+          <div class="status-strip">
+            <div>
+              <span class="label">Estado actual</span>
+              <strong id="stage" class="big">—</strong>
+            </div>
+            <div>
+              <span class="label">Inicio</span>
+              <strong id="started-at">—</strong>
+            </div>
+            <div>
+              <span class="label">Último latido</span>
+              <strong id="updated-at">—</strong>
+            </div>
+          </div>
+
+          <div class="metric-grid">
+            <div class="metric"><span>SATyS</span><strong id="m-satys">—</strong></div>
+            <div class="metric"><span>Excel</span><strong id="m-excel">—</strong></div>
+            <div class="metric accent"><span>Nuevos</span><strong id="m-nuevos">—</strong></div>
+            <div class="metric"><span>Procesados</span><strong id="m-procesados">—</strong></div>
+            <div class="metric warn"><span>Fallidos</span><strong id="m-fallidos">—</strong></div>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head compact">
+            <div>
+              <h2>Programación</h2>
+              <p>Horario diario editable desde la UI.</p>
+            </div>
+          </div>
+          <div class="timer-row">
+            <label class="field compact-field">
+              <span>Hora diaria</span>
+              <input id="timer-hora" type="time" value="01:00">
+            </label>
+            <button id="save-timer-btn" class="btn primary">Guardar hora</button>
+          </div>
+          <div id="timer-note" class="note">Si la API no tiene permisos sudo, se guardará el archivo del timer y se mostrarán comandos para aplicarlo.</div>
+          <div class="system-grid">
+            <div><span>Servicio</span><strong id="svc-active">—</strong></div>
+            <div><span>Timer</span><strong id="timer-active">—</strong></div>
+            <div><span>Habilitado</span><strong id="timer-enabled">—</strong></div>
+          </div>
+          <pre id="next-timer" class="mini-log">Sin datos de systemd.</pre>
+          <div class="actions-row">
+            <button id="start-daily-btn" class="btn primary"><i class="ph ph-play"></i> Ejecutar ahora</button>
+            <a class="btn ghost" href="/api/v1/log/descargar?tipo=diario">Descargar log</a>
+            <a class="btn ghost" href="/api/v1/resumen/descargar">Resumen JSON</a>
+          </div>
+        </article>
+      </div>
+
+      <article class="card">
+        <div class="card-head">
+          <div>
+            <h2>Resultados de la última corrida diaria</h2>
+            <p>Resumen generado por automatizar_registros_diario.py.</p>
+          </div>
+          <span id="last-refresh" class="muted">Sin actualizar</span>
+        </div>
+        <div id="daily-summary" class="summary-grid empty">Aún no hay resumen disponible.</div>
+      </article>
+
+      <article class="card log-card">
+        <div class="card-head">
+          <div>
+            <h2>Log diario en vivo</h2>
+            <p id="daily-log-source">Esperando log…</p>
+          </div>
+          <label class="check"><input id="daily-autoscroll" type="checkbox" checked> Autoscroll</label>
+        </div>
+        <pre id="daily-log-box" class="log-box"></pre>
+      </article>
+    </section>
+
+    <section id="view-procesar" class="view">
+      <article class="card">
+        <div class="card-head">
+          <div>
+            <h2>Corrida manual</h2>
+            <p>Procesa un TXT cargado por el usuario. La salida importante es TrámitesCRT.xlsx y output/.</p>
+          </div>
+          <span id="manual-pill" class="pill neutral">Listo</span>
+        </div>
+
+        <form id="manual-form" class="manual-form">
+          <label class="field">
+            <span>El TXT contiene</span>
+            <select name="tipo_txt" id="tipo-txt">
+              <option value="registros">Números de registro CRT</option>
+              <option value="folios">Folios SATyS</option>
+            </select>
+          </label>
+          <label class="field grow">
+            <span>Archivo TXT</span>
+            <input name="archivo" id="manual-file" type="file" accept=".txt,text/plain" required>
+          </label>
+          <label class="field mini">
+            <span>Workers</span>
+            <input name="workers" id="manual-workers" type="number" min="1" max="16" value="6">
+          </label>
+          <label class="toggle-row">
+            <input name="headless" id="manual-headless" type="checkbox" checked>
+            <span>Modo rápido sin navegador visible</span>
+          </label>
+          <button class="btn primary" type="submit"><i class="ph ph-play"></i> Iniciar procesamiento</button>
+        </form>
+
+        <div class="command-box">
+          <span>Comando aproximado</span>
+          <code id="manual-command">main_procesar.py --archivo-registro entrada.txt --workers 6 --headless</code>
+        </div>
+
+        <div class="manual-status">
+          <div><span>Estado</span><strong id="manual-status-text">—</strong></div>
+          <div><span>PID</span><strong id="manual-pid">—</strong></div>
+          <div><span>Inicio</span><strong id="manual-started">—</strong></div>
+          <div><span>Retorno</span><strong id="manual-rc">—</strong></div>
+        </div>
+
+        <div class="actions-row">
+          <a class="btn ghost" href="/api/v1/download/excel">Descargar TrámitesCRT.xlsx</a>
+          <a class="btn ghost" href="/api/v1/download/output">Descargar output.zip</a>
+          <a class="btn ghost" href="/api/v1/log/descargar?tipo=manual">Descargar log manual</a>
+        </div>
+      </article>
+
+      <article class="card log-card">
+        <div class="card-head">
+          <div>
+            <h2>Log manual</h2>
+            <p id="manual-log-source">Esperando corrida manual…</p>
+          </div>
+          <label class="check"><input id="manual-autoscroll" type="checkbox" checked> Autoscroll</label>
+        </div>
+        <pre id="manual-log-box" class="log-box"></pre>
+      </article>
+    </section>
+
+    <section id="view-reparacion" class="view">
+      <article class="card">
+        <div class="card-head">
+          <div>
+            <h2>Reparación de id_solicitante</h2>
+            <p>Busca metadata_satys.json con id_solicitante vacío o null, reconsulta únicamente los metadatos y guarda un checkpoint después de cada Registro.</p>
+          </div>
+          <span id="repair-pill" class="pill neutral">Sin iniciar</span>
+        </div>
+
+        <div class="status-strip">
+          <div><span class="label">Estado</span><strong id="repair-status" class="big">—</strong></div>
+          <div><span class="label">Registro actual</span><strong id="repair-current">—</strong></div>
+          <div><span class="label">Inicio</span><strong id="repair-started">—</strong></div>
+        </div>
+
+        <div class="metric-grid">
+          <div class="metric"><span>Detectados</span><strong id="repair-detected">0</strong></div>
+          <div class="metric"><span>Procesados</span><strong id="repair-processed">0</strong></div>
+          <div class="metric accent"><span>Resueltos</span><strong id="repair-resolved">0</strong></div>
+          <div class="metric warn"><span>Sin resolver</span><strong id="repair-unresolved">0</strong></div>
+          <div class="metric"><span>Pendientes</span><strong id="repair-pending">0</strong></div>
+        </div>
+
+        <div class="manual-form repair-controls">
+          <label class="field mini">
+            <span>Reintentos adicionales</span>
+            <input id="repair-retries" type="number" min="0" max="10" value="2">
+          </label>
+          <label class="toggle-row">
+            <input id="repair-update-outputs" type="checkbox" checked>
+            <span>Actualizar RPC, TrámitesCRT.xlsx y output/ al finalizar</span>
+          </label>
+          <label class="toggle-row">
+            <input id="repair-redownload-files" type="checkbox">
+            <span>Volver a descargar documentos asociados (normalmente no es necesario)</span>
+          </label>
+        </div>
+
+        <div class="actions-row">
+          <button id="repair-resume-btn" class="btn primary" type="button"><i class="ph ph-play"></i> Iniciar / reanudar</button>
+          <button id="repair-new-btn" class="btn secondary" type="button"><i class="ph ph-arrows-clockwise"></i> Nueva revisión</button>
+          <button id="repair-stop-btn" class="btn ghost" type="button"><i class="ph ph-stop"></i> Detener</button>
+          <a class="btn ghost" href="/api/v1/log/descargar?tipo=reparacion">Descargar log</a>
+        </div>
+
+        <div id="repair-message" class="note">Si el servidor se apaga, vuelve a esta sección y pulsa Iniciar / reanudar. El Registro en curso se intentará de nuevo.</div>
+      </article>
+
+      <article class="card log-card">
+        <div class="card-head">
+          <div>
+            <h2>Log de reparación</h2>
+            <p id="repair-log-source">Esperando ejecución…</p>
+          </div>
+          <label class="check"><input id="repair-autoscroll" type="checkbox" checked> Autoscroll</label>
+        </div>
+        <pre id="repair-log-box" class="log-box"></pre>
+      </article>
+    </section>
+
+    <section id="view-historial" class="view">
+      <div class="grid two">
+        <article class="card">
+          <div class="card-head compact"><div><h2>Historial diario</h2><p>Corridas del timer/servicio diario.</p></div></div>
+          <div id="daily-history" class="history-list empty">Sin historial.</div>
+        </article>
+        <article class="card">
+          <div class="card-head compact"><div><h2>Historial manual</h2><p>Corridas lanzadas desde la UI.</p></div></div>
+          <div id="manual-history" class="history-list empty">Sin historial.</div>
+        </article>
+      </div>
+    </section>
+
+    <section id="view-salidas" class="view">
+      <article class="card">
+        <div class="card-head">
+          <div>
+            <h2>Descargas del servidor a tu PC</h2>
+            <p>Estos botones entregan archivos vía navegador desde el servidor Linux.</p>
+          </div>
+        </div>
+        <div class="downloads-grid">
+          <a class="download-card" href="/api/v1/download/excel">
+            <strong>TrámitesCRT.xlsx</strong>
+            <span id="info-excel">Excel de control maestro</span>
+          </a>
+          <a class="download-card" href="/api/v1/download/consolidado">
+            <strong>Folios_Datos_Completos.xlsx</strong>
+            <span id="info-consolidado">Excel consolidado en output/</span>
+          </a>
+          <a class="download-card" href="/api/v1/download/output">
+            <strong>output.zip</strong>
+            <span id="info-output">Carpeta organizada final</span>
+          </a>
+          <a class="download-card" href="/api/v1/download/descargas">
+            <strong>descargas.zip</strong>
+            <span id="info-descargas">Carpeta de tránsito</span>
+          </a>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <div>
+            <h2>Descargar carpeta por número de registro</h2>
+            <p>Busca coincidencias simples en descargas/ y output/. Útil cuando el registro es único.</p>
+          </div>
+        </div>
+        <div class="registro-download-row">
+          <label class="field grow">
+            <span>Número de registro</span>
+            <input id="registro-download-input" type="text" placeholder="Ej. CRT26-027838" autocomplete="off">
+          </label>
+          <label class="field compact-field">
+            <span>Buscar en</span>
+            <select id="registro-download-tipo">
+              <option value="auto">auto</option>
+              <option value="descargas">descargas</option>
+              <option value="output">output</option>
+            </select>
+          </label>
+          <button id="registro-buscar-btn" class="btn secondary" type="button"><i class="ph ph-magnifying-glass"></i> Buscar</button>
+          <button id="registro-download-btn" class="btn primary" type="button"><i class="ph ph-download-simple"></i> Descargar ZIP</button>
+        </div>
+        <div id="registro-download-result" class="registro-result empty">Escribe un registro y presiona Buscar o Descargar ZIP.</div>
+      </article>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

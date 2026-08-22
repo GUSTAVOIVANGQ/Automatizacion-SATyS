@@ -1,0 +1,13 @@
+La release portable NO incluye datos ni secretos de runtime:
+
+- config/configuracion_local.json
+- .env
+- sesiones SATyS
+- TrámitesCRT.xlsx
+- runtime/
+- descargas/, output/, logs/, runs/
+- base_de_datos_rpc/, registros_diarios/
+
+En una instalación existente, deploy/srvmbcudaqa01.env.example permite montar
+el runtime anterior directamente. En una instalación nueva, ejecutar
+scripts/bootstrap_portable.sh y proporcionar configuración + Excel.

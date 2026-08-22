@@ -1,0 +1,13 @@
+[Unit]
+Description=SATyS CRT - corrida diaria en Docker Compose
+After=network-online.target docker.service
+Wants=network-online.target
+RequiresMountsFor=/depi/DEI_DATOS
+
+[Service]
+Type=oneshot
+User=gustavo.garcia
+WorkingDirectory=/data/gustavo.garcia/satys/Automatizacion-SATyS
+Environment=TZ=America/Mexico_City
+ExecStart=/usr/bin/docker compose run --rm satys-worker
+TimeoutStartSec=infinity
