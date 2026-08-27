@@ -25,6 +25,7 @@ import io
 import os
 import re
 import json
+import hashlib
 import time
 import string
 import logging
@@ -330,15 +331,92 @@ def preparar_catalogo(catalogo: list) -> list:
 #  CONSTRUCCIÓN DE RUTA
 # ────────────────────────────────────────────────────────
 
-def construir_ruta(nombre: str, id_bp: str) -> str:
+def _segmento_ruta_seguro(
+    valor: str,
+    *,
+    guion: bool = False,
+    minusculas: bool = True,
+) -> str:
+    """Crea un segmento portable para Windows/Linux sin perder legibilidad."""
+    texto = unicodedata.normalize("NFD", str(valor or ""))
+    texto = "".join(c for c in texto if unicodedata.category(c) != "Mn")
+    texto = texto.lower().strip() if minusculas else texto.upper().strip()
+    letras = "a-z" if minusculas else "A-Z"
+    permitidos = rf"[^{letras}0-9\-\s]" if guion else rf"[^{letras}0-9\s]"
+    texto = re.sub(permitidos, " ", texto)
+    return re.sub(r"[\s_]+", "_", texto).strip("_- ")
+
+
+def _acortar_segmento(valor: str, max_chars: int) -> str:
+    if len(valor) <= max_chars:
+        return valor
+    digest = hashlib.sha1(valor.encode("utf-8")).hexdigest()[:10]
+    prefijo = valor[: max_chars - len(digest) - 2].rstrip("_- ")
+    return f"{prefijo}~{digest}"
+
+
+def construir_ruta(nombre: str, id_bp: str, registro: str = "") -> str:
     r"""
     Construye la ruta estandarizada para el Excel.
-    Formato: <idBp>_<nombre_limpio>\01 EN\VE
+
+    Formato recomendado:
+      <idBp>_<nombre_limpio>\<registro>
+
+    La subcarpeta por registro evita que ``metadata_satys.json`` o anexos con
+    nombres repetidos se sobrescriban cuando el mismo operador tiene varios
+    trámites. Si no se recibe registro, devuelve sólo la carpeta del operador.
     """
-    nombre_limpio = nombre.lower()
-    nombre_limpio = re.sub(r'[^a-záéíóúñ0-9\s]', ' ', nombre_limpio)
-    nombre_limpio = re.sub(r'\s+', '_', nombre_limpio.strip())
-    return f"{id_bp}_{nombre_limpio}\\01 EN\\VE"
+    id_limpio = re.sub(r"[^A-Za-z0-9_-]", "", str(id_bp or "").strip())
+    nombre_limpio = _segmento_ruta_seguro(nombre)
+    carpeta_operador = _acortar_segmento(
+        f"{id_limpio}_{nombre_limpio}".strip("_"),
+        90,
+    )
+    registro_limpio = _acortar_segmento(
+        _segmento_ruta_seguro(registro, guion=True, minusculas=False),
+        60,
+    )
+    if registro_limpio:
+        return f"{carpeta_operador}\\{registro_limpio}"
+    return carpeta_operador
+
+
+def construir_ruta_operadores(
+    operadores: list[dict],
+    registro: str = "",
+) -> str:
+    r"""Construye una carpeta conjunta para varias razones sociales.
+
+    Conserva el orden recibido y representa cada razón como
+    ``ID_nombre``. Si una razón no tiene ID confirmado se conserva como
+    ``sin_id_nombre`` para que el expediente siga siendo auditable sin
+    atribuirle un número que no fue verificado.
+    """
+    segmentos = []
+    for operador in operadores or []:
+        id_limpio = re.sub(
+            r"[^A-Za-z0-9_-]",
+            "",
+            str(operador.get("idBp") or operador.get("numero_rpc") or "").strip(),
+        ) or "sin_id"
+        nombre_limpio = _segmento_ruta_seguro(
+            operador.get("nombre_completo")
+            or operador.get("nombre_original")
+            or "sin_nombre"
+        ) or "sin_nombre"
+        segmentos.append(f"{id_limpio}_{nombre_limpio}")
+
+    carpeta_operador = _acortar_segmento(
+        "__".join(segmentos) or "sin_id_sin_nombre",
+        230,
+    )
+    registro_limpio = _acortar_segmento(
+        _segmento_ruta_seguro(registro, guion=True, minusculas=False),
+        60,
+    )
+    if registro_limpio:
+        return f"{carpeta_operador}\\{registro_limpio}"
+    return carpeta_operador
 
 
 # ────────────────────────────────────────────────────────

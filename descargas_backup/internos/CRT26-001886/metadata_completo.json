@@ -1,0 +1,39 @@
+{
+  "folio": "CORREO-271",
+  "registro": "CRT26-001886",
+  "estado": "OK",
+  "total_archivos": 1,
+  "total_archivos_ok": 1,
+  "fuente": "ARCHIVOS_ASOCIADOS",
+  "archivos": [
+    {
+      "folio": "CRT26-001886",
+      "archivo": "MEMORANDUM.pdf",
+      "tipo": "PDF",
+      "ruta": "/data/gustavo.garcia/satys/Automatizacion-SATyS/descargas/CRT26-001886/MEMORANDUM.pdf",
+      "tamano_kb": 874.5,
+      "ok": true,
+      "url": "https://satys.ift.org.mx/upload/sigedo/2026/January/a2cb23fc-3df3-f011-8406-0022480ae91e/17686111728907memorandum.pdf",
+      "fuente": "ARCHIVOS_ASOCIADOS"
+    }
+  ],
+  "meta_satys": {
+    "representante_legal": "CALEB HENRY",
+    "id_representante_legal": null,
+    "nombre_operador": "QUILTY SPACE",
+    "id_solicitante": null,
+    "asunto": "SOLICITA SE INDIQUE SI LA COMISION REGULADORA DE TELECOMUNICACIONES, REALIZA UN SEGUIMIENTO DEL NUMERO DE SUSCRIPTORES DE STARLINK EN MEXICO.  (Se recibió vía correo electrónico oficialiadepartes@crt.gob.mx) (01:38 p. m.) (AC)",
+    "tipo_tramite": "Seleccione tipo de trámite",
+    "registro": "CRT26-001886",
+    "folio_opc": "CORREO-271",
+    "fecha_documento": "15-01-2026 00:00:00",
+    "numero_anexos": "0",
+    "usb": "0",
+    "imagenes": "0",
+    "fecha_folio_opc": "16-01-2026 00:00:00",
+    "fecha_ejecucion": "16-01-2026 00:00:00",
+    "fecha_registro": "16-01-2026 00:00:00",
+    "folio": "271"
+  },
+  "fecha_proceso": "2026-07-17T18:48:13.469746"
+}

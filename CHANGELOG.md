@@ -1,3 +1,119 @@
+# 2026.08.27-rpc-diario-correo-unico1
+
+- La corrida diaria fuerza la resolución segura en dos niveles: catálogo Excel
+  oficial RPC y, si no resuelve, consulta directa a resultados/autocompletado
+  del buscador público RPC.
+- Los subprocesos de Internos y Oficialía reciben siempre `--sin-email`; sólo
+  `automatizar_registros_diario.py` envía un correo consolidado al final.
+- El correo se redujo a indicadores clave: total, exitosos, fallidos/revisión
+  manual, errores, tipos de expediente y operadores resueltos por Excel o web.
+- Todos los expedientes sin operador usan ahora el único destino
+  `output/_sin_operador/(correos)/<expediente>`; la consolidación final migra
+  carpetas heredadas, preserva conflictos con sufijo `__legacy`, verifica la
+  copia y nunca modifica `descargas/`.
+- Se mantienen en el correo las rutas de `output`, `descargas`,
+  `TrámitesCRT.xlsx`, `Folios_Datos_Completos.xlsx` y
+  `Folios_Datos_Completos_Internos.xlsx`.
+- Se añadieron pruebas de consolidación, clasificación del correo diario y
+  llamada única al módulo de notificación.
+
+# 2026.08.27-auditoria-descargas-unificada1
+
+- Unifica la auditoría de completitud para Internos, registros CRT y el modo
+  por Folio, sin importar la bandeja de origen.
+- Reencola carpetas inexistentes, vacías, sólo JSON, con metadata ausente o
+  corrupta, temporales, archivos vacíos, ZIP pendientes, estados parciales,
+  recorridos incompletos, conteos inconsistentes, errores o archivos físicos
+  faltantes.
+- Conserva y procesa todas las carpetas de expedientes existentes, incluso si
+  están vacías o parciales; nunca elimina una carpeta bajo `descargas/`.
+- Agrega una protección explícita que rechaza cualquier intento futuro de
+  eliminar árboles contenidos en la raíz configurada de `descargas/`.
+
+# 2026.08.27-output-sin-json1
+
+- Mantiene `metadata_satys.json`, `metadata_tramite_nuevo.json` y
+  `metadata_completo.json` exclusivamente bajo `descargas/`; ninguna ruta de
+  operador, `_sin_operador` o `(correos)` vuelve a publicarlos en `output/`.
+- Copia y verifica sólo archivos reales no vacíos, excluyendo JSON, temporales
+  y archivos auxiliares, incluso dentro de subcarpetas extraídas.
+- Depura JSON heredados de `output/` al iniciar el pipeline y admite rutas
+  extendidas de Windows para nombres de concesionarios largos.
+- La sincronización a DEPI conserva todos los JSON de `descargas/`, pero
+  excluye y retira JSON del `output/` local y compartido.
+
+# 2026.08.27-internos-watchdog-excel1
+
+- Sustituye los hilos no terminables de Internos por procesos aislados con un
+  heartbeat por Folio y timeout configurable mediante `--timeout-registro`.
+- Termina el árbol completo del worker y Chromium cuando deja de avanzar, y
+  reencola únicamente las parejas bandeja/Folio que siguen incompletas.
+- Propaga `--timeout-registro` y `--reintentos-registro` desde el pipeline manual
+  y el monitor diario; dos reintentos equivalen a tres intentos totales.
+- Omite objetivos locales que ya superan la auditoría estricta de metadata y
+  archivos, evitando descargas repetidas.
+- Genera `Folios_Datos_Completos_Internos.xlsx` de forma atómica, lo reabre para
+  validar hojas, encabezados, filas y objetivos, e incluye como `FALTANTE` cada
+  pareja solicitada que no produjo metadata completa.
+
+# 2026.08.26-correos-destino-exclusivo1
+
+- Clasifica cualquier `folio_opc` que empiece con `CORREO`, no sólo
+  `CORREO-2408`.
+- Usa como único destino `output/_sin_operador/(correos)/<expediente>` en los
+  flujos de Administración de solicitudes, Trámites Nuevos, Enlace de
+  Oficialía de Partes e Internos.
+- La clasificación CORREO tiene prioridad sobre una coincidencia RPC y también
+  actualiza con esa ruta el Excel y los reportes.
+- Fusiona, verifica y retira copias anteriores del mismo expediente ubicadas en
+  `_sin_operador`, en el antiguo `sin_operador_CORREO` o en la ruta calculada
+  para el operador.
+
+# 2026.08.26-rpc-razones-sociales-multiples1
+
+- Separa y resuelve individualmente las razones sociales completas que SATyS
+  enumera en un mismo expediente, conservando su orden original.
+- Construye una sola carpeta con todas las parejas `ID_OPERADOR_nombre`; si una
+  razón carece de ID verificable la marca `sin_id_nombre` sin inventar datos.
+- Registra en la auditoría CSV el arreglo completo de operadores y las razones
+  que hayan quedado sin ID.
+- Admite rutas conjuntas largas en Windows mediante rutas extendidas durante la
+  creación y copia de carpetas.
+
+# 2026.08.26-rpc-resolucion-segura2
+
+- Recupera en Internos el concesionario desde la sexta columna de `texto_fila`
+  cuando `metadata_satys.json` no contiene `id_solicitante` ni nombre.
+- Corrige descargas legacy que guardaron `folio` y `registro` como el valor fijo
+  `100`: usa `folio_tabla_internos` como identificador real del expediente.
+- Después del Excel local consulta la sección actual de resultados
+  `searchConcesiones` y usa `searchBP` como segundo respaldo, con caché por
+  nombre para no repetir peticiones durante una corrida.
+- Conserva el Excel RPC local aunque sea antiguo; sólo intenta reemplazarlo con
+  `--rebuild-catalogo` o cuando no existe un archivo local.
+- Normaliza acentos, puntuación, espacios y mayúsculas; también admite cambios
+  de sufijo societario y variantes de similitud muy alta sólo si hay un único
+  ID y margen suficiente frente al siguiente candidato.
+- Conserva en el CSV la mejor similitud y el margen de los casos rechazados;
+  siguen pendientes y nunca se organizan automáticamente con ese dato.
+- Agrega `--internos-registros CSV` para procesar exclusivamente las carpetas
+  locales de los folios numéricos indicados, sin descargar otras bandejas.
+- Al resolver una revisión anterior, fusiona sus archivos con la carpeta final,
+  verifica la copia y retira únicamente esa subcarpeta de `_sin_operador`.
+
+# 2026.08.26-rpc-resolucion-segura1
+
+- Mantiene como primera evidencia `id_solicitante == ID OPERADOR` del Excel
+  local y agrega nombre exacto normalizado cuando el ID está ausente.
+- Usa el endpoint público `searchBP` del RPC como respaldo actual para filas
+  ausentes del Excel o catálogos que no puedan abrirse.
+- Rechaza coincidencias fuzzy y nombres exactos asociados a varios IDs; los
+  conserva en `_sin_operador` con diagnóstico y candidatos.
+- Organiza cada expediente en `output/<ID>_<nombre>/<REGISTRO>/`, incluye los
+  JSON y evita colisiones entre trámites del mismo operador.
+- Genera CSV fechados de auditoría y pendientes, además de un
+  `sin_operador_<modo>_ultimo.csv` estable.
+
 # 2026.08.21-portable-oci-api-v1-8082-folio-modal1
 
 - Soporta anexos de Internos cuyo primer botón gris `VER DOCUMENTO` abre la

@@ -187,16 +187,46 @@ def _adjuntar_archivo(msg: EmailMessage, path: Path) -> bool:
 
 
 def conteos_desde_resultados(resultados: list[dict[str, Any]]) -> dict[str, int]:
-    """Calcula conteos consistentes a partir del log de resultados."""
+    """Calcula los indicadores esenciales de una corrida consolidada."""
     exitosos = 0
     sin_operador = 0
     errores = 0
+    correos = 0
+    internos = 0
+    rpc_excel = 0
+    rpc_online = 0
     for r in resultados or []:
-        ok = bool(r.get("rpc_ok") and r.get("organizado_ok") and r.get("excel_ok"))
+        es_correo = bool(r.get("es_correo"))
+        if es_correo:
+            correos += 1
+        if r.get("bandeja_internos") or r.get("_origen_proceso") == "internos":
+            internos += 1
+
+        rpc = r.get("rpc_resultado") or {}
+        fuente = str(rpc.get("fuente") or "").lower()
+        metodo = str(rpc.get("metodo") or "").lower()
+        if r.get("rpc_ok") and (fuente == "excel_rpc" or "_excel" in metodo):
+            rpc_excel += 1
+        elif r.get("rpc_ok") and (
+            fuente.startswith("rpc_online")
+            or "_rpc_" in metodo
+            or metodo.endswith("_autocomplete")
+        ):
+            rpc_online += 1
+
+        ok = bool(
+            not es_correo
+            and r.get("rpc_ok")
+            and r.get("organizado_ok")
+            and r.get("excel_ok")
+        )
         if ok:
             exitosos += 1
-        elif r.get("nombre_operador") or r.get("id_solicitante"):
-            # Tiene expediente/metadatos, pero no resolvió operador por ID exacto.
+        elif r.get("_fallido_controlado") or es_correo or (
+            not r.get("rpc_ok")
+            and (r.get("output_dir") or r.get("sin_operador_dir"))
+        ):
+            # El expediente quedó resguardado en la carpeta única de revisión.
             sin_operador += 1
         else:
             errores += 1
@@ -204,14 +234,28 @@ def conteos_desde_resultados(resultados: list[dict[str, Any]]) -> dict[str, int]
         "total": len(resultados or []),
         "exitosos": exitosos,
         "sin_operador": sin_operador,
+        "revision_manual": sin_operador,
         "errores": errores,
+        "correos": correos,
+        "internos": internos,
+        "oficialia_otros": max(0, len(resultados or []) - internos),
+        "rpc_excel": rpc_excel,
+        "rpc_online": rpc_online,
     }
 
 
 def _estado_texto(r: dict[str, Any]) -> tuple[str, str, str]:
-    if r.get("rpc_ok") and r.get("organizado_ok") and r.get("excel_ok"):
+    if (
+        not r.get("es_correo")
+        and r.get("rpc_ok")
+        and r.get("organizado_ok")
+        and r.get("excel_ok")
+    ):
         return "Éxito", "#166534", "#dcfce7"
-    if r.get("nombre_operador") or r.get("id_solicitante"):
+    if r.get("_fallido_controlado") or r.get("es_correo") or (
+        not r.get("rpc_ok")
+        and (r.get("output_dir") or r.get("sin_operador_dir"))
+    ):
         return "Revisión manual", "#92400e", "#fef3c7"
     return "Error", "#991b1b", "#fee2e2"
 
@@ -235,33 +279,44 @@ def _rpc_exactitud(r: dict[str, Any]) -> str:
         return ""
 
 
-def _tabla_resultados_html(resultados: list[dict[str, Any]], max_mostrar: int = 120) -> str:
-    if not resultados:
-        return "<tr><td colspan='6' style='padding:12px;color:#64748b;text-align:center;'>Sin registros en el log.</td></tr>"
+def _motivo_revision(r: dict[str, Any]) -> str:
+    if r.get("_fallido_controlado"):
+        return "Descarga agotó sus reintentos; requiere revisión manual"
+    if r.get("es_correo"):
+        return f"Folio OPC {r.get('folio_opc') or 'CORREO'}"
+    rpc = r.get("rpc_resultado") or {}
+    if not r.get("rpc_ok"):
+        return str(rpc.get("motivo") or "Operador no resuelto por Excel ni RPC web")
+    if not r.get("organizado_ok"):
+        return "No se verificó la organización de archivos"
+    if not r.get("excel_ok"):
+        return "No se confirmó la actualización del Excel"
+    return "Revisión requerida"
+
+
+def _tabla_resultados_html(resultados: list[dict[str, Any]], max_mostrar: int = 25) -> str:
+    pendientes = [r for r in resultados or [] if _estado_texto(r)[0] != "Éxito"]
+    if not pendientes:
+        return "<tr><td colspan='4' style='padding:12px;color:#64748b;text-align:center;'>Sin pendientes de revisión.</td></tr>"
 
     filas: list[str] = []
-    for r in resultados[:max_mostrar]:
+    for r in pendientes[:max_mostrar]:
         estado, color, bg = _estado_texto(r)
-        rpc = r.get("rpc_resultado") or {}
-        operador = r.get("nombre_operador") or rpc.get("nombre_completo") or ""
         output_dir = r.get("output_dir") or r.get("sin_operador_dir") or ""
-        id_solicitante = r.get("id_solicitante") or rpc.get("id_solicitante") or ""
-        metodo = rpc.get("metodo") or ("id_exacto" if id_solicitante else "")
+        tipo = "Internos" if r.get("bandeja_internos") or r.get("_origen_proceso") == "internos" else "Oficialía/otro"
         filas.append(
             "<tr>"
             f"<td style='padding:8px 10px;border-bottom:1px solid #e5e7eb;font-family:Consolas,monospace;'>{html.escape(_registro_label(r))}</td>"
-            f"<td style='padding:8px 10px;border-bottom:1px solid #e5e7eb;'><span style='background:{bg};color:{color};border-radius:999px;padding:3px 8px;font-size:12px;font-weight:700;'>{estado}</span></td>"
-            f"<td style='padding:8px 10px;border-bottom:1px solid #e5e7eb;'>{html.escape(str(operador or '-'))}</td>"
-            f"<td style='padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:center;font-family:Consolas,monospace;'>{html.escape(str(id_solicitante or '-'))}</td>"
-            f"<td style='padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:center;'>{html.escape(_rpc_exactitud(r))}<br><span style='color:#64748b;font-size:11px;'>{html.escape(str(metodo or ''))}</span></td>"
+            f"<td style='padding:8px 10px;border-bottom:1px solid #e5e7eb;'>{html.escape(tipo)}<br><span style='background:{bg};color:{color};border-radius:999px;padding:3px 8px;font-size:11px;font-weight:700;'>{estado}</span></td>"
+            f"<td style='padding:8px 10px;border-bottom:1px solid #e5e7eb;'>{html.escape(_motivo_revision(r))}</td>"
             f"<td style='padding:8px 10px;border-bottom:1px solid #e5e7eb;font-family:Consolas,monospace;font-size:11px;color:#475569;'>{html.escape(_norm_rel(output_dir) or '-')}</td>"
             "</tr>"
         )
 
-    if len(resultados) > max_mostrar:
+    if len(pendientes) > max_mostrar:
         filas.append(
-            f"<tr><td colspan='6' style='padding:10px;text-align:center;color:#64748b;'>"
-            f"... y {len(resultados) - max_mostrar:,} registros más. Ver Folios_Datos_Completos.xlsx y el JSON de log.</td></tr>"
+            f"<tr><td colspan='4' style='padding:10px;text-align:center;color:#64748b;'>"
+            f"... y {len(pendientes) - max_mostrar:,} pendientes más. Ver los CSV de auditoría y el JSON de log.</td></tr>"
         )
     return "\n".join(filas)
 
@@ -312,6 +367,11 @@ def construir_html(fecha_ejecucion: str,
     exitosos = int(conteos.get("exitosos", 0) or 0)
     sin_operador = int(conteos.get("sin_operador", 0) or 0)
     errores = int(conteos.get("errores", 0) or 0)
+    internos = int(conteos.get("internos", 0) or 0)
+    oficialia_otros = int(conteos.get("oficialia_otros", 0) or 0)
+    correos = int(conteos.get("correos", 0) or 0)
+    rpc_excel = int(conteos.get("rpc_excel", 0) or 0)
+    rpc_online = int(conteos.get("rpc_online", 0) or 0)
     pct = lambda n: round((n / total) * 100) if total else 0
 
     fecha_fmt = fecha_ejecucion
@@ -336,7 +396,7 @@ def construir_html(fecha_ejecucion: str,
             <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#bff3f7;font-weight:700;">Automatización SATyS</div>
             <h1 style="margin:8px 0 6px;font-size:28px;line-height:1.2;">Resultado del proceso</h1>
             <div style="font-size:14px;color:#d7fbff;">Modo: <b>{html.escape(modo)}</b> &nbsp;|&nbsp; Fecha: <b>{html.escape(fecha_fmt)}</b></div>
-            <div style="font-size:12px;color:#bff3f7;margin-top:8px;">Validación RPC por ID exacto: <b>id_solicitante = ID OPERADOR</b>. Resultado permitido: <b>100%</b> o <b>0%</b>.</div>
+            <div style="font-size:12px;color:#bff3f7;margin-top:8px;">Resolución RPC: <b>Excel oficial primero</b> y, si no resuelve, <b>buscador público del RPC</b>.</div>
           </td>
         </tr>
         <tr><td style="background:#0f172a;color:#cbd5e1;text-align:center;padding:12px 40px;font-size:12px;">
@@ -352,13 +412,17 @@ def construir_html(fecha_ejecucion: str,
                 <div style="font-size:30px;font-weight:800;color:#16a34a;">{exitosos:,}</div><div style="font-size:12px;color:#15803d;font-weight:700;">EXITOSOS ({pct(exitosos)}%)</div>
               </td>
               <td style="background:#fffbeb;border:1px solid #fde68a;border-radius:14px;padding:18px;text-align:center;">
-                <div style="font-size:30px;font-weight:800;color:#d97706;">{sin_operador:,}</div><div style="font-size:12px;color:#92400e;font-weight:700;">REVISIÓN MANUAL ({pct(sin_operador)}%)</div>
+                <div style="font-size:30px;font-weight:800;color:#d97706;">{sin_operador:,}</div><div style="font-size:12px;color:#92400e;font-weight:700;">FALLIDOS / REVISIÓN ({pct(sin_operador)}%)</div>
               </td>
               <td style="background:#fef2f2;border:1px solid #fecaca;border-radius:14px;padding:18px;text-align:center;">
                 <div style="font-size:30px;font-weight:800;color:#dc2626;">{errores:,}</div><div style="font-size:12px;color:#991b1b;font-weight:700;">ERRORES ({pct(errores)}%)</div>
               </td>
             </tr>
           </table>
+          <div style="margin:4px 10px 0;background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;color:#334155;font-size:13px;">
+            <b>Tipos:</b> Internos {internos:,} &nbsp;|&nbsp; Oficialía/otros {oficialia_otros:,} &nbsp;|&nbsp; Folio OPC CORREO {correos:,}<br>
+            <b>Operadores resueltos:</b> Excel RPC {rpc_excel:,} &nbsp;|&nbsp; buscador web RPC {rpc_online:,}
+          </div>
         </td></tr>
         <tr><td style="padding:8px 40px 22px;">
           <h2 style="font-size:18px;margin:16px 0 10px;border-left:5px solid #156e78;padding-left:12px;">Salidas principales</h2>
@@ -372,9 +436,9 @@ def construir_html(fecha_ejecucion: str,
           </div>
         </td></tr>
         <tr><td style="padding:0 40px 34px;">
-          <h2 style="font-size:18px;margin:16px 0 10px;border-left:5px solid #156e78;padding-left:12px;">Registros procesados</h2>
+          <h2 style="font-size:18px;margin:16px 0 10px;border-left:5px solid #156e78;padding-left:12px;">Pendientes que requieren atención</h2>
           <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;border-collapse:separate;border-spacing:0;font-size:13px;">
-            <thead><tr style="background:#0f172a;color:#f8fafc;"><th align="left" style="padding:10px;">Registro/Folio</th><th align="left" style="padding:10px;">Estado</th><th align="left" style="padding:10px;">Operador</th><th align="center" style="padding:10px;">ID solicitante</th><th align="center" style="padding:10px;">RPC</th><th align="left" style="padding:10px;">Output</th></tr></thead>
+            <thead><tr style="background:#0f172a;color:#f8fafc;"><th align="left" style="padding:10px;">Registro/Folio</th><th align="left" style="padding:10px;">Tipo/estado</th><th align="left" style="padding:10px;">Motivo</th><th align="left" style="padding:10px;">Ruta</th></tr></thead>
             <tbody>{tabla_resultados}</tbody>
           </table>
         </td></tr>
@@ -398,12 +462,14 @@ def construir_texto(fecha_ejecucion: str,
         "=" * 60,
         f"Modo: {modo}",
         f"Fecha: {fecha_ejecucion}",
-        "RPC: id_solicitante = ID OPERADOR; resultado 100% o 0%",
+        "RPC: Excel oficial primero; buscador público del RPC como alternativa.",
         "",
         f"Total: {conteos.get('total', 0)}",
         f"Exitosos: {conteos.get('exitosos', 0)}",
-        f"Revisión manual: {conteos.get('sin_operador', 0)}",
+        f"Fallidos / revisión manual: {conteos.get('sin_operador', 0)}",
         f"Errores: {conteos.get('errores', 0)}",
+        f"Tipos: Internos={conteos.get('internos', 0)}, Oficialía/otros={conteos.get('oficialia_otros', 0)}, CORREO={conteos.get('correos', 0)}",
+        f"Operadores resueltos: Excel RPC={conteos.get('rpc_excel', 0)}, buscador web RPC={conteos.get('rpc_online', 0)}",
         "",
         "Salidas principales:",
     ]
@@ -411,13 +477,18 @@ def construir_texto(fecha_ejecucion: str,
         lines.append(f"- {nombre}: {ruta} [{_existe(ruta)}]")
     if log_path:
         lines.extend(["", f"Log: {log_path}"])
-    lines.extend(["", "Primeros registros:"])
-    for r in (resultados or [])[:80]:
+    lines.extend(["", "Pendientes que requieren atención:"])
+    pendientes = [r for r in (resultados or []) if _estado_texto(r)[0] != "Éxito"]
+    if not pendientes:
+        lines.append("- Ninguno")
+    for r in pendientes[:25]:
         estado, _, _ = _estado_texto(r)
         lines.append(
-            f"- {_registro_label(r)} | {estado} | {r.get('nombre_operador') or '-'} "
-            f"| RPC {_rpc_exactitud(r)} | {_norm_rel(r.get('output_dir') or r.get('sin_operador_dir') or '-') }"
+            f"- {_registro_label(r)} | {estado} | {_motivo_revision(r)} "
+            f"| {_norm_rel(r.get('output_dir') or r.get('sin_operador_dir') or '-') }"
         )
+    if len(pendientes) > 25:
+        lines.append(f"- ... y {len(pendientes) - 25} pendientes más (ver log/CSV).")
     return "\n".join(lines)
 
 
@@ -471,12 +542,13 @@ def enviar_notificacion(total_registros: int | None = None,
         return False
 
     conteos_calc = conteos_desde_resultados(registros)
-    conteos = {
+    conteos = dict(conteos_calc)
+    conteos.update({
         "total": int(total_registros if total_registros is not None else conteos_calc["total"]),
         "exitosos": int(exitosos if exitosos is not None else conteos_calc["exitosos"]),
         "sin_operador": int(sin_operador if sin_operador is not None else conteos_calc["sin_operador"]),
         "errores": int(errores if errores is not None else conteos_calc["errores"]),
-    }
+    })
     if conteos["total"] == 0 and registros:
         conteos["total"] = len(registros)
 

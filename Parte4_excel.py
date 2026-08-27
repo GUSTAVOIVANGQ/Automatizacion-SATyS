@@ -30,6 +30,10 @@ from pathlib import Path
 from datetime import datetime
 
 from configuracion_local import carpeta_compartida, ruta_configurada
+from estado_descargas import (
+    depurar_json_output,
+    iter_archivos_publicables_output,
+)
 from guardado_seguro import reemplazar_desde_temporal
 
 # Forzar UTF-8 (solo si no está ya configurado)
@@ -172,42 +176,256 @@ def _destino_sin_colision(destino: Path, item: Path) -> Path:
     return destino / item.name
 
 
+def _ruta_extendida_windows(ruta: str | Path) -> str:
+    """Convierte una ruta absoluta al formato extendido de Windows."""
+    absoluta = os.path.abspath(os.fspath(ruta))
+    if os.name != "nt" or absoluta.startswith("\\\\?\\"):
+        return absoluta
+    if absoluta.startswith("\\\\"):
+        return "\\\\?\\UNC\\" + absoluta[2:]
+    return "\\\\?\\" + absoluta
+
+
+def copiar_archivo_robusto(origen: str | Path, destino: str | Path) -> Path:
+    """Copia un archivo preservando metadatos y admitiendo rutas largas en Windows."""
+    origen_extendido = _ruta_extendida_windows(origen)
+    destino_extendido = _ruta_extendida_windows(destino)
+    os.makedirs(os.path.dirname(destino_extendido), exist_ok=True)
+    shutil.copy2(origen_extendido, destino_extendido)
+    return Path(destino)
+
+
+def copiar_arbol_robusto(origen: str | Path, destino: str | Path) -> Path:
+    """Fusiona un árbol de archivos sin depender del límite clásico MAX_PATH."""
+    origen_extendido = _ruta_extendida_windows(origen)
+    destino_extendido = _ruta_extendida_windows(destino)
+    os.makedirs(destino_extendido, exist_ok=True)
+
+    for raiz, directorios, archivos in os.walk(origen_extendido):
+        relativa = os.path.relpath(raiz, origen_extendido)
+        destino_raiz = (
+            destino_extendido
+            if relativa == os.curdir
+            else os.path.join(destino_extendido, relativa)
+        )
+        os.makedirs(destino_raiz, exist_ok=True)
+        for directorio in directorios:
+            os.makedirs(os.path.join(destino_raiz, directorio), exist_ok=True)
+        for nombre in archivos:
+            shutil.copy2(
+                os.path.join(raiz, nombre),
+                os.path.join(destino_raiz, nombre),
+            )
+    return Path(destino)
+
+
+def arbol_copiado_completo(origen: str | Path, destino: str | Path) -> bool:
+    """Comprueba que cada archivo del origen existe en destino con igual tamaño."""
+    origen_extendido = _ruta_extendida_windows(origen)
+    destino_extendido = _ruta_extendida_windows(destino)
+    if not os.path.isdir(origen_extendido) or not os.path.isdir(destino_extendido):
+        return False
+    for raiz, _, archivos in os.walk(origen_extendido):
+        relativa = os.path.relpath(raiz, origen_extendido)
+        destino_raiz = (
+            destino_extendido
+            if relativa == os.curdir
+            else os.path.join(destino_extendido, relativa)
+        )
+        for nombre in archivos:
+            fuente = os.path.join(raiz, nombre)
+            copia = os.path.join(destino_raiz, nombre)
+            if not os.path.isfile(copia) or os.path.getsize(fuente) != os.path.getsize(copia):
+                return False
+    return True
+
+
+def copiar_archivos_publicables_output(origen: str | Path, destino: str | Path) -> list[str]:
+    """Copia documentos reales preservando subcarpetas y excluyendo JSON."""
+    origen = Path(origen)
+    origen_absoluto = Path(os.path.abspath(os.fspath(origen)))
+    destino = Path(destino)
+    copiados: list[str] = []
+    for archivo in iter_archivos_publicables_output(origen):
+        relativo = archivo.relative_to(origen_absoluto)
+        copiar_archivo_robusto(archivo, destino / relativo)
+        copiados.append(str(relativo))
+    # Retira metadata que hubiera quedado en el destino por corridas anteriores.
+    depurar_json_output(destino)
+    return copiados
+
+
+def arbol_publicable_copiado_completo(origen: str | Path, destino: str | Path) -> bool:
+    """Verifica por tamaño sólo los documentos autorizados para ``output/``."""
+    origen = Path(origen)
+    origen_absoluto = Path(os.path.abspath(os.fspath(origen)))
+    destino = Path(destino)
+    if not origen.is_dir() or not destino.is_dir():
+        return False
+    for fuente in iter_archivos_publicables_output(origen):
+        relativo = fuente.relative_to(origen_absoluto)
+        copia = destino / relativo
+        try:
+            fuente_extendida = _ruta_extendida_windows(fuente)
+            copia_extendida = _ruta_extendida_windows(copia)
+            if (
+                not os.path.isfile(copia_extendida)
+                or os.path.getsize(fuente_extendida) != os.path.getsize(copia_extendida)
+            ):
+                return False
+        except OSError:
+            return False
+    return True
+
+
+def eliminar_arbol_robusto(ruta: str | Path) -> None:
+    """Elimina un árbol de salida, con protección absoluta para ``descargas/``."""
+    ruta_extendida = _ruta_extendida_windows(ruta)
+    descargas_extendida = _ruta_extendida_windows(DESCARGA_BASE)
+    try:
+        dentro_descargas = os.path.commonpath([
+            os.path.normcase(ruta_extendida),
+            os.path.normcase(descargas_extendida),
+        ]) == os.path.normcase(descargas_extendida)
+    except ValueError:
+        dentro_descargas = False
+    if dentro_descargas:
+        raise ValueError(f"Está prohibido eliminar expedientes bajo descargas: {ruta}")
+    if os.path.isdir(ruta_extendida):
+        shutil.rmtree(ruta_extendida)
+
+
 def organizar_archivos(carpeta_folio: Path, ruta: str) -> Path | None:
     """
-    Mueve los archivos de la carpeta del folio a la ruta estandarizada.
+    Copia y fusiona los archivos de la carpeta del folio en la ruta estandarizada.
     Retorna la ruta destino o None.
     """
     if not ruta:
         return None
 
     destino = OUTPUT_BASE / _ruta_a_path(ruta)
-    destino.mkdir(parents=True, exist_ok=True)
+    os.makedirs(_ruta_extendida_windows(destino), exist_ok=True)
 
-    copiados = 0
-    for item in carpeta_folio.iterdir():
-        if item.resolve() == destino.resolve():
+    try:
+        archivos_copiados = copiar_archivos_publicables_output(carpeta_folio, destino)
+    except Exception as e:
+        log.error("❌ No se pudo organizar %s → %s: %s", carpeta_folio, destino, e)
+        return None
+
+    if archivos_copiados:
+        log.info("📁 %d archivo(s) real(es) copiado(s) a: %s", len(archivos_copiados), destino)
+    else:
+        log.warning("⚠️  %s no contiene archivos reales publicables; sus JSON permanecen en descargas.", carpeta_folio)
+
+    return destino if archivos_copiados else None
+
+
+def organizar_correo_exclusivo(
+    carpeta_folio: Path,
+    output_base: str | Path,
+    identificador: str,
+    *,
+    folio_opc: str = "CORREO",
+    ruta_operador: str = "",
+    identificadores_legacy: list[str] | tuple[str, ...] = (),
+) -> dict:
+    """Consolida un expediente en su destino correcto de revisión manual.
+
+    Copia primero todos los archivos de descarga, verifica tamaños y después
+    fusiona y retira copias anteriores del mismo expediente ubicadas en
+    ``_sin_operador``, ``_sin_operador/(correos)``, en el antiguo
+    ``sin_operador_CORREO`` o en la ruta de operador calculada durante esta
+    corrida. ``folio_opc`` decide si el destino es la raíz general o la
+    subcarpeta de correos. El nombre histórico de la función se conserva para
+    no romper integraciones existentes.
+    """
+    from rutas_salida import (
+        SIN_OPERADOR_CORREO_DIR,
+        SIN_OPERADOR_DIR,
+        destino_sin_operador,
+    )
+
+    output_base = Path(output_base)
+    destino = destino_sin_operador(output_base, identificador, folio_opc)
+    os.makedirs(_ruta_extendida_windows(destino), exist_ok=True)
+
+    archivos_copiados = copiar_archivos_publicables_output(carpeta_folio, destino)
+
+    verificado = bool(archivos_copiados) and arbol_publicable_copiado_completo(
+        carpeta_folio,
+        destino,
+    )
+    duplicados_retirados: list[str] = []
+    errores: list[str] = []
+    if not verificado:
+        errores.append("la copia desde descargas no superó la verificación")
+        return {
+            "destino": destino,
+            "archivos_copiados": archivos_copiados,
+            "verificado": False,
+            "duplicados_retirados": duplicados_retirados,
+            "errores": errores,
+        }
+
+    identificadores = [str(identificador)] + [
+        str(valor).strip()
+        for valor in identificadores_legacy
+        if str(valor or "").strip()
+    ]
+    candidatos = []
+    for identificador_previo in dict.fromkeys(identificadores):
+        candidatos.extend([
+            output_base / SIN_OPERADOR_DIR / identificador_previo,
+            output_base / SIN_OPERADOR_CORREO_DIR / identificador_previo,
+            output_base / "sin_operador_CORREO" / identificador_previo,
+        ])
+    if ruta_operador:
+        candidatos.append(output_base / _ruta_a_path(ruta_operador))
+
+    output_absoluto = Path(os.path.abspath(output_base))
+    destino_absoluto = Path(os.path.abspath(destino))
+    vistos: set[str] = set()
+    for candidato in candidatos:
+        candidato_absoluto = Path(os.path.abspath(candidato))
+        clave = os.path.normcase(str(candidato_absoluto))
+        if clave in vistos:
             continue
-            
-        # Excluir archivos JSON de la organización
-        if item.suffix.lower() == ".json":
+        vistos.add(clave)
+        if candidato_absoluto == destino_absoluto:
+            continue
+        if not candidato_absoluto.is_relative_to(output_absoluto):
+            errores.append(f"ruta duplicada fuera de output: {candidato_absoluto}")
+            continue
+        if not os.path.isdir(_ruta_extendida_windows(candidato_absoluto)):
             continue
 
-        target = _destino_sin_colision(destino, item)
         try:
-            # copy2 sobrescribe archivos; copytree con dirs_exist_ok hace merge.
-            # No se elimina ningún archivo o carpeta preexistente del destino.
-            if item.is_file():
-                shutil.copy2(str(item), str(target))
-            else:
-                shutil.copytree(str(item), str(target), dirs_exist_ok=True)
-            copiados += 1
-        except Exception as e:
-            log.error("❌ No se pudo copiar %s → %s: %s", item.name, target, e)
+            copiar_archivos_publicables_output(candidato_absoluto, destino_absoluto)
+            if not arbol_publicable_copiado_completo(candidato_absoluto, destino_absoluto):
+                errores.append(f"no se verificó la fusión de {candidato_absoluto}")
+                continue
+            # Los archivos de descargas son la versión vigente si una copia
+            # antigua tenía el mismo nombre.
+            copiar_archivos_publicables_output(carpeta_folio, destino)
+            if not arbol_publicable_copiado_completo(carpeta_folio, destino):
+                errores.append(f"falló la reverificación final de {destino}")
+                continue
+            eliminar_arbol_robusto(candidato_absoluto)
+            duplicados_retirados.append(str(candidato_absoluto))
+        except Exception as exc:
+            errores.append(f"{candidato_absoluto}: {exc}")
 
-    if copiados:
-        log.info("📁 %d archivos copiados a: %s", copiados, destino)
-
-    return destino
+    return {
+        "destino": destino,
+        "archivos_copiados": archivos_copiados,
+        "verificado": (
+            bool(archivos_copiados)
+            and not errores
+            and arbol_publicable_copiado_completo(carpeta_folio, destino)
+        ),
+        "duplicados_retirados": duplicados_retirados,
+        "errores": errores,
+    }
 
 
 # ────────────────────────────────────────────────────────

@@ -1,0 +1,38 @@
+C501,C502,C402,R011-0401,R011-0402,,,,,,,,
+2025,P02,P01,9,22,,,,,,,,
+2025,P03,P02,94,376,,,,,,,,
+2025,P04,P03,3,0,,,,,,,,
+2025,P05,P03,23,0,,,,,,,,
+2025,P06,P04,15,1,,,,,,,,
+2025,P07,P05,3,0,,,,,,,,
+2025,P08,P05,3,0,,,,,,,,
+2025,P09,P05,17,0,,,,,,,,
+2025,P10,P05,1,0,,,,,,,,
+2025,P11,P06,1,0,,,,,,,,
+2025,P12,P06,31,753,,,,,,,,
+2025,P13,P06,2,1,,,,,,,,
+2025,P14,P06,8,0,,,,,,,,
+2025,P15,P07,2,0,,,,,,,C402,Velocidad
+2025,P16,P08,1,0,,,,,,,P01,menor o igual a 256 kbps
+2025,P17,P09,2,0,,,,,,,P02,mayor o igual a 256 kbps y menor a 1 Mbps
+2025,P18,P09,199,142,,,,,,,P03,mayor o igual a 1 Mbps y menor a 2 Mbps
+2025,P19,P09,159,0,,,,,,,P04,mayor o igual a 2 Mbps y menor a 3 Mbps
+2025,P20,P10,1,0,,,,,,,P05,mayor o igual a 3 Mbps y menor a 4 Mbps
+2025,P21,P14,43,0,,,,,,,P06,mayor o igual a 4 Mbps y menor a 5 Mbps
+2025,P22,P14,27,0,,,,,,,P07,mayor o igual a 5 Mbps y menor a 10 Mbps
+2025,P23,P14,10,0,,,,,,,P08,mayor o igual a 10 Mbps y menor a 20 Mbps
+2025,P24,P14,2,0,,,,,,,P09,mayor o igual a 20 Mbps y menor a 25 Mbps
+2025,P25,P15,10,0,,,,,,,P10,mayor o igual a 25 Mbps y menor a 30 Mbps
+2025,P26,P15,3,0,,,,,,,P11,mayor o igual a 30 Mbps y menor a 40 Mbps
+2025,P27,P15,5,0,,,,,,,P12,mayor o igual a 40 Mbps y menor a 50 Mbps
+2025,P28,P16,20,0,,,,,,,P13,mayor o igual a 50 Mbps y menor a 60 Mbps
+2025,P29,P16,1,0,,,,,,,P14,mayor o igual a 60 Mbps y menor a 70 Mbps
+2025,P30,P18,3,0,,,,,,,P15,mayor o igual a 70 Mbps y menor a 80 Mbps
+2025,P31,P18,10,0,,,,,,,P16,mayor o igual a 80 Mbps y menor a 90 Mbps
+2025,P32,P21,0,5,,,,,,,P17,mayor o igual a 90 Mbps y menor a 100 Mbps
+2025,P33,P23,281,29,,,,,,,P18,mayor o igual a 100 Mbps y menor a 200 Mbps
+2025,P34,P24,1122,4,,,,,,,P19,mayor o igual a 200 Mbps y menor a 300 Mbps
+,,,,,,,,,,,P20,mayor o igual a 300 Mbps y menor a 400 Mbps
+,,,,,,,,,,,P21,mayor o igual a 400 Mbps y menor a 500 Mbps
+,,,,,,,,,,,P22,mayor o igual a 500 Mbps y menor a 1 Gbps
+,,,,,,,,,,,P23,mayor o igual a 1 Gbps

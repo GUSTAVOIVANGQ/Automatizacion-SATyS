@@ -7,22 +7,66 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import main_procesar
+from Parte4_excel import consolidar_sin_operador_legacy
 from reconciliar_metadata_global import construir_resultados
-from rutas_salida import carpeta_sin_operador, ruta_relativa_sin_operador
-from sincronizacion_depi import validar_destino_compartido
+from rutas_salida import (
+    carpeta_sin_operador,
+    es_folio_opc_correo,
+    ruta_relativa_sin_operador,
+)
+from sincronizacion_depi import sincronizar_salidas, validar_destino_compartido
 
 
 class RutasSalidaTests(unittest.TestCase):
-    def test_correo_2408_va_a_carpeta_separada(self):
-        self.assertEqual(carpeta_sin_operador("CORREO-2408"), "sin_operador_CORREO")
-        self.assertEqual(carpeta_sin_operador("correo-2408-anexo"), "sin_operador_CORREO")
+    def test_cualquier_prefijo_correo_va_a_subcarpeta_exclusiva(self):
+        self.assertTrue(es_folio_opc_correo("CORREO-271"))
+        self.assertTrue(es_folio_opc_correo("correo-2408-anexo"))
         self.assertEqual(
-            ruta_relativa_sin_operador("CRT26-000001", "CORREO-2408"),
-            r"sin_operador_CORREO\CRT26-000001",
+            carpeta_sin_operador("CORREO-271"),
+            str(Path("_sin_operador") / "(correos)"),
+        )
+        self.assertEqual(
+            ruta_relativa_sin_operador("CRT26-000001", "CORREO-271"),
+            r"_sin_operador\(correos)\CRT26-000001",
         )
 
-    def test_otros_folios_conservan_sin_operador(self):
-        self.assertEqual(carpeta_sin_operador("VE-185606"), "_sin_operador")
+    def test_todo_sin_operador_va_a_subcarpeta_unica_de_revision(self):
+        self.assertEqual(
+            carpeta_sin_operador("VE-185606"),
+            str(Path("_sin_operador") / "(correos)"),
+        )
+        self.assertEqual(
+            ruta_relativa_sin_operador("CRT26-009999", "VE-185606"),
+            r"_sin_operador\(correos)\CRT26-009999",
+        )
+
+    def test_consolidacion_final_migra_legacy_sin_tocar_descargas(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            output = root / "output"
+            descargas = root / "descargas" / "CRT26-000010"
+            legacy = output / "_sin_operador" / "CRT26-000010"
+            destino = output / "_sin_operador" / "(correos)" / "CRT26-000010"
+            descargas.mkdir(parents=True)
+            legacy.mkdir(parents=True)
+            destino.mkdir(parents=True)
+            (descargas / "metadata_satys.json").write_text("{}", encoding="utf-8")
+            (descargas / "original.pdf").write_bytes(b"descarga-intacta")
+            (legacy / "documento.pdf").write_bytes(b"version-legacy")
+            (legacy / "metadata_satys.json").write_text("{}", encoding="utf-8")
+            (destino / "documento.pdf").write_bytes(b"version-actual")
+
+            resumen = consolidar_sin_operador_legacy(output)
+
+            self.assertEqual(resumen["errores"], [])
+            self.assertEqual(resumen["carpetas_migradas"], 1)
+            self.assertFalse(legacy.exists())
+            self.assertEqual((destino / "documento.pdf").read_bytes(), b"version-actual")
+            self.assertEqual((destino / "documento__legacy.pdf").read_bytes(), b"version-legacy")
+            self.assertEqual(list(destino.rglob("*.json")), [])
+            self.assertEqual((descargas / "original.pdf").read_bytes(), b"descarga-intacta")
+            self.assertTrue((descargas / "metadata_satys.json").exists())
 
     def test_reconciliacion_calcula_ruta_por_id_y_migra_correo(self):
         with tempfile.TemporaryDirectory() as td:
@@ -36,12 +80,16 @@ class RutasSalidaTests(unittest.TestCase):
             (correo / "metadata_satys.json").write_text(
                 json.dumps({
                     "registro": "CRT26-000001",
-                    "folio_opc": "CORREO-2408",
-                    "id_solicitante": "",
+                    "folio_opc": "CORREO-271",
+                    "id_solicitante": "123",
+                    "nombre_operador": "OPERADOR DEMO",
                 }),
                 encoding="utf-8",
             )
             (correo / "documento.pdf").write_bytes(b"demo")
+            duplicado = output / "_sin_operador" / "CRT26-000001"
+            duplicado.mkdir(parents=True)
+            (duplicado / "archivo_previo.txt").write_text("previo", encoding="utf-8")
 
             operador = descargas / "CRT26-000002"
             operador.mkdir()
@@ -64,9 +112,137 @@ class RutasSalidaTests(unittest.TestCase):
             self.assertTrue(por_registro["CRT26-000002"]["rpc_ok"])
             self.assertIn("123_operador_demo", por_registro["CRT26-000002"]["output_dir"])
             self.assertTrue(
-                (output / "sin_operador_CORREO" / "CRT26-000001" / "documento.pdf").exists()
+                (
+                    output
+                    / "_sin_operador"
+                    / "(correos)"
+                    / "CRT26-000001"
+                    / "documento.pdf"
+                ).exists()
             )
+            self.assertEqual(list((output / "_sin_operador" / "(correos)").rglob("*.json")), [])
+            self.assertTrue(
+                (
+                    output
+                    / "_sin_operador"
+                    / "(correos)"
+                    / "CRT26-000001"
+                    / "archivo_previo.txt"
+                ).exists()
+            )
+            self.assertFalse(duplicado.exists())
+            self.assertFalse((output / "123_operador_demo" / "CRT26-000001").exists())
+            self.assertTrue(por_registro["CRT26-000001"]["es_correo"])
             self.assertEqual(stats["sin_operador_correo"], 1)
+
+    def test_tres_bandejas_respetan_destino_exclusivo_de_correos(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            descargas = root / "descargas"
+            output = root / "output"
+            catalogo = [{
+                "idBp": "123",
+                "nombre_completo": "OPERADOR DEMO",
+                "concesionario": "OPERADOR DEMO",
+                "norm": "operador demo",
+                "compact": "operadordemo",
+            }]
+
+            with (
+                patch.object(main_procesar, "OUTPUT_BASE", output),
+                patch.object(main_procesar, "actualizar_excel", return_value=True),
+            ):
+                for indice, bandeja in enumerate(
+                    ("administracion_solicitudes", "tramites_nuevos", "enlace_oficialia"),
+                    start=1,
+                ):
+                    registro = f"CRT26-{indice:06d}"
+                    carpeta = descargas / bandeja / registro
+                    carpeta.mkdir(parents=True)
+                    (carpeta / "metadata_satys.json").write_text(
+                        json.dumps({
+                            "folio": str(indice),
+                            "registro": registro,
+                            "folio_opc": f"CORREO-{270 + indice}",
+                            "id_solicitante": "123",
+                            "nombre_operador": "OPERADOR DEMO",
+                        }),
+                        encoding="utf-8",
+                    )
+                    (carpeta / "documento.pdf").write_bytes(b"correo")
+
+                    folio_id = f"{bandeja}__{registro}"
+                    duplicado = output / "_sin_operador" / folio_id
+                    duplicado.mkdir(parents=True)
+                    (duplicado / "metadata_satys.json").write_text(
+                        "{}",
+                        encoding="utf-8",
+                    )
+
+                    resultado = main_procesar.procesar_folio(
+                        folio=str(indice),
+                        catalogo=catalogo,
+                        carpeta=carpeta,
+                        folio_id=folio_id,
+                    )
+                    destino = output / "_sin_operador" / "(correos)" / registro
+                    self.assertTrue(resultado["es_correo"], bandeja)
+                    self.assertTrue(resultado["organizado_ok"], bandeja)
+                    self.assertEqual(Path(resultado["output_dir"]), destino)
+                    self.assertTrue((destino / "documento.pdf").exists(), bandeja)
+                    self.assertEqual(list(destino.rglob("*.json")), [], bandeja)
+                    self.assertFalse(duplicado.exists(), bandeja)
+                    self.assertFalse(
+                        (output / "123_operador_demo" / registro).exists(),
+                        bandeja,
+                    )
+
+    def test_sin_operador_copia_documentos_pero_no_metadata_json(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            output = root / "output"
+            carpeta = root / "descargas" / "CRT26-009999"
+            carpeta.mkdir(parents=True)
+            (carpeta / "metadata_satys.json").write_text(
+                json.dumps({
+                    "folio": "9999",
+                    "registro": "CRT26-009999",
+                    "nombre_operador": "OPERADOR SIN COINCIDENCIA",
+                }),
+                encoding="utf-8",
+            )
+            (carpeta / "metadata_completo.json").write_text("{}", encoding="utf-8")
+            (carpeta / "documento.pdf").write_bytes(b"real")
+            destino_legacy = output / "_sin_operador" / "CRT26-009999"
+            destino_legacy.mkdir(parents=True)
+            (destino_legacy / "archivo_anterior.txt").write_text("anterior", encoding="utf-8")
+
+            with (
+                patch.object(main_procesar, "OUTPUT_BASE", output),
+                patch.object(main_procesar, "actualizar_excel", return_value=True),
+                patch(
+                    "buscar_concesionario.resolver_operador_seguro",
+                    return_value={
+                        "ok": False,
+                        "score": 0.0,
+                        "motivo": "sin_coincidencia_exacta",
+                    },
+                ),
+            ):
+                resultado = main_procesar.procesar_folio(
+                    folio="9999",
+                    catalogo=[],
+                    carpeta=carpeta,
+                    folio_id="CRT26-009999",
+                )
+
+            destino = output / "_sin_operador" / "(correos)" / "CRT26-009999"
+            self.assertEqual(Path(resultado["output_dir"]), destino)
+            self.assertTrue(resultado["organizado_ok"])
+            self.assertTrue((destino / "documento.pdf").exists())
+            self.assertTrue((destino / "archivo_anterior.txt").exists())
+            self.assertFalse(destino_legacy.exists())
+            self.assertEqual(list(destino.rglob("*.json")), [])
 
     def test_reconciliacion_global_excluye_metadata_de_internos(self):
         with tempfile.TemporaryDirectory() as td:
@@ -110,6 +286,42 @@ class RutasSalidaTests(unittest.TestCase):
         with patch.dict(os.environ, {"SATYS_REQUIRE_SHARED_MOUNT": "1"}):
             self.assertIsNotNone(
                 validar_destino_compartido(Path("/depi/satys_mount_inexistente/SATyS"))
+            )
+
+    def test_sincronizacion_excluye_json_de_output_y_conserva_json_en_descargas(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            proyecto = root / "proyecto"
+            compartida = root / "compartida"
+            output_expediente = proyecto / "output" / "100_operador" / "CRT26-000001"
+            descarga_expediente = proyecto / "descargas" / "CRT26-000001"
+            output_expediente.mkdir(parents=True)
+            descarga_expediente.mkdir(parents=True)
+            (output_expediente / "documento.pdf").write_bytes(b"real")
+            (output_expediente / "metadata_satys.json").write_text("{}", encoding="utf-8")
+            (descarga_expediente / "documento.pdf").write_bytes(b"real")
+            (descarga_expediente / "metadata_satys.json").write_text("{}", encoding="utf-8")
+
+            resultado = sincronizar_salidas(
+                proyecto,
+                compartida,
+                archivos=(),
+            )
+
+            self.assertEqual(resultado.errores, [])
+            self.assertGreaterEqual(resultado.json_output_eliminados, 1)
+            self.assertFalse((output_expediente / "metadata_satys.json").exists())
+            self.assertFalse(
+                (
+                    compartida
+                    / "output"
+                    / "100_operador"
+                    / "CRT26-000001"
+                    / "metadata_satys.json"
+                ).exists()
+            )
+            self.assertTrue(
+                (compartida / "descargas" / "CRT26-000001" / "metadata_satys.json").exists()
             )
 
 

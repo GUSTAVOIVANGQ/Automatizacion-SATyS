@@ -977,6 +977,132 @@ def sincronizar_estado_diario_depi() -> None:
         print(f"⚠️  Sincronización diaria DEPI: {error}")
 
 
+def cargar_resultados_procesamiento(
+    path: Path,
+    *,
+    origen: str,
+    mtime_minimo: float | None = None,
+) -> list[dict]:
+    """Lee sólo el log producido por el subproceso de esta corrida diaria."""
+    try:
+        if not path.is_file():
+            return []
+        if mtime_minimo is not None and path.stat().st_mtime < (mtime_minimo - 2.0):
+            return []
+        payload = json.loads(path.read_text(encoding="utf-8-sig", errors="replace"))
+        resultados = payload.get("resultados") or []
+        if not isinstance(resultados, list):
+            return []
+        salida: list[dict] = []
+        for item in resultados:
+            if isinstance(item, dict):
+                salida.append({**item, "_origen_proceso": origen})
+        return salida
+    except Exception as exc:
+        print(f"⚠️  No se pudo incorporar {path.name} al correo consolidado: {exc}")
+        return []
+
+
+def agregar_fallidos_controlados(
+    resultados: list[dict],
+    fallidos: Iterable[str],
+    *,
+    origen: str = "oficialia",
+) -> list[dict]:
+    """Agrega al resumen los agotados por watchdog que aún no estén en el log."""
+    salida = list(resultados)
+    existentes = {
+        str(
+            item.get("folio_tabla_internos")
+            or item.get("registro")
+            or item.get("folio")
+            or item.get("folio_id")
+            or ""
+        ).strip().upper()
+        for item in salida
+    }
+    for valor in fallidos:
+        identificador = str(valor or "").strip()
+        if not identificador or identificador.upper() in existentes:
+            continue
+        salida.append({
+            "registro": identificador,
+            "rpc_ok": False,
+            "organizado_ok": False,
+            "excel_ok": False,
+            "_fallido_controlado": True,
+            "_origen_proceso": origen,
+        })
+        existentes.add(identificador.upper())
+    return salida
+
+
+def enviar_resumen_email_diario(
+    *,
+    resultados: list[dict],
+    log_path: Path,
+    excel_path: Path,
+    modo: str = "CORRIDA DIARIA CONSOLIDADA",
+    error_general: str = "",
+) -> bool:
+    """Emite la única notificación por correo autorizada de la corrida diaria."""
+    if not _EMAIL_DISPONIBLE:
+        print("⚠️  Módulo de correo no disponible; no se envió el resumen diario.")
+        return False
+
+    descargas_base = ruta_configurada("descargas", "descargas")
+    output_base = ruta_configurada("output", "output")
+    conteos = _email_mod.conteos_desde_resultados(resultados)
+    if error_general:
+        conteos["errores"] = max(1, conteos["errores"])
+        conteos["total"] = max(1, conteos["total"])
+
+    outputs = {
+        "Carpeta output": str(output_base.resolve()),
+        "Carpeta descargas": str(descargas_base.resolve()),
+        "TrámitesCRT.xlsx": str(excel_path.resolve()),
+        "Folios_Datos_Completos.xlsx": str((output_base / "Folios_Datos_Completos.xlsx").resolve()),
+        "Folios_Datos_Completos_Internos.xlsx": str((output_base / "Folios_Datos_Completos_Internos.xlsx").resolve()),
+    }
+    try:
+        return bool(_email_mod.enviar_notificacion(
+            total_registros=conteos["total"],
+            exitosos=conteos["exitosos"],
+            sin_operador=conteos["sin_operador"],
+            errores=conteos["errores"],
+            registros=resultados,
+            fecha_ejecucion=datetime.now().isoformat(),
+            modo=modo if not error_general else f"ERROR — {modo}",
+            outputs=outputs,
+            log_path=str(log_path),
+            project_root=PROJECT_DIR,
+            descargas_base=descargas_base,
+            output_base=output_base,
+            excel_path=excel_path,
+            excel_metadata_path=output_base / "Folios_Datos_Completos.xlsx",
+            carpeta_compartida=carpeta_compartida(),
+        ))
+    except Exception as exc:
+        print(f"⚠️  Error no crítico al construir/enviar el correo diario: {exc}")
+        return False
+
+
+def consolidar_revision_manual_final() -> dict:
+    """Aplica al final de la corrida la ruta única de todos los sin_operador."""
+    from Parte4_excel import consolidar_sin_operador_legacy
+
+    resumen = consolidar_sin_operador_legacy(ruta_configurada("output", "output"))
+    if resumen["errores"]:
+        for error in resumen["errores"]:
+            print(f"⚠️  Consolidación final sin_operador: {error}")
+    else:
+        print(
+            "✅ Revisión manual consolidada en _sin_operador/(correos): "
+            f"{resumen['carpetas_migradas']} carpeta(s) heredada(s) migrada(s)."
+        )
+    return resumen
+
+
 def ejecutar_reconciliacion_global(
     *,
     python_exe: Path,
@@ -1095,6 +1221,9 @@ def main() -> int:
         raise SystemExit("--internos-workers debe ser un entero positivo.")
     if args.max_folios_internos < 0:
         raise SystemExit("--max-folios-internos debe ser 0 o un entero positivo.")
+    # La producción diaria siempre aplica el segundo nivel de resolución:
+    # Excel RPC y, si no basta, el buscador público actual del propio RPC.
+    os.environ["SATYS_RPC_CONSULTA_ONLINE"] = "1"
     headless = bool(args.headless and not args.visible)
     reconciliacion_habilitada = bool(
         not args.sin_reconciliacion_global and not args.solo_internos
@@ -1124,6 +1253,7 @@ def main() -> int:
         ),
         "folio_internos_objetivo": args.folio_internos or None,
         "reconciliacion_global_habilitada": reconciliacion_habilitada,
+        "rpc_online_alternativo": True,
         "headless": headless,
         "workers": args.workers,
         "internos_workers": args.internos_workers,
@@ -1149,6 +1279,7 @@ def main() -> int:
         "ok": False,
         "errores": [],
     }
+    correo_diario_intentado = False
 
     estado.actualizar(
         running=True,
@@ -1466,8 +1597,13 @@ def main() -> int:
                     log_path=log_path,
                     estado=estado,
                 )
+            consolidacion_revision = consolidar_revision_manual_final()
+            resumen["consolidacion_sin_operador"] = consolidacion_revision
+            rc_consolidacion = 4 if consolidacion_revision["errores"] else 0
+            rc_sin_pendientes = rc_reconciliacion or rc_consolidacion
             resumen["return_code_reconciliacion_global"] = rc_reconciliacion
-            resumen["ok"] = rc_reconciliacion == 0
+            resumen["return_code_consolidacion_sin_operador"] = rc_consolidacion
+            resumen["ok"] = rc_sin_pendientes == 0
             if args.solo_internos:
                 base_mensaje = "No hay descargas pendientes de Internos."
                 mensaje_notificacion = (
@@ -1497,14 +1633,26 @@ def main() -> int:
                 habilitado=not args.sin_notificacion,
             )
             estado.finalizar(
-                ok=rc_reconciliacion == 0,
+                ok=rc_sin_pendientes == 0,
                 mensaje=resumen["mensaje"],
                 total_registros_satys=len(registros_satys),
                 total_nuevos=0,
                 return_code_reconciliacion_global=rc_reconciliacion,
+                return_code_consolidacion_sin_operador=rc_consolidacion,
             )
+            if args.sin_email:
+                print("\nℹ️  Correo diario deshabilitado por --sin-email.")
+            else:
+                correo_diario_intentado = True
+                enviar_resumen_email_diario(
+                    resultados=[],
+                    log_path=log_path,
+                    excel_path=args.excel,
+                    modo="CORRIDA DIARIA — SIN PENDIENTES",
+                    error_general=resumen["mensaje"] if rc_sin_pendientes else "",
+                )
             sincronizar_estado_diario_depi()
-            return rc_reconciliacion
+            return rc_sin_pendientes
 
         # 4) Ejecutar main_procesar.py por Registro.
         if args.no_procesar:
@@ -1552,11 +1700,23 @@ def main() -> int:
             resumen["sincronizacion_depi_omitida"] = True
             resumen["motivo_sincronizacion_depi_omitida"] = "--no-procesar"
             print("ℹ️  Sincronización DEPI omitida: --no-procesar sólo generó el inventario.")
+            if args.sin_email:
+                print("\nℹ️  Correo diario deshabilitado por --sin-email.")
+            else:
+                correo_diario_intentado = True
+                enviar_resumen_email_diario(
+                    resultados=[],
+                    log_path=log_path,
+                    excel_path=args.excel,
+                    modo="INVENTARIO DIARIO — SIN PROCESAR",
+                    error_general=resumen["mensaje"] if rc_reconciliacion else "",
+                )
             return rc_reconciliacion
 
         # Internos se procesa antes que Oficialía. En el servidor una corrida de
         # Oficialía puede durar varias horas; no debe volver a dejar sin atender
         # el inventario de las seis bandejas de Internos.
+        resultados_email: list[dict] = []
         rc_main_internos = 0
         if objetivos_internos:
             cmd_main_internos = [
@@ -1565,12 +1725,14 @@ def main() -> int:
                 "--internos",
                 "--internos-objetivos", str(args.internos_latest),
                 "--internos-workers", str(args.internos_workers),
+                "--timeout-registro", str(args.timeout_registro),
+                "--reintentos-registro", str(args.reintentos_registro),
                 "--sin-lock",
+                "--sin-email",
+                "--rpc-online",
             ]
             if headless:
                 cmd_main_internos.append("--headless")
-            if args.sin_email:
-                cmd_main_internos.append("--sin-email")
             if args.folio_internos:
                 # La validación de un Folio termina en Excel y output locales.
                 # Evitar el merge completo de miles de archivos a DEPI mantiene
@@ -1580,6 +1742,7 @@ def main() -> int:
                 stage="procesando_folios_internos_nuevos",
                 total_folios_internos_nuevos=len(objetivos_internos),
             )
+            inicio_main_internos = time.time()
             rc_main_internos = ejecutar_comando(
                 cmd_main_internos,
                 PROJECT_DIR,
@@ -1588,6 +1751,13 @@ def main() -> int:
                 estado=estado,
                 etapa="procesando_folios_internos_nuevos",
             )
+            resultados_email.extend(cargar_resultados_procesamiento(
+                ruta_configurada("descargas", "descargas")
+                / "internos"
+                / "procesamiento_log_internos.json",
+                origen="internos",
+                mtime_minimo=inicio_main_internos,
+            ))
         resumen["return_code_main_internos"] = rc_main_internos
 
         if args.folio_internos and rc_main_internos == 0:
@@ -1617,6 +1787,7 @@ def main() -> int:
                 resumen["return_code_main_internos"] = rc_main_internos
 
         rc_main = 0
+        inicio_main_registros: float | None = None
         if nuevos:
             cmd_main = [
                 str(args.python_exe),
@@ -1627,17 +1798,23 @@ def main() -> int:
                 "--reintentos-registro", str(args.reintentos_registro),
                 "--workers-reintento", str(args.workers_reintento),
                 "--sin-lock",
+                "--sin-email",
+                "--rpc-online",
             ]
             if headless:
                 cmd_main.append("--headless")
-            if args.sin_email:
-                cmd_main.append("--sin-email")
 
             estado.actualizar(stage="procesando_registros_nuevos", total_nuevos=len(nuevos))
+            inicio_main_registros = time.time()
             rc_main = ejecutar_comando(
                 cmd_main, PROJECT_DIR, log_path, "3) PROCESAR REGISTROS NUEVOS",
                 estado=estado, etapa="procesando_registros_nuevos"
             )
+            resultados_email.extend(cargar_resultados_procesamiento(
+                ruta_configurada("descargas", "descargas") / "procesamiento_log_registros.json",
+                origen="oficialia",
+                mtime_minimo=inicio_main_registros,
+            ))
         resumen["return_code_main"] = rc_main
 
         rc_reconciliacion = 0
@@ -1651,12 +1828,36 @@ def main() -> int:
                 sin_backup=(rc_main == 0 and rc_main_internos == 0),
             )
         resumen["return_code_reconciliacion_global"] = rc_reconciliacion
-        rc_final = rc_main or rc_main_internos or rc_reconciliacion
+        consolidacion_revision = consolidar_revision_manual_final()
+        resumen["consolidacion_sin_operador"] = consolidacion_revision
+        rc_consolidacion = 4 if consolidacion_revision["errores"] else 0
+        resumen["return_code_consolidacion_sin_operador"] = rc_consolidacion
+        rc_final = rc_main or rc_main_internos or rc_reconciliacion or rc_consolidacion
 
         fallidos_latest = PROJECT_DIR / "registros_fallidos" / "registros_fallidos_latest.txt"
-        fallidos = leer_registros_txt(fallidos_latest) if fallidos_latest.exists() else []
+        fallidos = []
+        if (
+            nuevos
+            and inicio_main_registros is not None
+            and fallidos_latest.is_file()
+            and fallidos_latest.stat().st_mtime >= inicio_main_registros - 2.0
+        ):
+            fallidos = leer_registros_txt(fallidos_latest)
         resumen["registros_fallidos_controlados"] = fallidos
         resumen["total_fallidos_controlados"] = len(fallidos)
+        resultados_email = agregar_fallidos_controlados(resultados_email, fallidos)
+        if rc_main_internos:
+            resultados_email = agregar_fallidos_controlados(
+                resultados_email,
+                [item["folio"] for item in objetivos_internos],
+                origen="internos",
+            )
+        conteos_email = (
+            _email_mod.conteos_desde_resultados(resultados_email)
+            if _EMAIL_DISPONIBLE
+            else {"total": len(resultados_email)}
+        )
+        resumen["resumen_email_consolidado"] = conteos_email
         resumen["ok"] = rc_final == 0
         if args.solo_internos:
             resumen["mensaje"] = (
@@ -1685,14 +1886,18 @@ def main() -> int:
             habilitado=not args.sin_notificacion,
         )
 
-        # ── Notificación por correo electrónico ──────────────────────────────
-        # main_procesar.py ya envía el correo final con resultados correctos y
-        # rutas de salida (Folios_Datos_Completos.xlsx, output/, descargas/ y
-        # TrámitesCRT.xlsx). No enviamos un segundo correo aquí para evitar duplicados.
+        # Los dos main_procesar.py siempre reciben --sin-email. Únicamente este
+        # proceso padre combina Internos + Oficialía y envía un correo final.
         if args.sin_email:
-            print("\nℹ️  Correo deshabilitado por --sin-email.")
+            print("\nℹ️  Correo diario consolidado deshabilitado por --sin-email.")
         else:
-            print("\nℹ️  La notificación de resultados la envía main_procesar.py al finalizar.")
+            correo_diario_intentado = True
+            enviar_resumen_email_diario(
+                resultados=resultados_email,
+                log_path=log_path,
+                excel_path=args.excel,
+                error_general=resumen["mensaje"] if rc_final else "",
+            )
 
         estado.finalizar(
             ok=rc_final == 0,
@@ -1703,6 +1908,7 @@ def main() -> int:
             return_code_main=rc_main,
             return_code_main_internos=rc_main_internos,
             return_code_reconciliacion_global=rc_reconciliacion,
+            return_code_consolidacion_sin_operador=rc_consolidacion,
         )
         # ─────────────────────────────────────────────────────────────────────
         if args.folio_internos:
@@ -1725,18 +1931,15 @@ def main() -> int:
             str(exc),
             habilitado=not args.sin_notificacion,
         )
-        # Correo de aviso de fallo
-        if _EMAIL_DISPONIBLE and not args.sin_email:
-            total_fallido = max(1, int(resumen.get("total_nuevos", 0) or 0))
-            _email_mod.enviar_notificacion(
-                total_registros=total_fallido,
-                exitosos=0,
-                sin_operador=0,
-                errores=total_fallido,
-                registros=[],
-                fecha_ejecucion=resumen.get("fecha_ejecucion"),
-                modo="ERROR MONITOR DIARIO",
-                log_path=str(log_path),
+        # Único correo de aviso de fallo; los subprocesos siempre están silenciados.
+        if _EMAIL_DISPONIBLE and not args.sin_email and not correo_diario_intentado:
+            correo_diario_intentado = True
+            enviar_resumen_email_diario(
+                resultados=[],
+                log_path=log_path,
+                excel_path=args.excel,
+                modo="MONITOR DIARIO",
+                error_general=str(exc),
             )
         estado.finalizar(ok=False, mensaje=str(exc), errores=resumen.get("errores", []), traceback=resumen.get("traceback", ""))
         return 1

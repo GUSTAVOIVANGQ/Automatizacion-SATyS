@@ -6,7 +6,7 @@ r"""
 Pipeline de producción:
 
   Parte 1 → Descarga automática desde SATyS (Playwright)
-  Parte 3 → Búsqueda exacta en RPC
+  Parte 3 → Búsqueda segura por ID/nombre exacto en RPC
   Parte 4 → Actualización de Excel y organización de archivos
 
 La Parte 2 no forma parte del pipeline. Los datos se leen directamente de
@@ -18,6 +18,7 @@ import sys
 import io
 import os
 import re
+import csv
 import json
 import logging
 import argparse
@@ -48,17 +49,26 @@ from configuracion_local import (
     credenciales_satys,
     ruta_configurada,
 )
-from estado_descargas import carpeta_tiene_descarga_real, registro_esta_completo
+from estado_descargas import (
+    auditar_carpeta_descarga,
+    carpeta_tiene_descarga_real,
+    depurar_json_output,
+    iter_archivos_publicables_output,
+    registro_esta_completo,
+    slug_bandeja_internos,
+)
 from sincronizacion_depi import sincronizar_salidas
 from rutas_salida import (
     carpeta_sin_operador,
     destino_sin_operador,
+    es_folio_opc_correo,
     ruta_relativa_sin_operador,
 )
 
 DESCARGA_BASE = ruta_configurada("descargas", "descargas")
 OUTPUT_BASE = ruta_configurada("output", "output")
 EXCEL_PATH = ruta_configurada("excel", "TrámitesCRT.xlsx")
+LOGS_BASE = ruta_configurada("logs", "logs")
 CARPETA_COMPARTIDA = carpeta_compartida()
 
 SATYS_USUARIO, SATYS_PASSWORD = credenciales_satys()
@@ -74,8 +84,17 @@ REINTENTOS_REGISTRO_DEFAULT = int(_PROCESAMIENTO_CFG.get("reintentos_registro", 
 WORKERS_REINTENTO_DEFAULT = int(_PROCESAMIENTO_CFG.get("workers_reintento", 2))
 
 # ──── Imports de los módulos ────
-from Parte3_rpc import buscar_en_rpc, cargar_catalogo
-from Parte4_excel import actualizar_excel, organizar_archivos, obtener_nota_victor
+from Parte3_rpc import cargar_catalogo
+from Parte4_excel import (
+    actualizar_excel,
+    arbol_publicable_copiado_completo,
+    copiar_archivos_publicables_output,
+    copiar_archivo_robusto,
+    eliminar_arbol_robusto,
+    organizar_archivos,
+    organizar_correo_exclusivo,
+    obtener_nota_victor,
+)
 from proceso_lock import ProcesoLock, LockOcupadoError
 
 logging.basicConfig(
@@ -117,6 +136,49 @@ def cargar_registros_desde_archivo(path: str | Path) -> list[str]:
     return registros
 
 
+def cargar_folios_internos_desde_archivo(path: str | Path) -> list[str]:
+    """Lee folios numéricos de Internos desde CSV o TXT, conservando el orden."""
+    ruta = Path(path)
+    folios: list[str] = []
+    vistos: set[str] = set()
+    with ruta.open("r", encoding="utf-8-sig", errors="replace", newline="") as stream:
+        for fila in csv.reader(stream):
+            for celda in fila:
+                valor = str(celda or "").strip()
+                if re.fullmatch(r"\d+\.0+", valor):
+                    valor = valor.split(".", 1)[0]
+                if not re.fullmatch(r"\d{3,}", valor) or valor in vistos:
+                    continue
+                vistos.add(valor)
+                folios.append(valor)
+    return folios
+
+
+def extraer_nombre_operador_texto_fila(*metadatos: dict) -> str:
+    """Recupera el concesionario de la sexta columna tabulada de Internos."""
+    for metadata in metadatos:
+        if not isinstance(metadata, dict):
+            continue
+        texto = str(metadata.get("texto_fila") or "")
+        if not texto:
+            continue
+        # Algunos exportadores dejaron los dos caracteres ``\\t`` en vez de
+        # tabuladores reales; se admiten ambos formatos.
+        if "\t" not in texto and "\\t" in texto:
+            texto = texto.replace("\\t", "\t")
+        columnas = [re.sub(r"\s+", " ", valor).strip() for valor in texto.split("\t")]
+        if len(columnas) < 6:
+            continue
+        candidato = columnas[5].strip(" ,;")
+        if (
+            candidato
+            and candidato not in {"-", "N/A", "NA"}
+            and not re.fullmatch(r"\d{1,2}/\d{1,2}/\d{2,4}", candidato)
+        ):
+            return candidato
+    return ""
+
+
 def es_registro_pendiente(registro: str) -> bool:
     """La única fuente de verdad es descargas/<REGISTRO>/."""
     return not registro_esta_completo(DESCARGA_BASE, registro)
@@ -133,8 +195,14 @@ def filtrar_registros_pendientes(registros: list[str]) -> tuple[list[str], list[
     pendientes = []
     completos = []
     for registro in registros:
-        if es_registro_pendiente(registro):
+        auditoria = auditar_carpeta_descarga(DESCARGA_BASE / registro)
+        if not auditoria["completo"]:
             pendientes.append(registro)
+            log.info(
+                "📥 Registro %s pendiente: %s",
+                registro,
+                ", ".join(auditoria["motivos"]) or "auditoría incompleta",
+            )
         else:
             completos.append(registro)
     return pendientes, completos
@@ -164,6 +232,12 @@ def leer_metadata_descarga(carpeta: Path) -> dict:
                 data.update(contenido)
         except Exception as e:
             log.warning("⚠️  No se pudo leer metadata %s: %s", path, e)
+    if not (data.get("nombre_operador") or data.get("concesionario")):
+        recuperado = extraer_nombre_operador_texto_fila(data)
+        if recuperado:
+            data["nombre_operador"] = recuperado
+            data["concesionario"] = recuperado
+            data["fuente_nombre_operador"] = "texto_fila"
     return data
 
 
@@ -171,13 +245,14 @@ def folio_excel_desde_metadata(carpeta: Path, fallback: str) -> str:
     """
     Determina el folio que debe escribirse en Excel para una carpeta local.
     Prioridad:
-      1) metadata['folio']
-      2) número extraído de metadata['folio_opc']
-      3) metadata['memo_folio_opc']
-      4) nombre de carpeta / fallback
+      1) metadata['folio_tabla_internos'] (folio real de la bandeja Internos)
+      2) metadata['folio']
+      3) número extraído de metadata['folio_opc']
+      4) metadata['memo_folio_opc']
+      5) nombre de carpeta / fallback
     """
     meta = leer_metadata_descarga(carpeta)
-    folio_directo = meta.get("folio")
+    folio_directo = meta.get("folio_tabla_internos") or meta.get("folio")
     if not folio_directo:
         folio_opc = meta.get("folio_opc", "") or ""
         if folio_opc:
@@ -221,12 +296,12 @@ def descubrir_descargas_procesables(incluir_subcarpetas: bool = True) -> list[tu
             key = str(carpeta.resolve()).lower()
         except Exception:
             key = str(carpeta).lower()
-        if key in vistos or not carpeta_tiene_archivos_reales(carpeta):
+        if key in vistos or not carpeta.is_dir():
             return
 
-        # Una carpeta procesable debe representar un Registro CRT real. Esto
-        # impide tratar carpetas extraídas de ZIP (10563, ANEXO2, etc.) como
-        # trámites independientes.
+        # Una carpeta existente con identidad de Registro entra a Partes 3-4
+        # aunque esté vacía o contenga sólo metadata. Así se conserva en Excel
+        # y reportes mientras la descarga estricta continúa pendiente.
         registro_ref = registro_desde_metadata_o_nombre(carpeta)
         if not registro_ref or not REGISTRO_RE.fullmatch(registro_ref):
             log.debug("Omitiendo subcarpeta sin Registro CRT válido: %s", carpeta)
@@ -256,7 +331,7 @@ def descubrir_descargas_procesables(incluir_subcarpetas: bool = True) -> list[tu
 # ────────────────────────────────────────────────────────
 
 def descubrir_descargas_internos() -> list[tuple[Path, str, str]]:
-    """Escanea descargas/internos/ y devuelve carpetas con metadata del flujo Internos IFT."""
+    """Devuelve todo expediente Internos existente, incluso vacío o parcial."""
     base = DESCARGA_BASE / "internos"
     if not base.exists():
         return []
@@ -264,11 +339,25 @@ def descubrir_descargas_internos() -> list[tuple[Path, str, str]]:
     candidatos: list[tuple[Path, str, str]] = []
     vistos: set[str] = set()
     for carpeta in sorted([p for p in base.rglob("*") if p.is_dir()], key=lambda p: str(p).upper()):
-        if not any((carpeta / nombre).exists() for nombre in ("metadata_satys.json", "metadata_tramite_nuevo.json")):
+        tiene_metadata = any(
+            (carpeta / nombre).exists()
+            for nombre in ("metadata_satys.json", "metadata_tramite_nuevo.json")
+        )
+        try:
+            profundidad = len(carpeta.relative_to(base).parts)
+        except ValueError:
+            continue
+        identificador_carpeta = str(carpeta.name).strip()
+        parece_expediente = bool(
+            re.fullmatch(r"\d{3,}(?:_\d+)?", identificador_carpeta)
+            or REGISTRO_RE.fullmatch(normalizar_registro_satys(identificador_carpeta))
+        )
+        # Sin metadata sólo se admiten las ubicaciones conocidas
+        # internos/<folio> e internos/<bandeja>/<folio>; una carpeta más
+        # profunda puede ser contenido extraído de un ZIP.
+        if not tiene_metadata and (not parece_expediente or profundidad > 2):
             continue
         meta = leer_metadata_descarga(carpeta)
-        if meta.get("satys_flujo") != "internos" and not meta.get("bandeja_internos"):
-            continue
         try:
             key = str(carpeta.resolve()).lower()
         except Exception:
@@ -281,7 +370,12 @@ def descubrir_descargas_internos() -> list[tuple[Path, str, str]]:
             normalizar_registro_satys(meta.get("registro", ""))
             or str(meta.get("folio") or carpeta.name).strip()
         )
-        bandeja = re.sub(r"[^A-Za-z0-9_-]+", "_", str(meta.get("bandeja_internos") or carpeta.parent.name)).strip("_")
+        bandeja_default = "Sin bandeja" if carpeta.parent == base else carpeta.parent.name
+        bandeja = re.sub(
+            r"[^A-Za-z0-9_-]+",
+            "_",
+            str(meta.get("bandeja_internos") or bandeja_default),
+        ).strip("_")
         folio_id = f"internos__{bandeja or 'bandeja'}__{carpeta.name}"
         candidatos.append((carpeta, folio_id, registro_ref))
     return candidatos
@@ -328,21 +422,16 @@ def cargar_catalogo_rpc_exacto(force_rebuild: bool = False) -> list:
             )
             return archivos[0] if archivos else None
 
-        def _cat_necesita_actualizacion(bd: Path, max_dias: int = 7) -> bool:
-            reciente = _cat_reciente(bd)
-            if reciente is None:
-                return True
-            edad_dias = (datetime.now().timestamp() - reciente.stat().st_mtime) / 86400
-            return edad_dias > max_dias
-
-        xlsx = None
-        if force_rebuild or _cat_necesita_actualizacion(bd_dir):
-            log.info("⬇️  Verificando/Descargando la base RPC más reciente...")
+        # El portal ha publicado archivos dañados en ocasiones. Para que una
+        # corrida reproducible no sustituya un catálogo local que sí abre, sólo
+        # se descarga cuando no existe ninguno o el usuario lo pide con
+        # --rebuild-catalogo. La actualidad se cubre con el RPC en línea.
+        xlsx = _cat_reciente(bd_dir)
+        if force_rebuild or xlsx is None:
+            log.info("⬇️  Descargando la base RPC por solicitud o ausencia local...")
             descargado = descargar_bd(str(bd_dir))
             if descargado:
                 xlsx = Path(descargado)
-        if xlsx is None:
-            xlsx = _cat_reciente(bd_dir)
         if not xlsx or not xlsx.exists():
             raise FileNotFoundError("No se encontró Excel oficial RPC en base_de_datos_rpc")
 
@@ -351,7 +440,11 @@ def cargar_catalogo_rpc_exacto(force_rebuild: bool = False) -> list:
         log.info("✅ Catálogo RPC exacto listo: %d concesionarios", len(catalogo))
         return catalogo
     except Exception as exc:
-        log.error("❌ Catálogo RPC exacto no disponible: %s. No se usará fuzzy/API.", exc)
+        log.error(
+            "❌ Catálogo Excel RPC no disponible: %s. "
+            "Los registros con nombre usarán el RPC en línea exacto.",
+            exc,
+        )
         return []
 
 
@@ -396,6 +489,8 @@ def ejecutar_descarga_internos(
     headless: bool = False,
     objetivos_path: str | Path | None = None,
     workers: int = INTERNOS_WORKERS_DEFAULT,
+    timeout_registro: int = TIMEOUT_REGISTRO_DEFAULT,
+    reintentos_registro: int = REINTENTOS_REGISTRO_DEFAULT,
 ) -> int:
     """Ejecuta Parte 1 en modo Internos IFT y devuelve el codigo de salida."""
     try:
@@ -416,7 +511,12 @@ def ejecutar_descarga_internos(
         sys.argv = (
             ["Parte1_descarga.py"]
             + headless_flag
-            + ["--internos", "--internos-workers", str(workers)]
+            + [
+                "--internos",
+                "--internos-workers", str(workers),
+                "--timeout-registro", str(timeout_registro),
+                "--reintentos-registro", str(reintentos_registro),
+            ]
         )
         if bandejas:
             sys.argv += ["--internos-bandejas"] + list(bandejas)
@@ -471,6 +571,35 @@ def descubrir_carpetas_de_folio(folio: str) -> list[tuple[Path, str]]:
         n += 1
 
     return carpetas
+
+
+def limpiar_revision_manual_resuelta(revision: Path, destino: Path) -> bool:
+    """Fusiona y retira una copia vieja de ``sin_operador`` ya resuelta."""
+    if not revision.exists() or not revision.is_dir():
+        return False
+
+    objetivo = revision.resolve()
+    raices_permitidas = {
+        (OUTPUT_BASE / carpeta_sin_operador("")).resolve(),
+        (OUTPUT_BASE / carpeta_sin_operador("CORREO")).resolve(),
+    }
+    if not any(objetivo != raiz and objetivo.is_relative_to(raiz) for raiz in raices_permitidas):
+        log.warning("⚠️  No se limpia ruta fuera de sin_operador: %s", objetivo)
+        return False
+
+    try:
+        # Conserva cualquier archivo adicional de una ejecución previa antes
+        # de retirar la carpeta de revisión manual.
+        copiar_archivos_publicables_output(objetivo, destino)
+        if not arbol_publicable_copiado_completo(objetivo, destino):
+            log.warning("⚠️  No se retiró %s: la verificación de copia falló.", objetivo)
+            return False
+        eliminar_arbol_robusto(objetivo)
+        log.info("🧹 Revisión manual resuelta y retirada: %s", objetivo)
+        return True
+    except Exception as exc:
+        log.warning("⚠️  No se pudo retirar revisión manual resuelta %s: %s", objetivo, exc)
+        return False
 
 
 def procesar_folio(
@@ -545,6 +674,7 @@ def procesar_folio(
     tipo_tramite = ""
     folio_opc = ""
     fecha_limite = ""  # Plazo de atención (solo existe en metadata_tramite_nuevo.json)
+    fuente_nombre_operador = "campos_metadata"
 
     if meta_path.exists():
         try:
@@ -593,6 +723,8 @@ def procesar_folio(
                     tipo_tramite = meta_tn.get("tipo_tramite", "")
                 if not fecha_registro:
                     fecha_registro = meta_tn.get("fecha_registro", "")
+                if not id_solicitante:
+                    id_solicitante = meta_tn.get("id_solicitante", "")
                 if not folio_opc:
                     folio_opc = str(meta_tn.get("folio_opc", "") or "").strip()
                 if not bandeja_internos:
@@ -602,12 +734,33 @@ def procesar_folio(
         except Exception as e:
             log.warning("⚠️  No se pudo leer metadatos de %s: %s", meta_tramite_nuevo_path, e)
 
+    if not (concesionario or nombre_operador):
+        recuperado_texto_fila = extraer_nombre_operador_texto_fila(meta, meta_tn)
+        if recuperado_texto_fila:
+            nombre_operador = recuperado_texto_fila
+            concesionario = recuperado_texto_fila
+            fuente_nombre_operador = "texto_fila"
+            log.info(
+                "✅ Concesionario recuperado desde texto_fila: %s",
+                recuperado_texto_fila,
+            )
+
     # Aunque SATyS no haya devuelto PDF u operador, un Registro CRT válido
     # debe conservarse en el maestro. Folios_Datos_Completos.xlsx puede contener
     # metadata parcial útil (por ejemplo tipo de trámite) y la reconciliación
     # final completará la fila sin perder el registro.
     if not registro_val:
         registro_val = registro_desde_metadata_o_nombre(carpeta)
+    if (
+        modo_internos
+        and str(registro_val or "").strip() == "100"
+        and re.fullmatch(r"\d{3,}", folio_tabla_internos)
+    ):
+        # Algunas descargas legacy guardaron el valor fijo "100" tanto en
+        # folio como en registro. El Folio mostrado por la tabla y usado como
+        # nombre de carpeta es la identidad real de ese expediente.
+        registro_val = folio_tabla_internos
+        resultado["registro_corregido_desde"] = "placeholder_legacy_100"
     resultado["registro"] = registro_val
     if not pdf_nombre and not nombre_operador and not modo_internos:
         if REGISTRO_RE.fullmatch(str(registro_val or "").strip().upper()):
@@ -636,6 +789,7 @@ def procesar_folio(
 
     resultado["pdf_encontrado"] = bool(pdf_nombre)
     resultado["nombre_operador"] = nombre_operador
+    resultado["fuente_nombre_operador"] = fuente_nombre_operador
     resultado["representante_legal"] = representante_legal
     resultado["concesionario"] = concesionario or nombre_operador
     resultado["promovente"] = promovente or representante_legal
@@ -648,135 +802,54 @@ def procesar_folio(
     resultado["fecha_sello"] = fecha_registro
     resultado["fuente_metadatos"] = "satys_json"
     resultado["folio_opc"] = folio_opc
+    resultado["es_correo"] = es_folio_opc_correo(folio_opc)
 
     # Tipos de archivo descargados
     nota_victor = obtener_nota_victor(carpeta)
 
     # ──── PARTE 3: Búsqueda RPC ────
     rpc_resultado = None
-    origen_ganador = ""
-    nombre_original_usado = datos_pdf.get("nombre_operador", "")
+    import buscar_concesionario as bc
+    from Parte3_rpc import construir_ruta, construir_ruta_operadores
 
-    es_catalogo_bc = bool(catalogo and "norm" in catalogo[0])
+    nombre_rpc = concesionario or nombre_operador
+    permitir_rpc_online = os.getenv("SATYS_RPC_CONSULTA_ONLINE", "1").strip() != "0"
+    rpc_resultado = bc.resolver_operador_seguro(
+        id_solicitante=id_solicitante,
+        nombre_operador=nombre_rpc,
+        catalogo=catalogo or [],
+        permitir_rpc_online=permitir_rpc_online,
+    )
 
-    if es_catalogo_bc:
-        import buscar_concesionario as bc
-        from Parte3_rpc import construir_ruta
-
-        # ── MÉTODO PRIMARIO: Búsqueda exacta por id_solicitante ──────────────
-        # Compara el campo 'id_solicitante' del metadata_satys.json con la
-        # columna 'ID OPERADOR' (idBp) del Excel del RPC-IFT.
-        # Score = 1.0 (100%) cuando hay coincidencia exacta.
-        if modo_internos:
-            nombre_rpc = concesionario or nombre_operador
-            log.info("🏷️  [PARTE 3] Internos: buscando Concesionario='%s' contra NOMBRE OPERADOR RPC...", nombre_rpc)
-            match_nombre = bc.buscar_por_nombre_operador_exacto(nombre_rpc, catalogo)
-            if match_nombre:
-                rpc_resultado = {
-                    "nombre_completo": match_nombre["nombre_completo"],
-                    "numero_rpc":      match_nombre["idBp"],
-                    "idBp":            match_nombre["idBp"],
-                    "ruta":            construir_ruta(match_nombre["nombre_completo"], match_nombre["idBp"]),
-                    "score":           1.0,
-                    "ok":              True,
-                    "empate":          False,
-                    "metodo":          "nombre_operador_exacto",
-                    "nombre_operador_satys": nombre_rpc,
-                }
-                origen_ganador = "NOMBRE_OPERADOR"
-                log.info("✅ Coincidencia exacta por NOMBRE OPERADOR: %s", match_nombre["nombre_completo"][:60])
-            else:
-                rpc_resultado = {
-                    "nombre_completo": "",
-                    "numero_rpc": "",
-                    "idBp": "",
-                    "ruta": "",
-                    "score": 0.0,
-                    "ok": False,
-                    "empate": False,
-                    "metodo": "nombre_operador_exacto",
-                    "nombre_operador_satys": nombre_rpc,
-                    "motivo": "concesionario_no_encontrado_en_nombre_operador_rpc",
-                }
-                log.warning(
-                    "⚠️  Concesionario='%s' NO encontrado como NOMBRE OPERADOR en catálogo RPC. Se marcará como SIN OPERADOR (0%%).",
-                    nombre_rpc,
-                )
-        elif id_solicitante:
-            log.info("🆔 [PARTE 3] Buscando por id_solicitante='%s' en catálogo RPC...", id_solicitante)
-            match_id = bc.buscar_por_id_solicitante(id_solicitante, catalogo)
-            if match_id:
-                rpc_resultado = {
-                    "nombre_completo": match_id["nombre_completo"],
-                    "numero_rpc":      match_id["idBp"],
-                    "idBp":            match_id["idBp"],
-                    "ruta":            construir_ruta(match_id["nombre_completo"], match_id["idBp"]),
-                    "score":           1.0,
-                    "ok":              True,
-                    "empate":          False,
-                    "metodo":          "id_exacto",
-                }
-                origen_ganador = "ID"
-                log.info("✅ Coincidencia exacta por ID: %s", match_id["nombre_completo"][:60])
-            else:
-                rpc_resultado = {
-                    "nombre_completo": "",
-                    "numero_rpc": "",
-                    "idBp": "",
-                    "ruta": "",
-                    "score": 0.0,
-                    "ok": False,
-                    "empate": False,
-                    "metodo": "id_exacto",
-                    "id_solicitante": id_solicitante,
-                    "motivo": "id_solicitante_no_encontrado_en_excel_rpc",
-                }
-                log.warning("⚠️  id_solicitante='%s' NO encontrado en catálogo RPC. Se marcará como SIN OPERADOR (0%%).", id_solicitante)
-        else:
-            rpc_resultado = {
-                "nombre_completo": "",
-                "numero_rpc": "",
-                "idBp": "",
-                "ruta": "",
-                "score": 0.0,
-                "ok": False,
-                "empate": False,
-                "metodo": "id_exacto",
-                "id_solicitante": "",
-                "motivo": "metadata_sin_id_solicitante",
-            }
-            log.warning("⚠️  No hay id_solicitante en metadata. Se marcará como SIN OPERADOR (0%%).")
-
-    else:
-        # Catálogo exacto no disponible. Por regla de negocio, NO se permite
-        # resolver operador por nombre/API/fuzzy: el cruce RPC debe ser 100% por
-        # id_solicitante == ID OPERADOR, o 0% / sin operador.
-        nombre_pdf = datos_pdf.get("nombre_operador", "")
-        if os.getenv("SATYS_RPC_PERMITIR_FUZZY", "0").strip() == "1":
-            # Modo diagnóstico/manual, deshabilitado por defecto.
-            origen_ganador = "API"
-            nombre_original_usado = nombre_pdf
-            if nombre_pdf:
-                log.warning("⚠️  SATYS_RPC_PERMITIR_FUZZY=1 activo: usando búsqueda RPC por nombre/API.")
-                rpc_resultado = buscar_en_rpc(nombre_pdf, catalogo=catalogo)
-        else:
-            rpc_resultado = {
-                "nombre_completo": "",
-                "numero_rpc": "",
-                "idBp": "",
-                "ruta": "",
-                "score": 0.0,
-                "ok": False,
-                "empate": False,
-                "metodo": "nombre_operador_exacto" if modo_internos else "id_exacto",
-                "id_solicitante": id_solicitante,
-                "nombre_operador_satys": (concesionario or nombre_operador) if modo_internos else "",
-                "motivo": "catalogo_rpc_exact_no_disponible",
-            }
-            log.warning(
-                "⚠️  Catálogo RPC exacto no disponible o inválido. "
-                "Se omite búsqueda por nombre/API; folio quedará en _sin_operador."
+    identificador_archivos = (
+        folio_id
+        if modo_internos
+        else (registro_val or folio_id)
+    )
+    if rpc_resultado.get("ok"):
+        if rpc_resultado.get("operadores"):
+            rpc_resultado["ruta"] = construir_ruta_operadores(
+                rpc_resultado["operadores"],
+                identificador_archivos,
             )
+        else:
+            rpc_resultado["ruta"] = construir_ruta(
+                rpc_resultado["nombre_completo"],
+                rpc_resultado["idBp"],
+                identificador_archivos,
+            )
+        log.info(
+            "✅ Operador resuelto por %s: %s (%s)",
+            rpc_resultado.get("metodo", "evidencia exacta"),
+            rpc_resultado["nombre_completo"][:60],
+            rpc_resultado["idBp"],
+        )
+    else:
+        rpc_resultado["ruta"] = ""
+        log.warning(
+            "⚠️  Operador no resuelto de forma segura: %s",
+            rpc_resultado.get("motivo", "sin_coincidencia_exacta"),
+        )
 
     # ── Reporte de resultado RPC ─────────────────────────────────────────────
     if rpc_resultado and rpc_resultado.get("ok"):
@@ -784,12 +857,24 @@ def procesar_folio(
         resultado["rpc_resultado"] = rpc_resultado
         score_exactitud = rpc_resultado.get("score", 0) * 100
         metodo = rpc_resultado.get("metodo", "")
-        if metodo == "id_exacto":
+        if metodo == "razones_sociales_multiples_parcial":
+            etiqueta_metodo = "Múltiples razones sociales (resolución parcial)"
+        elif metodo.startswith("razones_sociales_multiples"):
+            etiqueta_metodo = "Múltiples razones sociales verificadas"
+        elif metodo.startswith("id_exacto"):
             etiqueta_metodo = "ID exacto"
-        elif metodo == "nombre_operador_exacto":
-            etiqueta_metodo = "Nombre operador exacto"
+        elif metodo == "nombre_exacto_rpc_resultados":
+            etiqueta_metodo = "Nombre exacto en resultados RPC"
+        elif metodo.startswith("nombre_base_legal_rpc"):
+            etiqueta_metodo = "Nombre base legal RPC"
+        elif metodo.startswith("nombre_alta_confianza_rpc"):
+            etiqueta_metodo = "Nombre de alta confianza RPC"
+        elif metodo == "nombre_exacto_rpc_online":
+            etiqueta_metodo = "Nombre exacto RPC en línea"
+        elif metodo.startswith("nombre_exacto_excel"):
+            etiqueta_metodo = "Nombre exacto Excel RPC"
         else:
-            etiqueta_metodo = f"Fuzzy ({origen_ganador})"
+            etiqueta_metodo = metodo or "Evidencia exacta"
 
         log.info("✅ RPC [%s]: %s (exactitud: %.0f%%)",
                  etiqueta_metodo,
@@ -797,35 +882,76 @@ def procesar_folio(
                  score_exactitud)
 
         print(f"\n   🎯 PORCENTAJE DE EXACTITUD ({etiqueta_metodo}): {score_exactitud:.2f}%")
-        if metodo == "id_exacto":
+        if metodo.startswith("razones_sociales_multiples"):
+            ids_confirmados = ", ".join(rpc_resultado.get("ids_operador") or [])
+            print(f"      ID OPERADOR confirmados : {ids_confirmados or 'N/A'}")
+            if rpc_resultado.get("razones_sin_id"):
+                print(
+                    "      Razones sin ID confirmado: "
+                    + " | ".join(rpc_resultado["razones_sin_id"])
+                )
+        elif metodo.startswith("id_exacto"):
             print(f"      id_solicitante usado    : {id_solicitante}")
             print(f"      ID OPERADOR en catálogo : {rpc_resultado.get('idBp', '')}")
-        elif metodo == "nombre_operador_exacto":
+        elif metodo.startswith("nombre_exacto"):
             print(f"      Concesionario SATyS     : {concesionario or nombre_operador}")
             print(f"      NOMBRE OPERADOR RPC     : {rpc_resultado.get('nombre_completo', '')}")
-            print(f"      ID OPERADOR en catÃ¡logo : {rpc_resultado.get('idBp', '')}")
-        else:
-            print(f"      Nombre usado ({origen_ganador}) : {nombre_original_usado}")
+            print(f"      ID OPERADOR confirmado  : {rpc_resultado.get('idBp', '')}")
         print(f"      Nombre Oficial Catálogo  : {rpc_resultado['nombre_completo']}")
 
         # Actualizar nombre_operador al nombre oficial del catálogo
         resultado["nombre_operador"] = rpc_resultado["nombre_completo"]
         log.info("🔧 Nombre actualizado al oficial del catálogo.")
     elif rpc_resultado and not rpc_resultado.get("ok"):
-        # Sin coincidencia exacta por ID: 0% y revisión manual.
+        # Sin evidencia exacta/unívoca: 0% y revisión manual.
         resultado["rpc_resultado"] = rpc_resultado
         score_exactitud = rpc_resultado.get("score", 0) * 100
         motivo = rpc_resultado.get("motivo", "sin_coincidencia_exacta")
-        log.warning("⚠️  RPC sin coincidencia exacta por ID: %.0f%% (%s)", score_exactitud, motivo)
-        print(f"\n   ⚠️  PORCENTAJE DE EXACTITUD (ID exacto): {score_exactitud:.2f}%")
+        log.warning(
+            "⚠️  RPC sin coincidencia segura: similitud diagnóstica %.0f%% (%s)",
+            score_exactitud,
+            motivo,
+        )
+        print(
+            f"\n   ⚠️  SIMILITUD DIAGNÓSTICA (NO APROBADA): "
+            f"{score_exactitud:.2f}%"
+        )
         print(f"      id_solicitante usado    : {id_solicitante or 'N/A'}")
         print("      ID OPERADOR en catálogo : NO ENCONTRADO")
         print(f"      Resultado               : {carpeta_sin_operador(folio_opc)} / revisión manual")
 
     nombre_final = resultado.get("nombre_operador") or ""
-    ruta_revision_manual = ruta_relativa_sin_operador(folio_id, folio_opc)
-    destino_revision_manual = destino_sin_operador(OUTPUT_BASE, folio_id, folio_opc)
+    identificador_revision = (
+        str(registro_val or folio_id)
+        if resultado["es_correo"]
+        else folio_id
+    )
+    resultado["identificador_correo"] = (
+        identificador_revision if resultado["es_correo"] else ""
+    )
+    ruta_revision_manual = ruta_relativa_sin_operador(
+        identificador_revision,
+        folio_opc,
+    )
+    destino_revision_manual = destino_sin_operador(
+        OUTPUT_BASE,
+        identificador_revision,
+        folio_opc,
+    )
     resultado["carpeta_revision_manual"] = carpeta_sin_operador(folio_opc)
+    ruta_operador_rpc = ""
+    if resultado["es_correo"]:
+        # La clasificación CORREO es la decisión final y tiene prioridad sobre
+        # una coincidencia RPC. Se conserva la ruta calculada sólo para retirar
+        # una posible copia anterior en la carpeta del operador.
+        ruta_operador_rpc = str(rpc_resultado.get("ruta") or "")
+        rpc_resultado["ruta_operador_rpc"] = ruta_operador_rpc
+        rpc_resultado["ruta"] = ruta_revision_manual
+        log.info(
+            "✉️  Folio OPC %s clasificado para destino exclusivo: %s",
+            folio_opc,
+            ruta_revision_manual,
+        )
 
     # ──── PARTE 4: Actualizar Excel ────
     log.info("📊 [PARTE 4] Actualizando Excel...")
@@ -846,50 +972,95 @@ def procesar_folio(
         fecha_limite=fecha_limite,
         folio_internos=folio_tabla_internos if modo_internos else "",
         ruta_salida=(
-            rpc_resultado.get("ruta", "")
-            if rpc_resultado and rpc_resultado.get("ok")
-            else ruta_revision_manual
+            ruta_revision_manual
+            if resultado["es_correo"]
+            else (
+                rpc_resultado.get("ruta", "")
+                if rpc_resultado and rpc_resultado.get("ok")
+                else ruta_revision_manual
+            )
         ),
     )
     resultado["excel_ok"] = excel_ok
 
     # Organizar archivos
     if ORGANIZAR_DESCARGAS:
-        if rpc_resultado and rpc_resultado.get("ok"):
+        if resultado["es_correo"]:
+            organizacion_correo = organizar_correo_exclusivo(
+                carpeta,
+                OUTPUT_BASE,
+                identificador_revision,
+                ruta_operador=ruta_operador_rpc,
+                identificadores_legacy=(folio_id, identificador_archivos),
+            )
+            destino_correo = organizacion_correo["destino"]
+            resultado["archivos_pendientes"] = organizacion_correo["archivos_copiados"]
+            resultado["sin_operador_dir"] = str(destino_correo)
+            resultado["output_dir"] = str(destino_correo)
+            resultado["organizado_ok"] = organizacion_correo["verificado"]
+            resultado["duplicados_correo_retirados"] = organizacion_correo[
+                "duplicados_retirados"
+            ]
+            resultado["errores_organizacion_correo"] = organizacion_correo["errores"]
+            if organizacion_correo["verificado"]:
+                log.info(
+                    "✉️  Correo %s consolidado exclusivamente en %s (%d archivos; %d duplicados retirados)",
+                    folio_opc,
+                    destino_correo,
+                    len(organizacion_correo["archivos_copiados"]),
+                    len(organizacion_correo["duplicados_retirados"]),
+                )
+            else:
+                log.error(
+                    "❌ No se pudo garantizar la organización exclusiva del correo %s: %s",
+                    folio_opc,
+                    " | ".join(organizacion_correo["errores"]),
+                )
+        elif rpc_resultado and rpc_resultado.get("ok"):
             # RPC exitoso → carpeta estandarizada del concesionario
             ruta_destino = f"{rpc_resultado['ruta']}"
             destino = organizar_archivos(carpeta, ruta_destino)
             if destino:
                 resultado["organizado_ok"] = True
                 resultado["output_dir"] = str(destino)
+                resultado["revision_manual_limpiada"] = limpiar_revision_manual_resuelta(
+                    destino_revision_manual,
+                    destino,
+                )
         else:
-            # Sin operador o coincidencia insuficiente. Los folios OPC que
-            # empiezan con CORREO-2408 se separan en output/sin_operador_CORREO.
-            # Usa rglob para copiar recursivamente (incluye archivos en subcarpetas de ZIPs extraídos).
-            sin_op_dir = destino_revision_manual
-            sin_op_dir.mkdir(parents=True, exist_ok=True)
-            archivos_copiados = []
-            for archivo in carpeta.rglob("*"):
-                if archivo.is_file() and archivo.suffix.lower() != ".json":
-                    # Reconstruir la ruta relativa para preservar subcarpetas
-                    ruta_relativa = archivo.relative_to(carpeta)
-                    destino_archivo = sin_op_dir / ruta_relativa
-                    destino_archivo.parent.mkdir(parents=True, exist_ok=True)
-                    try:
-                        shutil.copy2(archivo, destino_archivo)
-                        archivos_copiados.append(str(ruta_relativa))
-                    except Exception as e_copy:
-                        log.warning("⚠️  No se pudo copiar %s: %s", archivo.name, e_copy)
+            # Toda coincidencia no resuelta usa el mismo destino exclusivo que
+            # los folios CORREO. La rutina fusiona copias antiguas y sólo retira
+            # duplicados después de verificar los documentos contra descargas/.
+            organizacion_revision = organizar_correo_exclusivo(
+                carpeta,
+                OUTPUT_BASE,
+                identificador_revision,
+                identificadores_legacy=(folio_id, identificador_archivos),
+            )
+            sin_op_dir = organizacion_revision["destino"]
+            archivos_copiados = organizacion_revision["archivos_copiados"]
             resultado["archivos_pendientes"] = archivos_copiados
             resultado["sin_operador_dir"] = str(sin_op_dir)
             resultado["output_dir"] = str(sin_op_dir)
-            if archivos_copiados:
-                log.info("📂 Folio %s copiado a: %s (%d archivos)",
-                         folio, sin_op_dir, len(archivos_copiados))
+            resultado["organizado_ok"] = organizacion_revision["verificado"]
+            resultado["duplicados_revision_retirados"] = organizacion_revision[
+                "duplicados_retirados"
+            ]
+            resultado["errores_organizacion_revision"] = organizacion_revision["errores"]
+            if organizacion_revision["verificado"]:
+                log.info(
+                    "📂 Folio %s consolidado en revisión manual: %s (%d archivos; %d duplicados retirados)",
+                    folio,
+                    sin_op_dir,
+                    len(archivos_copiados),
+                    len(organizacion_revision["duplicados_retirados"]),
+                )
             else:
-                log.warning(
-                    "⚠️  Folio %s: no se copiaron archivos a %s",
-                    folio, resultado["carpeta_revision_manual"],
+                log.error(
+                    "❌ No se pudo verificar la organización de %s en %s: %s",
+                    folio,
+                    sin_op_dir,
+                    " | ".join(organizacion_revision["errores"]),
                 )
 
     return resultado
@@ -899,6 +1070,8 @@ def imprimir_reporte(resultados: list):
     """Imprime el reporte final con un resumen ejecutivo orientado a la accion.
 
     Categorías (mutuamente excluyentes, en orden de prioridad):
+    - correos     : folio_opc empieza con CORREO
+                    → destino exclusivo output/_sin_operador/(correos)
     - exitosos    : rpc_ok=True + organizado_ok=True + excel_ok=True
                     → archivos descargados y organizados en carpeta del operador
     - sin_operador: NO exitoso, tiene nombre_operador (capturado de SATyS) pero
@@ -912,16 +1085,20 @@ def imprimir_reporte(resultados: list):
     print("═" * 70)
 
     # ── Categorías mutuamente excluyentes ──────────────────────────────────
-    # 1) Exitosos: RPC encontrado, Excel actualizado y archivos organizados
+    # 1) Correos: la clasificación OPC tiene prioridad sobre el operador RPC.
+    correos = [r for r in resultados if r.get("es_correo")]
+
+    # 2) Exitosos: RPC encontrado, Excel actualizado y archivos organizados
     exitosos = [
         r for r in resultados
-        if r.get('rpc_ok') and r.get('organizado_ok') and r.get('excel_ok')
+        if not r.get("es_correo")
+        and r.get('rpc_ok') and r.get('organizado_ok') and r.get('excel_ok')
     ]
 
     # Los no-exitosos se subdividen por si tienen nombre_operador o no
-    no_exitosos = [r for r in resultados if r not in exitosos]
+    no_exitosos = [r for r in resultados if r not in exitosos and r not in correos]
 
-    # 2) Sin operador en catálogo: SATyS sí entregó el nombre del operador
+    # 3) Sin operador en catálogo: SATyS sí entregó el nombre del operador
     #    pero el id_solicitante no está en el catálogo RPC.
     #    Tienen sus archivos en output/_sin_operador/ y necesitan revisión manual.
     sin_operador = [
@@ -929,13 +1106,23 @@ def imprimir_reporte(resultados: list):
         if r.get('nombre_operador')  # hay nombre extraído de SATyS
     ]
 
-    # 3) Errores reales: SATyS no devolvió nombre de operador en ninguna fuente
+    # 4) Errores reales: SATyS no devolvió nombre de operador en ninguna fuente
     errores = [
         r for r in no_exitosos
         if not r.get('nombre_operador')
     ]
 
     # ── Imprimir secciones ─────────────────────────────────────────────────
+    print(f"\n  ✉️  CORREOS ({len(correos)} folios) - EN _sin_operador\\(correos):")
+    if not correos:
+        print("       Ninguno.")
+    for r in correos:
+        estado = "verificado" if r.get("organizado_ok") else "con error de copia"
+        print(
+            f"       ✉️  {r['folio']} ({r.get('folio_opc', '')}) -> "
+            f"{r.get('output_dir', 'N/A')} [{estado}]"
+        )
+
     print(f"\n  🟢 ÉXITO TOTAL ({len(exitosos)} folios):")
     if not exitosos:
         print("       Ninguno.")
@@ -962,6 +1149,7 @@ def imprimir_reporte(resultados: list):
     print("\n" + "═" * 70 + "\n")
 
     return {
+        "correos": len(correos),
         "exitosos": len(exitosos),
         "sin_operador": len(sin_operador),
         "errores": len(errores),
@@ -971,10 +1159,43 @@ def imprimir_reporte(resultados: list):
 def _conteos_resultados(resultados: list[dict]) -> dict:
     """Conteos consistentes para reporte, JSON y correo."""
     return {
-        "exitosos": sum(1 for r in resultados if r.get("rpc_ok") and r.get("organizado_ok") and r.get("excel_ok")),
-        "sin_operador": sum(1 for r in resultados if not (r.get("rpc_ok") and r.get("organizado_ok") and r.get("excel_ok")) and r.get("nombre_operador")),
-        "errores": sum(1 for r in resultados if not (r.get("rpc_ok") and r.get("organizado_ok") and r.get("excel_ok")) and not r.get("nombre_operador")),
+        "correos": sum(1 for r in resultados if r.get("es_correo")),
+        "exitosos": sum(
+            1 for r in resultados
+            if not r.get("es_correo")
+            and r.get("rpc_ok") and r.get("organizado_ok") and r.get("excel_ok")
+        ),
+        "sin_operador": sum(
+            1 for r in resultados
+            if not r.get("es_correo")
+            and not (r.get("rpc_ok") and r.get("organizado_ok") and r.get("excel_ok"))
+            and r.get("nombre_operador")
+        ),
+        "errores": sum(
+            1 for r in resultados
+            if not r.get("es_correo")
+            and not (r.get("rpc_ok") and r.get("organizado_ok") and r.get("excel_ok"))
+            and not r.get("nombre_operador")
+        ),
     }
+
+
+def _generar_reportes_operadores(resultados: list[dict], modo: str) -> dict:
+    """Genera CSV de auditoría/sin operador sin interrumpir la corrida."""
+    try:
+        from reporte_operadores import generar_reportes_operadores
+
+        reporte = generar_reportes_operadores(
+            resultados,
+            modo=modo,
+            logs_dir=LOGS_BASE,
+        )
+        log.info("📋 Auditoría de operadores: %s", reporte["auditoria_csv"])
+        log.info("📋 Pendientes sin operador: %s", reporte["sin_operador_csv"])
+        return reporte
+    except Exception as exc:
+        log.warning("⚠️  No se pudo generar el reporte CSV de operadores: %s", exc)
+        return {"error": str(exc)}
 
 
 def _enviar_email_fin_proceso(
@@ -1054,6 +1275,8 @@ def aplicar_modo_todos_internos(args):
         conflictos.append("--internos-bandejas")
     if getattr(args, "internos_objetivos", ""):
         conflictos.append("--internos-objetivos")
+    if getattr(args, "internos_registros", ""):
+        conflictos.append("--internos-registros")
     if getattr(args, "solo_procesar", False):
         conflictos.append("--solo-procesar")
     if getattr(args, "folios", None):
@@ -1097,6 +1320,23 @@ Ejemplos:
                         help="Omitir Parte 1 (descarga) y solo procesar archivos locales")
     parser.add_argument("--rebuild-catalogo", action="store_true",
                         help="Reconstruir el catálogo RPC desde cero")
+    rpc_group = parser.add_mutually_exclusive_group()
+    rpc_group.add_argument(
+        "--rpc-online",
+        dest="rpc_online",
+        action="store_true",
+        default=None,
+        help=(
+            "Fuerza el respaldo en el buscador público del RPC cuando el Excel "
+            "no resuelve el operador (es el comportamiento de la corrida diaria)."
+        ),
+    )
+    rpc_group.add_argument(
+        "--sin-rpc-online",
+        dest="rpc_online",
+        action="store_false",
+        help="Desactiva explícitamente la consulta alternativa al buscador público RPC.",
+    )
     parser.add_argument("--no-organizar", action="store_true",
                         help="No mover archivos a carpetas RPC")
     parser.add_argument("--buscar", type=int, default=0,
@@ -1127,7 +1367,9 @@ Ejemplos:
     parser.add_argument("--internos-workers", type=int, default=INTERNOS_WORKERS_DEFAULT,
                         help="Navegadores paralelos para Internos. Default: 12; sin tope artificial; 0 usa uno por bandeja.")
     parser.add_argument("--internos-objetivos", type=str, default="",
-                        help="JSON con pares bandeja/folio nuevos; limita descarga y Partes 3-4 a esos objetivos.")
+                        help="JSON con pares bandeja/folio; limita la descarga, pero Partes 3-4 conservan todas las carpetas locales.")
+    parser.add_argument("--internos-registros", type=str, default="",
+                        help="CSV/TXT con folios numéricos de Internos; limita Partes 3-4 a esas carpetas locales.")
     parser.add_argument("--sin-email", action="store_true",
                         help="No enviar notificación por correo al finalizar esta corrida.")
     parser.add_argument("--sin-sincronizar", action="store_true",
@@ -1143,6 +1385,10 @@ Ejemplos:
         parser.error(str(exc))
     if args.internos_workers < 0:
         parser.error("--internos-workers debe ser 0 o un entero positivo")
+    if args.internos_registros and not args.internos:
+        parser.error("--internos-registros requiere --internos")
+    if args.rpc_online is not None:
+        os.environ["SATYS_RPC_CONSULTA_ONLINE"] = "1" if args.rpc_online else "0"
 
     # ──── Bloqueo compartido: evita que 2+ corridas SATyS se empalmen ────
     # main_procesar.py toma el lock en corridas manuales, desde UI o API.
@@ -1180,10 +1426,17 @@ Ejemplos:
         if args.no_organizar:
             ORGANIZAR_DESCARGAS = False
 
+        json_output_eliminados = depurar_json_output(OUTPUT_BASE)
+        if json_output_eliminados:
+            log.info(
+                "🧹 Se retiraron %d JSON heredado(s) de output; los metadatos permanecen en descargas.",
+                len(json_output_eliminados),
+            )
+
         # Banner
         print("\n" + "╔" + "═" * 68 + "╗")
         print("║" + "  SATyS — PIPELINE DE PRODUCCIÓN (PARTES 1, 3 Y 4)  ".center(68) + "║")
-        print("║" + "  Metadatos: JSON SATyS • RPC: ID exacto 0/100  ".center(68) + "║")
+        print("║" + "  RPC: ID exacto + nombre canónico único 0/100  ".center(68) + "║")
         print("╚" + "═" * 68 + "╝\n")
 
         # ────────────────────────────────────────────────────────────────────────
@@ -1191,12 +1444,29 @@ Ejemplos:
         # ────────────────────────────────────────────────────────────────────────
         if args.internos:
             print("\n" + "-" * 70)
-            print("  MODO INTERNOS IFT: DESCARGA + RPC POR NOMBRE + HOJA INTERNOS")
+            print("  MODO INTERNOS IFT: DESCARGA + RPC EXACTO SEGURO + HOJA INTERNOS")
             if args.todos_internos:
                 print("  RECORRIDO COMPLETO: LAS SEIS BANDEJAS, SIN OFICIALIA")
             print("-" * 70)
             objetivos_i: list[dict] = []
             claves_objetivo_i: set[tuple[str, str]] = set()
+            folios_objetivo_i: set[str] = set()
+            if args.internos_registros:
+                try:
+                    folios_objetivo_i = set(
+                        cargar_folios_internos_desde_archivo(args.internos_registros)
+                    )
+                except Exception as exc:
+                    log.error(
+                        "❌ No se pudo leer --internos-registros %s: %s",
+                        args.internos_registros,
+                        exc,
+                    )
+                    return 1
+                if not folios_objetivo_i:
+                    log.error("❌ --internos-registros no contiene folios numéricos válidos.")
+                    return 1
+                log.info("📋 Folios Internos solicitados desde archivo: %d", len(folios_objetivo_i))
             if args.internos_objetivos:
                 try:
                     objetivos_i = cargar_objetivos_internos(args.internos_objetivos)
@@ -1207,7 +1477,7 @@ Ejemplos:
                     log.info("✅ El JSON de objetivos Internos no contiene pendientes.")
                     return 0
                 claves_objetivo_i = {
-                    (item["bandeja"].strip().lower(), item["folio"])
+                    (slug_bandeja_internos(item["bandeja"]), item["folio"])
                     for item in objetivos_i
                 }
                 args.internos_bandejas = list(dict.fromkeys(
@@ -1222,6 +1492,8 @@ Ejemplos:
                     headless=args.headless,
                     objetivos_path=args.internos_objetivos or None,
                     workers=args.internos_workers,
+                    timeout_registro=args.timeout_registro,
+                    reintentos_registro=args.reintentos_registro,
                 )
                 if rc_descarga_internos:
                     log.error(
@@ -1234,23 +1506,27 @@ Ejemplos:
 
             carpetas_internos = descubrir_descargas_internos()
             if claves_objetivo_i:
-                filtradas_i = []
                 claves_encontradas_i = set()
                 for candidato in carpetas_internos:
                     meta_candidato = leer_metadata_descarga(candidato[0])
                     folio_tabla = str(
                         meta_candidato.get("folio_tabla_internos")
                         or meta_candidato.get("folio")
+                        or candidato[0].name
                         or ""
                     ).strip()
                     clave = (
-                        str(meta_candidato.get("bandeja_internos") or "").strip().lower(),
+                        slug_bandeja_internos(
+                            str(
+                                meta_candidato.get("bandeja_internos")
+                                or candidato[0].parent.name
+                                or ""
+                            )
+                        ),
                         folio_tabla,
                     )
                     if clave in claves_objetivo_i:
-                        filtradas_i.append(candidato)
                         claves_encontradas_i.add(clave)
-                carpetas_internos = filtradas_i
                 faltantes_i = claves_objetivo_i - claves_encontradas_i
                 if faltantes_i:
                     rc_descarga_internos = rc_descarga_internos or 1
@@ -1259,8 +1535,64 @@ Ejemplos:
                         len(faltantes_i),
                         ", ".join(f"{b}/{f}" for b, f in sorted(faltantes_i)[:30]),
                     )
+                log.info(
+                    "✅ Objetivos de descarga verificados; Partes 3-4 conservarán las %d carpeta(s) Internos locales.",
+                    len(carpetas_internos),
+                )
+            if folios_objetivo_i:
+                filtradas_i = []
+                encontrados_i: set[str] = set()
+                for candidato in carpetas_internos:
+                    carpeta_candidato, _, registro_ref_candidato = candidato
+                    meta_candidato = leer_metadata_descarga(carpeta_candidato)
+                    identificadores = {
+                        str(carpeta_candidato.name).strip(),
+                        str(registro_ref_candidato or "").strip(),
+                        str(meta_candidato.get("folio") or "").strip(),
+                        str(meta_candidato.get("folio_tabla_internos") or "").strip(),
+                        str(meta_candidato.get("registro") or "").strip(),
+                    }
+                    coincidencias = folios_objetivo_i & identificadores
+                    if coincidencias:
+                        filtradas_i.append(candidato)
+                        encontrados_i.update(coincidencias)
+                carpetas_internos = filtradas_i
+                faltantes_archivo_i = folios_objetivo_i - encontrados_i
+                if faltantes_archivo_i:
+                    log.warning(
+                        "⚠️  %d folio(s) del archivo no tienen carpeta local: %s",
+                        len(faltantes_archivo_i),
+                        ", ".join(sorted(faltantes_archivo_i)[:30]),
+                    )
+                log.info(
+                    "✅ Filtro --internos-registros: %d carpeta(s), %d folio(s) localizados.",
+                    len(carpetas_internos),
+                    len(encontrados_i),
+                )
             if not carpetas_internos:
                 log.error("❌ No se encontraron carpetas procesables en %s.", DESCARGA_BASE / "internos")
+                if objetivos_i:
+                    excel_faltantes_i = OUTPUT_BASE / "Folios_Datos_Completos_Internos.xlsx"
+                    try:
+                        from generar_excel_metadata_json import generar_excel_metadata_json
+                        generar_excel_metadata_json(
+                            resultados=[],
+                            descargas_base=DESCARGA_BASE,
+                            output_base=OUTPUT_BASE,
+                            excel_salida=excel_faltantes_i,
+                            project_root=Path.cwd(),
+                            objetivos_esperados=objetivos_i,
+                        )
+                        log.warning(
+                            "📘 Excel Internos generado con %d objetivo(s) FALTANTE(s): %s",
+                            len(objetivos_i),
+                            excel_faltantes_i,
+                        )
+                    except Exception as exc_excel_faltantes:
+                        log.error(
+                            "❌ No se pudo generar el Excel de objetivos Internos faltantes: %s",
+                            exc_excel_faltantes,
+                        )
                 _sincronizar_si_corresponde(args)
                 return 1
 
@@ -1293,6 +1625,7 @@ Ejemplos:
                 resultados_i.append(resultado_i)
 
             imprimir_reporte(resultados_i)
+            reportes_i = _generar_reportes_operadores(resultados_i, "internos")
 
             log_path_i = DESCARGA_BASE / "internos" / "procesamiento_log_internos.json"
             try:
@@ -1303,9 +1636,11 @@ Ejemplos:
                     "modo": "internos",
                     "sheet": "Internos",
                     "total_carpetas_descargas_procesadas": len(resultados_i),
+                    "total_correos": conteos_i["correos"],
                     "total_exitosos": conteos_i["exitosos"],
                     "total_sin_operador": conteos_i["sin_operador"],
                     "total_errores": conteos_i["errores"],
+                    "reportes_csv": reportes_i,
                     "resultados": resultados_i,
                 }
                 log_path_i.write_text(
@@ -1325,6 +1660,7 @@ Ejemplos:
                     output_base=OUTPUT_BASE,
                     excel_salida=excel_metadata_i,
                     project_root=Path.cwd(),
+                    objetivos_esperados=objetivos_i,
                 )
                 log.info("📘 Excel consolidado Internos guardado en: %s", excel_metadata_i)
             except Exception as e_meta_i:
@@ -1487,7 +1823,7 @@ Ejemplos:
             except Exception as e_cat:
                 log.error(
                     "❌ Catálogo RPC exacto no disponible: %s. "
-                    "No se usará fuzzy/API; registros sin ID exacto quedarán en _sin_operador.",
+                    "Se intentará nombre exacto en el RPC en línea; nunca fuzzy.",
                     e_cat,
                 )
                 catalogo_r = []
@@ -1518,6 +1854,7 @@ Ejemplos:
                 resultados_r.append(resultado_r)
 
             imprimir_reporte(resultados_r)
+            reportes_r = _generar_reportes_operadores(resultados_r, "registros")
 
             # Guardar log de resultados
             log_path_r = DESCARGA_BASE / "procesamiento_log_registros.json"
@@ -1528,9 +1865,11 @@ Ejemplos:
                     "modo":             "registro",
                     "total_carpetas_descargas_procesadas": len(resultados_r),
                     "registros_archivo_original": len(registros_archivo_original),
+                    "total_correos":     conteos_r["correos"],
                     "total_exitosos":   conteos_r["exitosos"],
                     "total_sin_operador": conteos_r["sin_operador"],
                     "total_errores":    conteos_r["errores"],
+                    "reportes_csv": reportes_r,
                     "resultados": resultados_r,
                 }
                 with open(log_path_r, "w", encoding="utf-8") as f_log_r:
@@ -1738,11 +2077,11 @@ Ejemplos:
                 if catalogo:
                     log.info("✅ Catálogo Parte3_rpc listo: %d concesionarios", len(catalogo))
                 else:
-                    log.warning("⚠️  Sin catálogo — la búsqueda RPC usará solo API directa")
+                    log.warning("⚠️  Sin catálogo — se usará sólo el RPC en línea con igualdad canónica")
             else:
                 log.error(
                     "❌ No se pudo cargar el catálogo RPC exacto desde Excel (%s). "
-                    "No se usará fuzzy/API. Los registros quedarán en _sin_operador hasta corregir catálogo.",
+                    "Se intentará el RPC en línea por nombre exacto; nunca fuzzy.",
                     e,
                 )
                 catalogo = []
@@ -1779,6 +2118,7 @@ Ejemplos:
 
         # Reporte
         imprimir_reporte(resultados)
+        reportes = _generar_reportes_operadores(resultados, "folios")
 
         # Guardar log de resultados
         log_path = DESCARGA_BASE / "procesamiento_log.json"
@@ -1788,9 +2128,11 @@ Ejemplos:
                 "fecha_ejecucion":    datetime.now().isoformat(),
                 "fuente_metadatos":  "satys_json",
                 "total_folios":       len(resultados),
+                "total_correos":      conteos["correos"],
                 "total_exitosos":     conteos["exitosos"],
                 "total_sin_operador": conteos["sin_operador"],
                 "total_errores":      conteos["errores"],
+                "reportes_csv":       reportes,
                 "resultados": resultados,
             }
             with open(log_path, "w", encoding="utf-8") as f:
@@ -1857,7 +2199,7 @@ def _sincronizar_si_corresponde(args) -> None:
 
 
 def sincronizar_carpeta_compartida() -> None:
-    """Sobrescribe el Excel y hace merge de output/ y descargas/ sin borrar extras."""
+    """Sincroniza Excel, output/ documental y descargas/ con metadata."""
     if CARPETA_COMPARTIDA is None:
         return
 
@@ -1871,9 +2213,11 @@ def sincronizar_carpeta_compartida() -> None:
         log.warning("⚠️  Sincronización: %s", error)
 
     log.info(
-        "🌐 DEPI: %d archivo(s) copiado(s), %d ruta(s) omitida(s), %d error(es). Destino: %s",
+        "🌐 DEPI: %d archivo(s) copiado(s), %d ruta(s) omitida(s), "
+        "%d JSON retirado(s) de output, %d error(es). Destino: %s",
         resultado.archivos_copiados,
         resultado.omitidos,
+        resultado.json_output_eliminados,
         len(resultado.errores),
         CARPETA_COMPARTIDA,
     )

@@ -8,8 +8,11 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Únicas salidas autorizadas para CRT Recurso DEPI. Se copian mediante merge:
-# se sobrescriben coincidencias y jamás se eliminan archivos adicionales del destino.
+from estado_descargas import depurar_json_output
+
+# Únicas salidas autorizadas para CRT Recurso DEPI. Se copian mediante merge.
+# La única depuración permitida es retirar JSON dentro de ``output/``; los JSON
+# operativos de ``descargas/`` se conservan y sincronizan normalmente.
 DIRECTORIOS_OPERATIVOS = (
     "output",
     "descargas",
@@ -75,6 +78,7 @@ class ResultadoSincronizacion:
     archivos_copiados: int = 0
     directorios_creados: int = 0
     omitidos: int = 0
+    json_output_eliminados: int = 0
     errores: list[str] = field(default_factory=list)
 
 
@@ -97,8 +101,14 @@ def copiar_archivo_sobrescribiendo(origen: Path, destino: Path, resultado: Resul
         resultado.errores.append(f"{origen} -> {destino}: {exc}")
 
 
-def copiar_directorio_merge(origen: Path, destino: Path, resultado: ResultadoSincronizacion) -> None:
-    """Copia recursivamente sin borrar nada del destino."""
+def copiar_directorio_merge(
+    origen: Path,
+    destino: Path,
+    resultado: ResultadoSincronizacion,
+    *,
+    excluir_json: bool = False,
+) -> None:
+    """Copia recursivamente; opcionalmente impide publicar JSON."""
     if not origen.exists() or not origen.is_dir() or _misma_ruta(origen, destino):
         resultado.omitidos += 1
         return
@@ -122,6 +132,9 @@ def copiar_directorio_merge(origen: Path, destino: Path, resultado: ResultadoSin
             except Exception as exc:
                 resultado.errores.append(f"No se pudo crear {destino_item}: {exc}")
         elif item.is_file():
+            if excluir_json and item.suffix.lower() == ".json":
+                resultado.omitidos += 1
+                continue
             copiar_archivo_sobrescribiendo(item, destino_item, resultado)
 
 
@@ -132,7 +145,7 @@ def sincronizar_salidas(
     directorios: tuple[str, ...] = DIRECTORIOS_OPERATIVOS,
     archivos: tuple[str, ...] = ARCHIVOS_OPERATIVOS,
 ) -> ResultadoSincronizacion:
-    """Sincroniza únicamente Excel, output/ y descargas/; sobrescribe y no borra."""
+    """Sincroniza Excel, output/ y descargas/ sin publicar JSON en output/."""
     project_dir = Path(project_dir)
     destino_raiz = Path(destino_raiz)
     resultado = ResultadoSincronizacion()
@@ -149,7 +162,20 @@ def sincronizar_salidas(
         return resultado
 
     for nombre in directorios:
-        copiar_directorio_merge(project_dir / nombre, destino_raiz / nombre, resultado)
+        es_output = nombre.casefold() == "output"
+        if es_output:
+            resultado.json_output_eliminados += len(
+                depurar_json_output(project_dir / nombre)
+            )
+            resultado.json_output_eliminados += len(
+                depurar_json_output(destino_raiz / nombre)
+            )
+        copiar_directorio_merge(
+            project_dir / nombre,
+            destino_raiz / nombre,
+            resultado,
+            excluir_json=es_output,
+        )
 
     for nombre in archivos:
         origen = project_dir / nombre

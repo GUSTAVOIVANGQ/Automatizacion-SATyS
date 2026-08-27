@@ -1,0 +1,11 @@
+C501,C502,C102,R011-0101,R011-0102,,,,,,,,
+2025,P02,P01,2111,1333,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,,
+,,,,,,,,,,,C102,Modalidad de contrato
+,,,,,,,,,,,P01,Particular
+,,,,,,,,,,,P02,Empresarial
+,,,,,,,,,,,P03,Generalista
+,,,,,,,,,,,YYY,Otra modalidad no incluida en el Grupo de Claves C102
+,,,,,,,,,,,XXX,Se desconoce la modalidad de contrato

@@ -1,0 +1,37 @@
+C501,C502,C301,R011-0301,R011-0302,,,,,,,,,
+2025,P02,P24,2111,1333,,,,,,,,,
+,,,,,,,,,,,,,
+,,,,,,,,,,,,,
+,,,,,,,,,,,,,
+,,,,,,,,,,,,,
+,,,,,,,,,,,,,
+,,,,,,,,,,,,,
+,,,,,,,,,,,,,
+,,,,,,,,,,,C301,Tecnología General.,
+,,,,,,,,,,,P01,PSTN - Public Switched Telephone Network,"Red global de conmutación de circuitos tradicional, diseñada principalmente para la transmisión de voz en tiempo real, compuesta por una serie de sistema digitales de conmutación interconectados"
+,,,,,,,,,,,P02,VoIP - Voice over Internet Protocol,"Voz sobre Protocolo de Internet,  método con el que se puede hacer llamadas de voz a través de la red de internet."
+,,,,,,,,,,,P03,SIP - Session Initiation Protocol,Protocolo de comunicación utilizado en las llamadas VoIP.
+,,,,,,,,,,,P04,Circuit Switch (CS),
+,,,,,,,,,,,P05,Packet Switch (PS),
+,,,,,,,,,,,P06,xDSL,Convierten las líneas analógicas convencionales en digitales de alta velocidad
+,,,,,,,,,,,P07,DOCSIS (Data Over Cable Service Interface Specification) sobre CATV,Estándar que permite agregar telefonía y datos alta velocidad  sobre la infraestructura de CATV
+,,,,,,,,,,,P08,GPON (Gigabit Passive Optical Network),"Estándar que define la infraestructura de fibra óptica para dar servicios de voz, datos y TV de alta velocidad, con una velocidad superior a 1GBps"
+,,,,,,,,,,,P09,GSM,Tecnología móvil de la segunda generación de telefonía móvil (2G).
+,,,,,,,,,,,P10,cdmaOne,Estandar de telefonía móvil de la segunda generacion de telefonía móvil (2G).
+,,,,,,,,,,,P11,GPRS/EDGE,Técnologías móviles de la segunda generanción de telefonía móvil (2G).
+,,,,,,,,,,,P12,CDMA 2000,Técnica de Acceso Múltiple para la tercera generación de telefonía móvil (3G).
+,,,,,,,,,,,P13,UMTS/HSPA/HSPA+,Tecnología móviles de la tercera generación de telefonía móvil (3G).
+,,,,,,,,,,,P14,LTE,Tecnología móvil de la cuarta generación de telefonía móvil (4G)
+,,,,,,,,,,,P15,LTE Advanced,Tecnología móvil de la cuarta generación de telefonía móvil (4G)
+,,,,,,,,,,,P16,5G Phase 1/ 5G Phase 2,Tecnología móvil de la quinta generación de telefonía móvil (5G) Version NSA y SA
+,,,,,,,,,,,P17,CATV,Red de distribución de televisión por cable.
+,,,,,,,,,,,P18,Direct-to-home (DTH)/Servicio Fijo por Satélite (SFS),Tecnología de acceso para la distribución del servicio de TV
+,,,,,,,,,,,P19,Microondas,Técnología de comunicación inalámbrica con línea de vista utilizada para la distribución de servicio de TV 
+,,,,,,,,,,,P20,HFC ,"Red CATV con arquitectura HFC, en donde se utiliza la combinación de fibra óptica y cable coaxial para la transmisión de señales de TV."
+,,,,,,,,,,,P21,IPTV Terrestre,Tecnología que distribuye señal de vídeo a través de conexiones de banda ancha sobre el protocolo IP.
+,,,,,,,,,,,P22,Nx64,"Multiplexación por División de Tiempo (TDM) de capacidades Nx64 Kbps (N=1, 2, 3, 4, 6, 8, 12, 16)"
+,,,,,,,,,,,P23,PDH (Plesiochronous Digital Hierarchy) o SDH  (Synchronous Digital Hierarchy),"Estandares de transmisión digital. PDH utilizado para telefonía, y SDH para datos."
+,,,,,,,,,,,P24,Ethernet o Superiores,Protocolo de red que controla el método de comunicación entre ordenadores y dispositivos
+,,,,,,,,,,,P25,Bidireccional,"Comunicación que lleva a cabo una retroinformación constante. Es decir, tanto el receptor como el emisor intercambian sus roles para crear una conversación que va en ambas direcciones."
+,,,,,,,,,,,ZZZ,Otra red de acceso no incluida en el Grupo de Claves C301,
+,,,,,,,,,,,XXX,Se desconoce la tecnología,

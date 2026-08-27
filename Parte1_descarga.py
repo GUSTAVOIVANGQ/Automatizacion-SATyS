@@ -43,7 +43,13 @@ from datetime import datetime
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 from configuracion_local import configuracion_procesamiento, credenciales_satys, ruta_configurada
-from estado_descargas import registro_esta_completo, slug_bandeja_internos
+from estado_descargas import (
+    auditar_carpeta_descarga,
+    carpeta_descarga_esta_completa,
+    objetivo_internos_esta_completo,
+    registro_esta_completo,
+    slug_bandeja_internos,
+)
 
 # --- Cargar .env manualmente (para no depender de dotenv) ---
 env_path = Path(".env")
@@ -3107,21 +3113,16 @@ def procesar_registro_completo(context, page, registro: str, carpeta: Path, foli
                 else:
                     log.info("[REG-FUENTE] ARCHIVOS ASOCIADOS encontrado para registro %s", registro)
 
-                # Guardar metadata_completo.json
-                meta_completo = {
-                    "folio": folio_real or registro,
-                    "registro": reg_celda,
-                    "estado": "OK" if any(r.get("ok") for r in res) else "SIN_ARCHIVOS",
-                    "total_archivos": len(res),
-                    "total_archivos_ok": sum(1 for r in res if r.get("ok")),
-                    "fuente": fuente,
-                    "archivos": res,
-                    "meta_satys": meta_satys,
-                    "fecha_proceso": datetime.now().isoformat(),
-                }
                 try:
-                    with open(carpeta_actual / "metadata_completo.json", "w", encoding="utf-8") as f:
-                        json.dump(meta_completo, f, ensure_ascii=False, indent=2)
+                    guardar_metadata_completo(
+                        folio_real or registro,
+                        folio_raw or folio_real or registro,
+                        carpeta_actual,
+                        meta_satys,
+                        meta_tramite,
+                        res,
+                        fuente,
+                    )
                 except Exception as e_mc:
                     log.warning("[REG] No se pudo guardar metadata_completo.json: %s", e_mc)
 
@@ -5471,6 +5472,41 @@ def _carpeta_internos_para(bandeja: str, identificador: str, firma: str, usadas:
     return carpeta
 
 
+def _escribir_json_atomico(path: Path, payload: dict) -> None:
+    """Publica JSON completo; un watchdog nunca observará un archivo a medias."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporal = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
+    temporal.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, default=str),
+        encoding="utf-8",
+    )
+    os.replace(temporal, path)
+
+
+def _actualizar_progreso_internos(
+    progreso_path: Path | None,
+    bandeja: str,
+    etapa: str,
+    folio: str = "",
+) -> None:
+    """Heartbeat por hitos para que el padre detecte un Playwright congelado."""
+    if not progreso_path:
+        return
+    try:
+        _escribir_json_atomico(Path(progreso_path), {
+            "bandeja": str(bandeja or "").strip(),
+            "folio": str(folio or "").strip(),
+            "etapa": str(etapa or "").strip(),
+            "actualizado_en": datetime.now().isoformat(),
+            "pid": os.getpid(),
+        })
+    except Exception as exc:
+        # El heartbeat no debe derribar una descarga sana; el timeout duro del
+        # proceso sigue protegiendo el lote aunque este archivo no se actualice.
+        log.warning("[INT-PROGRESO] No se pudo actualizar %s: %s", progreso_path, exc)
+
+
 def _actualizar_metadata_internos(
     carpeta: Path,
     bandeja: str,
@@ -5536,6 +5572,7 @@ def procesar_bandeja_internos(
     bandeja: str,
     max_pasadas: int = 10_000,
     folios_objetivo: list[str] | None = None,
+    progreso_path: Path | None = None,
 ) -> list:
     """Procesa todas las filas visibles/paginadas de una bandeja de Internos IFT."""
     resultados_bandeja = []
@@ -5548,9 +5585,11 @@ def procesar_bandeja_internos(
     }
     objetivos_encontrados: set[str] = set()
 
+    _actualizar_progreso_internos(progreso_path, bandeja, "abriendo_bandeja")
     if not seleccionar_bandeja_internos(page, bandeja):
         return resultados_bandeja
     configurar_mostrar_100_internos(page, "tramites")
+    _actualizar_progreso_internos(progreso_path, bandeja, "buscando_folios")
 
     pasadas = 0
     while pasadas < max_pasadas:
@@ -5595,6 +5634,12 @@ def procesar_bandeja_internos(
 
             identificador = row_meta.get("folio") or f"tramite_{firma[:8]}"
             carpeta = _carpeta_internos_para(bandeja, identificador, firma, carpetas_usadas)
+            _actualizar_progreso_internos(
+                progreso_path,
+                bandeja,
+                "procesando_folio",
+                folio_fila or identificador,
+            )
 
             log.info(
                 "[INT-REVISAR] Bandeja=%s folio=%s carpeta=%s",
@@ -5634,6 +5679,7 @@ def procesar_bandeja_internos(
                 for item in res:
                     item.setdefault("fuente", "DOCUMENTOS_ANEXOS")
                     item["bandeja_internos"] = bandeja
+                    item["folio_tabla_internos"] = folio_fila
                     item.setdefault("registro", meta.get("registro") or folio_descarga)
                     item.setdefault("carpeta", str(carpeta))
 
@@ -5651,6 +5697,7 @@ def procesar_bandeja_internos(
                         "error": "El ZIP no pudo descomprimirse por completo.",
                         "fuente": "DOCUMENTOS_ANEXOS",
                         "bandeja_internos": bandeja,
+                        "folio_tabla_internos": folio_fila,
                         "registro": meta.get("registro") or folio_descarga,
                         "carpeta": str(carpeta),
                     })
@@ -5678,6 +5725,7 @@ def procesar_bandeja_internos(
                         "ok": False,
                         "fuente": "INTERNOS_DOCUMENTOS_ANEXOS",
                         "bandeja_internos": bandeja,
+                        "folio_tabla_internos": folio_fila,
                         "registro": meta.get("registro") or folio_descarga,
                         "carpeta": str(carpeta),
                     })
@@ -5686,6 +5734,12 @@ def procesar_bandeja_internos(
                 if folio_fila:
                     objetivos_encontrados.add(folio_fila)
                 abrio_fila = True
+                _actualizar_progreso_internos(
+                    progreso_path,
+                    bandeja,
+                    "folio_finalizado",
+                    folio_fila or identificador,
+                )
             except Exception as exc:
                 log.error("[INT-ERROR] Error procesando fila de '%s': %s", bandeja, exc)
                 screenshot(page, f"internos_error_{_slug_internos(bandeja)}_{firma[:8]}")
@@ -5701,10 +5755,17 @@ def procesar_bandeja_internos(
                     "ok": False,
                     "fuente": "INTERNOS_DOCUMENTOS_ANEXOS",
                     "bandeja_internos": bandeja,
+                    "folio_tabla_internos": folio_fila,
                     "registro": "",
                     "carpeta": str(carpeta),
                     "error": str(exc),
                 })
+                _actualizar_progreso_internos(
+                    progreso_path,
+                    bandeja,
+                    "folio_con_error",
+                    folio_fila or identificador,
+                )
             finally:
                 _cerrar_paginas_emergentes(
                     context,
@@ -5727,8 +5788,10 @@ def procesar_bandeja_internos(
         if total > 0:
             log.info("[INT-PAGE] Bandeja '%s': mostrando %d de %d tramites.", bandeja, mostrado_hasta, total)
         if total > 0 and mostrado_hasta < total and _avanzar_pagina_datatables(page):
+            _actualizar_progreso_internos(progreso_path, bandeja, "paginando")
             continue
         if _avanzar_pagina_datatables(page):
+            _actualizar_progreso_internos(progreso_path, bandeja, "paginando")
             continue
         break
 
@@ -5742,6 +5805,7 @@ def procesar_bandeja_internos(
             "ok": False,
             "fuente": "INTERNOS_INVENTARIO",
             "bandeja_internos": bandeja,
+            "folio_tabla_internos": folio_faltante,
             "registro": "",
             "carpeta": "",
         })
@@ -5752,6 +5816,7 @@ def procesar_bandeja_internos(
         len(procesadas),
         len(resultados_bandeja),
     )
+    _actualizar_progreso_internos(progreso_path, bandeja, "segmento_finalizado")
     return resultados_bandeja
 
 
@@ -5801,9 +5866,16 @@ def _validar_sesion_internos() -> bool:
             browser.close()
 
 
-def _resultado_error_bandeja_internos(bandeja: str, codigo: str, detalle: str) -> list[dict]:
-    return [{
-        "folio": "",
+def _resultado_error_bandeja_internos(
+    bandeja: str,
+    codigo: str,
+    detalle: str,
+    folio: str = "",
+    **extra,
+) -> list[dict]:
+    item = {
+        "folio": folio,
+        "folio_tabla_internos": folio,
         "archivo": codigo,
         "tipo": "ERROR",
         "ruta": detalle[:240],
@@ -5814,12 +5886,17 @@ def _resultado_error_bandeja_internos(bandeja: str, codigo: str, detalle: str) -
         "registro": "",
         "carpeta": "",
         "error": detalle,
+    }
+    item.update(extra)
+    return [{
+        **item,
     }]
 
 
 def _worker_bandeja_internos(
     bandeja: str,
     folios_objetivo: list[str] | None = None,
+    progreso_path: Path | None = None,
 ) -> tuple[str, list]:
     """Procesa una bandeja en un Playwright y Chromium independientes."""
     tname = threading.current_thread().name
@@ -5874,6 +5951,7 @@ def _worker_bandeja_internos(
                     page,
                     bandeja,
                     folios_objetivo=folios_objetivo,
+                    progreso_path=progreso_path,
                 )
                 ok = sum(1 for item in resultados if item.get("ok"))
                 log.info(
@@ -5951,10 +6029,445 @@ def _worker_bandeja_internos_con_reintentos(
     return bandeja, ultimo_resultado
 
 
+def _resultado_objetivo_internos_completo(bandeja: str, folio: str, intento: int) -> dict:
+    """Marca un objetivo validado en disco sin inventarlo como archivo descargado."""
+    return {
+        "folio": folio,
+        "folio_tabla_internos": folio,
+        "archivo": "OBJETIVO_INTERNO_COMPLETO",
+        "tipo": "CONTROL",
+        "ruta": "",
+        "tamano_kb": 0,
+        "ok": True,
+        "fuente": "INTERNOS_WATCHDOG",
+        "bandeja_internos": bandeja,
+        "registro": folio,
+        "carpeta": "",
+        "intento": intento,
+    }
+
+
+def _resultados_internos_para_folio(resultados: list, folio: str) -> list[dict]:
+    """Separa del resultado de un segmento las filas de un Folio de tabla."""
+    folio = str(folio or "").strip()
+    seleccionados = []
+    for item in resultados or []:
+        if not isinstance(item, dict):
+            continue
+        candidato = str(
+            item.get("folio_tabla_internos")
+            or item.get("folio")
+            or ""
+        ).strip()
+        if candidato == folio:
+            seleccionados.append(item)
+    return seleccionados
+
+
+def _leer_progreso_internos(path: Path | None) -> dict:
+    if not path or not Path(path).exists():
+        return {}
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8", errors="replace"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _ejecutar_worker_segmento_internos(
+    payload_path: Path,
+    resultado_json: Path,
+) -> int:
+    """Entrada del proceso hijo: un Chromium aislado para un segmento Internos."""
+    started = datetime.now().isoformat()
+    try:
+        payload_entrada = json.loads(Path(payload_path).read_text(encoding="utf-8-sig"))
+        bandeja = str(payload_entrada.get("bandeja") or "").strip()
+        folios = [
+            str(folio or "").strip()
+            for folio in (payload_entrada.get("folios") or [])
+            if re.fullmatch(r"\d{1,15}", str(folio or "").strip())
+        ]
+        progreso_path_raw = str(payload_entrada.get("progreso_path") or "").strip()
+        progreso_path = Path(progreso_path_raw) if progreso_path_raw else None
+        if not bandeja:
+            raise ValueError("El payload del worker Internos no contiene bandeja.")
+
+        _actualizar_progreso_internos(progreso_path, bandeja, "iniciando_worker")
+        bandeja_resultado, resultados = _worker_bandeja_internos(
+            bandeja,
+            folios or None,
+            progreso_path=progreso_path,
+        )
+        pendientes = [
+            folio for folio in folios
+            if not objetivo_internos_esta_completo(DESCARGA_BASE, bandeja, folio)
+        ]
+        codigos = {
+            str(item.get("archivo") or "")
+            for item in resultados
+            if isinstance(item, dict) and not item.get("ok")
+        }
+        fallo_infraestructura = bool(codigos & _ERRORES_REINTENTABLES_WORKER_INTERNOS)
+        if folios:
+            ok = not pendientes and not fallo_infraestructura
+        else:
+            # En recorrido de bandeja completa no hay lista previa contra la
+            # cual auditar; cualquier fila fallida obliga a reintentar la bandeja.
+            ok = not any(
+                isinstance(item, dict) and not item.get("ok")
+                for item in resultados
+            )
+        payload_salida = {
+            "ok": ok,
+            "bandeja": bandeja_resultado,
+            "folios": folios,
+            "folios_pendientes": pendientes,
+            "started_at": started,
+            "finished_at": datetime.now().isoformat(),
+            "resultados": resultados,
+            "criterio_completo": "metadata_y_archivos_auditados_por_bandeja_folio",
+        }
+        _escribir_json_atomico(resultado_json, payload_salida)
+        _actualizar_progreso_internos(progreso_path, bandeja, "worker_finalizado")
+        return 0 if ok else 2
+    except Exception as exc:
+        bandeja = locals().get("bandeja", "Internos")
+        folios = locals().get("folios", [])
+        log.exception("[INT-WORKER] Error fatal en worker aislado de '%s'.", bandeja)
+        resultados = []
+        for folio in folios or [""]:
+            resultados.extend(_resultado_error_bandeja_internos(
+                bandeja,
+                "ERROR_FATAL_WORKER_INTERNO",
+                str(exc)[:500],
+                folio=folio,
+            ))
+        try:
+            _escribir_json_atomico(resultado_json, {
+                "ok": False,
+                "bandeja": bandeja,
+                "folios": folios,
+                "folios_pendientes": folios,
+                "started_at": started,
+                "finished_at": datetime.now().isoformat(),
+                "error": str(exc),
+                "resultados": resultados,
+            })
+        except Exception:
+            pass
+        return 1
+
+
+def _procesar_tareas_internos_subprocesos(
+    tareas: list[tuple[str, str, list[str] | None]],
+    workers_activos: int,
+    timeout_registro: int,
+    reintentos: int,
+) -> list[dict]:
+    """Ejecuta segmentos Internos en procesos matables y reintenta incompletos.
+
+    El timeout se mide desde el último hito escrito por el worker. Cada inicio o
+    fin de Folio renueva el reloj; un Playwright congelado no puede renovarlo y
+    se termina junto con todos sus Chromium descendientes.
+    """
+    if not tareas:
+        return []
+
+    timeout_registro = max(60, int(timeout_registro or TIMEOUT_REGISTRO))
+    total_intentos = 1 + max(0, int(reintentos or 0))
+    workers_activos = min(max(1, int(workers_activos or 1)), len(tareas))
+    resultados_finales_objetivo: dict[tuple[str, str], list[dict]] = {}
+    resultados_finales_tarea: dict[str, list[dict]] = {}
+    pendientes_intento: list[tuple[str, str, list[str] | None]] = []
+    omitidos_completos = 0
+    for tarea_id, bandeja, folios in tareas:
+        if folios is None:
+            pendientes_intento.append((tarea_id, bandeja, None))
+            continue
+        folios_pendientes = []
+        for folio in folios:
+            clave = (bandeja.casefold(), folio)
+            if objetivo_internos_esta_completo(DESCARGA_BASE, bandeja, folio):
+                omitidos_completos += 1
+                resultados_finales_objetivo[clave] = [
+                    _resultado_objetivo_internos_completo(bandeja, folio, 0)
+                ]
+            else:
+                folios_pendientes.append(folio)
+        if folios_pendientes:
+            pendientes_intento.append((tarea_id, bandeja, folios_pendientes))
+    if omitidos_completos:
+        log.info(
+            "[INT-SKIP] %d objetivo(s) ya estaban completos y auditados; no se reabren en SATyS.",
+            omitidos_completos,
+        )
+
+    for intento in range(1, total_intentos + 1):
+        if not pendientes_intento:
+            break
+        run_id = datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + uuid.uuid4().hex[:8]
+        worker_dir = log_dir / "workers_internos" / run_id
+        worker_dir.mkdir(parents=True, exist_ok=True)
+        limite_workers = min(workers_activos, len(pendientes_intento))
+        log.info(
+            "[INT-WATCHDOG] Intento %d/%d: %d segmento(s), workers=%d, timeout sin avance=%ds.",
+            intento,
+            total_intentos,
+            len(pendientes_intento),
+            limite_workers,
+            timeout_registro,
+        )
+
+        cola = list(pendientes_intento)
+        running: dict[str, dict] = {}
+        salidas_intento: dict[str, dict] = {}
+
+        def _lanzar(tarea: tuple[str, str, list[str] | None]) -> None:
+            tarea_id, bandeja, folios = tarea
+            safe = _sanitize_for_filename(tarea_id)
+            payload_path = worker_dir / f"{safe}.payload.json"
+            result_path = worker_dir / f"{safe}.resultado.json"
+            progress_path = worker_dir / f"{safe}.progreso.json"
+            worker_log = worker_dir / f"{safe}.worker.log"
+            _escribir_json_atomico(payload_path, {
+                "tarea_id": tarea_id,
+                "bandeja": bandeja,
+                "folios": folios or [],
+                "progreso_path": str(progress_path.resolve()),
+                "intento": intento,
+            })
+            cmd = [
+                sys.executable,
+                str(Path(__file__).resolve()),
+                "--_internos-worker-payload", str(payload_path.resolve()),
+                "--_resultado-json", str(result_path.resolve()),
+                "--headless" if HEADLESS else "--visible",
+            ]
+            fh = worker_log.open("w", encoding="utf-8", errors="replace")
+            fh.write("CMD: " + " ".join(str(x) for x in cmd) + "\n")
+            fh.flush()
+            popen_kwargs = {
+                "cwd": str(Path(__file__).resolve().parent),
+                "stdout": fh,
+                "stderr": subprocess.STDOUT,
+                "text": True,
+                "encoding": "utf-8",
+                "errors": "replace",
+            }
+            if os.name == "nt":
+                popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            else:
+                popen_kwargs["preexec_fn"] = os.setsid
+            proc = subprocess.Popen(cmd, **popen_kwargs)
+            now = time.monotonic()
+            running[tarea_id] = {
+                "tarea": tarea,
+                "proc": proc,
+                "fh": fh,
+                "result_path": result_path,
+                "progress_path": progress_path,
+                "worker_log": worker_log,
+                "log_pos": 0,
+                "last_progress_mtime": 0,
+                "last_progress_at": now,
+                "progreso": {},
+            }
+            log.info(
+                "[INT-WATCHDOG] Iniciando %s: bandeja='%s', folios=%s, pid=%s.",
+                tarea_id,
+                bandeja,
+                ",".join(folios or []) or "BANDEJA_COMPLETA",
+                proc.pid,
+            )
+
+        try:
+            while cola or running:
+                while cola and len(running) < limite_workers:
+                    _lanzar(cola.pop(0))
+
+                now = time.monotonic()
+                for tarea_id, info in list(running.items()):
+                    _relay_worker_log(info, tarea_id)
+                    progress_path = info["progress_path"]
+                    try:
+                        mtime = progress_path.stat().st_mtime_ns if progress_path.exists() else 0
+                    except OSError:
+                        mtime = 0
+                    if mtime and mtime != info["last_progress_mtime"]:
+                        info["last_progress_mtime"] = mtime
+                        info["last_progress_at"] = now
+                        info["progreso"] = _leer_progreso_internos(progress_path)
+
+                    proc = info["proc"]
+                    rc = proc.poll()
+                    sin_avance = now - info["last_progress_at"]
+                    if rc is None and sin_avance > timeout_registro:
+                        progreso = info.get("progreso") or {}
+                        folio_activo = str(progreso.get("folio") or "").strip()
+                        etapa = str(progreso.get("etapa") or "sin heartbeat").strip()
+                        motivo = (
+                            f"TIMEOUT_INTERNO>{timeout_registro}s sin avance; "
+                            f"etapa={etapa}; folio={folio_activo or 'desconocido'}"
+                        )
+                        _relay_worker_log(info, tarea_id, final=True)
+                        _kill_process_tree(proc, tarea_id, motivo=motivo)
+                        try:
+                            proc.wait(timeout=10)
+                        except Exception:
+                            pass
+                        bandeja = info["tarea"][1]
+                        folios = info["tarea"][2] or [folio_activo]
+                        errores = []
+                        for folio in folios or [""]:
+                            errores.extend(_resultado_error_bandeja_internos(
+                                bandeja,
+                                "TIMEOUT_INTERNO",
+                                motivo,
+                                folio=folio,
+                                intento=intento,
+                                worker_log=str(info["worker_log"]),
+                                timeout_segundos=timeout_registro,
+                            ))
+                        salidas_intento[tarea_id] = {
+                            "rc": 124,
+                            "resultados": errores,
+                            "timeout": True,
+                        }
+                        log.error(
+                            "[INT-WATCHDOG] Segmento %s terminado por timeout; se reintentará sólo lo incompleto.",
+                            tarea_id,
+                        )
+                    elif rc is None:
+                        continue
+                    else:
+                        _relay_worker_log(info, tarea_id, final=True)
+                        try:
+                            payload = json.loads(
+                                info["result_path"].read_text(encoding="utf-8", errors="replace")
+                            )
+                            resultados = payload.get("resultados") or []
+                            if not isinstance(resultados, list):
+                                resultados = []
+                        except Exception as exc:
+                            bandeja = info["tarea"][1]
+                            folios = info["tarea"][2] or [""]
+                            resultados = []
+                            for folio in folios:
+                                resultados.extend(_resultado_error_bandeja_internos(
+                                    bandeja,
+                                    "ERROR_RESULTADO_WORKER_INTERNO",
+                                    f"No se pudo leer el resultado del worker: {exc}",
+                                    folio=folio,
+                                    intento=intento,
+                                    worker_log=str(info["worker_log"]),
+                                    return_code=rc,
+                                ))
+                        salidas_intento[tarea_id] = {
+                            "rc": rc,
+                            "resultados": resultados,
+                            "timeout": False,
+                        }
+
+                    try:
+                        info["fh"].write(f"\n[INT-WORKER] return_code={proc.poll()}\n")
+                        info["fh"].flush()
+                        info["fh"].close()
+                    except Exception:
+                        pass
+                    del running[tarea_id]
+
+                if cola or running:
+                    time.sleep(1)
+        except KeyboardInterrupt:
+            log.error("[INT-WATCHDOG] Interrupción manual; terminando todos los workers Internos activos.")
+            for tarea_id, info in list(running.items()):
+                _kill_process_tree(info["proc"], tarea_id, motivo="KeyboardInterrupt")
+            raise
+        finally:
+            for tarea_id, info in list(running.items()):
+                _kill_process_tree(info["proc"], tarea_id, motivo="limpieza_final")
+                try:
+                    info["fh"].close()
+                except Exception:
+                    pass
+
+        siguientes: list[tuple[str, str, list[str] | None]] = []
+        for tarea_id, bandeja, folios in pendientes_intento:
+            salida = salidas_intento.get(tarea_id) or {"rc": 1, "resultados": []}
+            resultados = salida["resultados"]
+            if folios is None:
+                if salida["rc"] == 0:
+                    resultados_finales_tarea[tarea_id] = resultados
+                elif intento < total_intentos:
+                    siguientes.append((tarea_id, bandeja, None))
+                else:
+                    resultados_finales_tarea[tarea_id] = resultados or _resultado_error_bandeja_internos(
+                        bandeja,
+                        "ERROR_BANDEJA_INTERNA_AGOTADA",
+                        f"La bandeja agotó {total_intentos} intento(s).",
+                        intento=intento,
+                    )
+                continue
+
+            folios_pendientes = []
+            for folio in folios:
+                clave = (bandeja.casefold(), folio)
+                if objetivo_internos_esta_completo(DESCARGA_BASE, bandeja, folio):
+                    filas_folio = _resultados_internos_para_folio(resultados, folio)
+                    resultados_finales_objetivo[clave] = filas_folio or [
+                        _resultado_objetivo_internos_completo(bandeja, folio, intento)
+                    ]
+                else:
+                    folios_pendientes.append(folio)
+
+            if folios_pendientes and intento < total_intentos:
+                siguientes.append((tarea_id, bandeja, folios_pendientes))
+                log.warning(
+                    "[INT-RETRY] %s reintentará %d objetivo(s) incompleto(s): %s",
+                    tarea_id,
+                    len(folios_pendientes),
+                    ", ".join(folios_pendientes),
+                )
+            elif folios_pendientes:
+                for folio in folios_pendientes:
+                    clave = (bandeja.casefold(), folio)
+                    filas_folio = _resultados_internos_para_folio(resultados, folio)
+                    resultados_finales_objetivo[clave] = filas_folio or _resultado_error_bandeja_internos(
+                        bandeja,
+                        "ERROR_OBJETIVO_INTERNO_INCOMPLETO",
+                        f"No quedó completo tras {total_intentos} intento(s).",
+                        folio=folio,
+                        intento=intento,
+                    )
+        pendientes_intento = siguientes
+
+    salida_final: list[dict] = []
+    objetivos_emitidos: set[tuple[str, str]] = set()
+    for tarea_id, bandeja, folios in tareas:
+        if folios is None:
+            salida_final.extend(resultados_finales_tarea.get(tarea_id, []))
+            continue
+        for folio in folios:
+            clave = (bandeja.casefold(), folio)
+            if clave in objetivos_emitidos:
+                continue
+            objetivos_emitidos.add(clave)
+            salida_final.extend(resultados_finales_objetivo.get(clave) or _resultado_error_bandeja_internos(
+                bandeja,
+                "ERROR_OBJETIVO_INTERNO_SIN_RESULTADO",
+                "El objetivo terminó sin resultado final.",
+                folio=folio,
+            ))
+    return salida_final
+
+
 def descargar_internos_ift(
     bandejas: list[str] | None = None,
     objetivos: list[dict] | None = None,
     workers: int | None = None,
+    timeout_registro: int | None = None,
+    reintentos: int | None = None,
 ) -> list:
     """Descarga Internos en navegadores independientes y paralelos.
 
@@ -6074,43 +6587,16 @@ def descargar_internos_ift(
                 len(folios_segmento),
             )
 
-    resultados_por_tarea: dict[str, list] = {}
-    with concurrent.futures.ThreadPoolExecutor(
-        max_workers=workers_activos,
-        thread_name_prefix="SATyS-Internos",
-    ) as executor:
-        futures = {
-            executor.submit(
-                _worker_bandeja_internos_con_reintentos,
-                bandeja,
-                folios_segmento,
-            ): (tarea_id, bandeja)
-            for tarea_id, bandeja, folios_segmento in tareas
-        }
-        completadas = 0
-        for future in concurrent.futures.as_completed(futures):
-            tarea_id, bandeja = futures[future]
-            completadas += 1
-            try:
-                _bandeja_resultado, resultados = future.result()
-            except Exception as exc:
-                resultados = _resultado_error_bandeja_internos(
-                    bandeja,
-                    "EXCEPCION_WORKER_BANDEJA",
-                    str(exc),
-                )
-            resultados_por_tarea[tarea_id] = resultados
-            log.info(
-                "[INT-CONC] [%d/%d] Segmento %s de '%s' completado.",
-                completadas,
-                len(tareas),
-                tarea_id,
-                bandeja,
-            )
-
-    todos_resultados = []
-    for tarea_id, _bandeja, _folios_segmento in tareas:
-        todos_resultados.extend(resultados_por_tarea.get(tarea_id, []))
+    todos_resultados = _procesar_tareas_internos_subprocesos(
+        tareas=tareas,
+        workers_activos=workers_activos,
+        timeout_registro=(TIMEOUT_REGISTRO if timeout_registro is None else timeout_registro),
+        reintentos=(
+            INTERNOS_WORKER_REINTENTOS
+            if reintentos is None
+            else reintentos
+        ),
+    )
 
     carpeta_resumen = DESCARGA_BASE / "internos"
     try:
@@ -6503,6 +6989,7 @@ def _kill_process_tree(proc: subprocess.Popen, registro: str, motivo: str = "tim
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 check=False,
+                timeout=30,
             )
         else:
             try:
@@ -6832,6 +7319,7 @@ def main():
                         help="JSON con pares bandeja/folio; limita la descarga a los Folios nuevos indicados.")
     parser.add_argument("--_registro-worker", type=str, default="", help=argparse.SUPPRESS)
     parser.add_argument("--_registro-raw", type=str, default="", help=argparse.SUPPRESS)
+    parser.add_argument("--_internos-worker-payload", type=str, default="", help=argparse.SUPPRESS)
     parser.add_argument("--_resultado-json", type=str, default="", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
@@ -6856,6 +7344,19 @@ def main():
             resultado_path,
         )
 
+    # Worker aislado de Internos. El padre controla heartbeat, timeout y
+    # reintentos; este hijo abre un solo Chromium y nunca crea otros workers.
+    if args._internos_worker_payload:
+        resultado_path = (
+            Path(args._resultado_json)
+            if args._resultado_json
+            else Path(tempfile.gettempdir()) / f"satys_internos_{uuid.uuid4().hex}.json"
+        )
+        return _ejecutar_worker_segmento_internos(
+            Path(args._internos_worker_payload),
+            resultado_path,
+        )
+
     if args.internos:
         print("\n+" + "-" * 68 + "+")
         print("|" + "  SATyS - DESCARGA INTERNOS IFT  ".center(68) + "|")
@@ -6876,6 +7377,8 @@ def main():
             bandejas,
             objetivos=objetivos_int,
             workers=args.internos_workers,
+            timeout_registro=args.timeout_registro,
+            reintentos=args.reintentos_registro,
         )
         generar_reporte(todos_int)
         ok_int = sum(1 for r in todos_int if r.get("ok"))
@@ -6959,8 +7462,8 @@ def main():
         num_workers_r = num_workers  # Usar el mismo número de workers
 
         # ── Separar registros ya completados (SKIP) ───────────────
-        # Única regla: descargas/<REGISTRO>/ contiene al menos un archivo real.
-        # Los tres JSON de metadata, archivos vacíos y temporales no cuentan.
+        # Regla única para cualquier bandeja: metadata, conteos y archivos
+        # físicos deben coincidir. Nunca se borra la carpeta existente.
         def _registro_ya_completo(reg: str) -> bool:
             return registro_esta_completo(DESCARGA_BASE, reg)
 
@@ -6974,6 +7477,12 @@ def main():
                 log.info("[SKIP] Registro %s ya descargado y completo. Saltando...", reg)
             else:
                 registros_pendientes.append(reg)
+                auditoria = auditar_carpeta_descarga(DESCARGA_BASE / reg)
+                log.info(
+                    "[PENDIENTE] Registro %s se descargará/reintentará: %s",
+                    reg,
+                    ", ".join(auditoria["motivos"]) or "auditoría incompleta",
+                )
 
         log.info(
             "[MAIN] %d registro(s) pendientes | %d ya completados (SKIP)",
@@ -7326,17 +7835,21 @@ def main():
     for folio in folios:
         carpeta      = crear_carpeta(folio)
         metadata_file = carpeta / "metadata_completo.json"
-        if metadata_file.exists():
+        if carpeta_descarga_esta_completa(carpeta):
             try:
                 with open(metadata_file, "r", encoding="utf-8") as f:
                     meta_existente = json.load(f)
-                if (meta_existente.get("estado") == "OK"
-                        and meta_existente.get("total_archivos_ok", 0) > 0):
-                    log.info("[SKIP] Folio %s ya descargado. Saltando...", folio)
-                    todos_resultados.extend(meta_existente.get("archivos", []))
-                    continue
+                log.info("[SKIP] Folio %s ya descargado y auditado. Saltando...", folio)
+                todos_resultados.extend(meta_existente.get("archivos", []))
+                continue
             except Exception as e:
                 log.warning("[SKIP] No se pudo leer metadata de %s: %s", folio, e)
+        auditoria_folio = auditar_carpeta_descarga(carpeta)
+        log.info(
+            "[PENDIENTE] Folio %s se descargará/reintentará: %s",
+            folio,
+            ", ".join(auditoria_folio["motivos"]) or "auditoría incompleta",
+        )
         folios_pendientes.append(folio)
 
     log.info(

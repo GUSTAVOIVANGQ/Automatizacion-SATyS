@@ -18,11 +18,13 @@ Automatización del flujo completo de **descarga, procesamiento y organización*
 - Revisa todos los días la tabla **Documentos en Proceso** del SATyS y detecta números de **Registro** nuevos comparando contra `TrámitesCRT.xlsx` (columna `1711`).
 - Extrae metadatos del trámite directamente de la web (sin OCR).
 - Descarga en paralelo todos los archivos asociados a cada registro/folio, con reintentos automáticos.
-- Consulta el Registro Público de Concesiones (RPC) por comparación exacta `id_solicitante == ID OPERADOR`.
+- Consulta el RPC primero por el Excel oficial (`id_solicitante == ID OPERADOR` o nombre canónico único) y, si no resuelve, usa el buscador público actual del RPC.
 - Actualiza `TrámitesCRT.xlsx` y organiza los archivos descargados en `/output/<operador>/`.
 - Genera un Excel consolidado (`output/Folios_Datos_Completos.xlsx`) con todos los campos extraídos.
+- Conserva los JSON de control exclusivamente en `descargas/`; las carpetas de
+  expedientes bajo `output/` contienen sólo los archivos reales descargados.
 - Reconcilia automáticamente `TrámitesCRT.xlsx` contra ese consolidado: una fila por Registro, rutas completas y sin filas fantasma de ZIP.
-- Envía una notificación por correo con el resumen de cada corrida.
+- Envía un único correo diario consolidado para Internos y Oficialía, con sólo los indicadores y rutas esenciales.
 - Corre de forma desatendida vía `systemd` (timer diario) y expone un panel web (FastAPI) para monitoreo y ejecución manual.
 
 ### 🔄 Flujo del proceso
@@ -53,13 +55,13 @@ Automatización del flujo completo de **descarga, procesamiento y organización*
 │                                                                       │
 │  PARTE 4 — EXCEL Y CARPETAS                                         │
 │  ├── Inserción de resultados en TrámitesCRT.xlsx                    │
-│  └── Copia final a output/<operador>/ u output/_sin_operador/    │
+│  └── Copia final a output/<operador>/ o _sin_operador/(correos)/ │
 │                                                                       │
 │  EXPORTACIÓN FINAL                                                   │
 │  ├── Genera/actualiza output/Folios_Datos_Completos.xlsx            │
 │  ├── Reconcilia TrámitesCRT.xlsx por número de Registro             │
 │  ├── Sobrescribe TrámitesCRT.xlsx y hace merge de output/ y descargas/ en CRT Recurso DEPI
-│  └── Envía notificación por correo con el resumen de la corrida     │
+│  └── Envía un único correo consolidado de Internos + Oficialía      │
 └───────────────────────────────────────────────────────────────────┘
 ```
 
@@ -125,7 +127,7 @@ Automatizacion-SATyS/
 ├── buscar_concesionario.py           # Búsqueda exacta en el padrón RPC
 ├── descargar_concesiones_rpc.py      # Descarga/actualización del catálogo RPC
 ├── login_satys.py                    # Login al SATyS
-├── notificar_email.py                # Notificación por correo al finalizar cada corrida
+├── notificar_email.py                # Correo esencial; el monitor diario lo envía una sola vez
 ├── configuracion_local.py             # Lector de config/configuracion_local.json
 ├── estado_descargas.py                # Regla única de completo/reintento
 ├── sincronizacion_depi.py             # Merge no destructivo hacia CRT Recurso DEPI
@@ -154,7 +156,8 @@ Automatizacion-SATyS/
 ├── descargas/<registro>/             # Carpeta de tránsito (archivos recién descargados)
 ├── output/                           # Destino final organizado por operador
 │   ├── <id>_<nombre_operador>/
-│   ├── _sin_operador/                # Sin coincidencia en RPC → revisión manual
+│   ├── _sin_operador/
+│   │   └── (correos)/                 # Todo sin operador y folio_opc CORREO
 │   └── Folios_Datos_Completos.xlsx   # Excel consolidado
 ├── registros_diarios/                # Copias históricas de los TXT de registros detectados
 ├── base_de_datos_rpc/                # Catálogo de Concesiones RPC descargado
@@ -202,7 +205,13 @@ La carpeta DEPI es el origen compartido de paquetes y salidas; no debe confundir
 
 ### Si ya existe una corrida con archivos descargados
 
-No borres ni reemplaces `descargas/`, `output/`, `TrámitesCRT.xlsx`, `config/` ni `logs/`. Aplica únicamente el parche por superposición. La corrida diaria normal omite la descarga de registros cuya carpeta `descargas/<REGISTRO>/` ya contiene al menos un archivo real, pero vuelve a procesar los metadatos, RPC, Excel y rutas existentes.
+No borres ni reemplaces `descargas/`, `output/`, `TrámitesCRT.xlsx`, `config/` ni
+`logs/`. Aplica únicamente el parche por superposición. La corrida diaria sólo
+omite una descarga cuando `metadata_completo.json`, sus conteos y todos los
+archivos físicos superan la auditoría estricta. Las carpetas vacías, parciales
+o que contienen únicamente JSON se conservan y vuelven a entrar a descarga;
+toda carpeta de expediente existente entra además a metadatos, RPC, Excel y
+organización sin que se elimine de `descargas/`.
 
 Para reparar solamente los `id_solicitante` vacíos de una corrida anterior, primero analiza y después ejecuta el reparador **sin** `--redescargar-archivos`:
 
@@ -228,7 +237,12 @@ El modo predeterminado vuelve a consultar SATyS únicamente para completar el me
 - `reparar_id_solicitante.py` es **exclusivamente manual**: no está asociado a ningún timer.
 - El bloqueo del proyecto impide que la corrida diaria, una corrida manual y el reparador modifiquen simultáneamente los mismos archivos.
 
-> Release actual: `2026.08.18-portable-oci-api-v1-8082-internos12`.
+El monitor diario invoca los procesadores de Internos y Oficialía con
+`--sin-email`. Al concluir combina ambos logs y envía exactamente un resumen con
+total, exitosos, fallidos/revisión manual, errores, tipos de expediente,
+resoluciones por Excel/web y las rutas de `output`, `descargas` y los tres Excel.
+
+> Release actual: `2026.08.27-rpc-diario-correo-unico1`.
 > Guía de despliegue nuevo: [`DESPLIEGUE_NUEVO.md`](DESPLIEGUE_NUEVO.md).
 > Trazabilidad del backlog: [`docs/BACKLOG_IMPLEMENTACION.md`](docs/BACKLOG_IMPLEMENTACION.md).
 
@@ -342,6 +356,35 @@ que compare `Folio Internos` y procese únicamente pendientes, usa
 `automatizar_registros_diario.py --solo-internos` o el lanzador
 `run_satys_internos_nuevos`.
 
+La descarga de Internos usa procesos aislados por segmento. Cada worker publica
+un heartbeat al iniciar, paginar y terminar cada Folio. Si deja de avanzar por
+`--timeout-registro` segundos, se termina su árbol completo de procesos
+(incluido Chromium), se conservan los objetivos ya auditados y se reencolan
+únicamente los incompletos. `--reintentos-registro 2` permite tres intentos
+totales, igual que el modo Registro de Oficialía.
+
+### Auditoría única de descargas incompletas
+
+La misma auditoría se usa para cualquier expediente de Internos, Oficialía,
+Trámites Nuevos y los modos por Registro o Folio. Un expediente vuelve a la
+cola de descarga cuando se cumple cualquiera de estas condiciones:
+
+- la carpeta no existe, no es directorio, está vacía o sólo contiene JSON;
+- no existe `metadata_completo.json`, no puede leerse o no contiene un objeto;
+- no hay archivos reales, existe un temporal (`.part`, `.crdownload`, etc.),
+  un archivo real tiene 0 bytes o queda un ZIP pendiente de extracción;
+- `estado` no es `OK`, `coincide` es falso o el recorrido de documentos del
+  portal quedó incompleto;
+- la lista `archivos` está ausente, vacía, dañada o contiene algún `ok=false`;
+- los conteos total, correctos y errores faltan, son inválidos o no coinciden;
+- no todos los archivos quedaron `OK`, falta su nombre o un archivo reportado
+  como correcto ya no existe físicamente.
+
+La auditoría es sólo lectura. El descargador reutiliza la carpeta existente y
+fusiona/sobrescribe únicamente los archivos recuperados; nunca elimina una
+carpeta de expediente bajo `descargas/`. Sólo retira temporales fallidos y un
+ZIP después de haberlo extraído satisfactoriamente.
+
 `--folio-internos FOLIO` fuerza el recorrido completo de un Folio numérico,
 aunque ya exista en Excel, y deshabilita siempre el correo. Después comprueba
 la hoja `Internos` y cada carpeta final declarada bajo `output/`. El modo
@@ -362,12 +405,13 @@ su segundo `VER DOCUMENTO`, captura la pestaña emergente y descarga el archivo.
 | `--solo-procesar`              | Omite la descarga (Parte 1) y procesa solo archivos ya locales                          |
 | `--headless`                   | Oculta el navegador de Playwright                                                       |
 | `--workers N`                  | Ventanas de navegador en paralelo (default: 10)                                         |
-| `--timeout-registro N`         | Timeout duro por registro en segundos (default: 900)                                    |
-| `--reintentos-registro N`      | Reintentos para registros incompletos (default: 2)                                      |
+| `--timeout-registro N`         | Timeout sin avance por registro/Folio Internos en segundos (default: 900)                |
+| `--reintentos-registro N`      | Reintentos para registros u objetivos Internos incompletos (default: 2; 3 intentos)       |
 | `--workers-reintento N`        | Workers usados en los reintentos (default: 2)                                           |
 | `--buscar N` / `--desde X`   | Búsqueda secuencial de`N` folios a partir de `X`                                   |
 | `--no-organizar`               | Actualiza el Excel pero no mueve archivos a`/output/`                                 |
 | `--rebuild-catalogo`           | Reconstruye el catálogo RPC desde cero                                                 |
+| `--rpc-online` / `--sin-rpc-online` | Fuerza u omite el respaldo en el buscador público RPC; la corrida diaria siempre lo fuerza |
 | `--sin-email` / `--email-to` | Omite o redirige la notificación por correo                                            |
 | `--sin-lock`                   | No toma el lock compartido (usado internamente cuando el monitor diario ya lo tomó)    |
 
@@ -420,6 +464,97 @@ rm -f "$SATYS_LOCK_DIR/satys_proceso.lock"
 
 ---
 
+## Resolución segura de operadores RPC
+
+El cruce usa evidencia exacta en este orden:
+
+1. `metadata_satys.id_solicitante == ID OPERADOR` del Excel local del RPC.
+2. Si falta `id_solicitante`, igualdad única entre `nombre_operador` y
+   `NOMBRE OPERADOR`, normalizando acentos, puntuación, espacios y mayúsculas.
+   Para Internos, si el campo está vacío también intenta recuperarlo de la
+   sexta columna tabulada de `texto_fila`.
+3. Cuando el Excel no resuelve el registro (o no se puede abrir), consulta
+   primero la sección actual de resultados `searchConcesiones` del RPC y luego
+   su autocompletado `searchBP`. Acepta igualdad canónica única, la misma razón
+   social con distinto sufijo legal o una similitud muy alta (96% por defecto),
+   siempre con cobertura de palabras y una ventaja mínima de 5 puntos respecto
+   de otro ID.
+
+El catálogo `03_concesiones_permisos_autorizaciones_*.xlsx` local no se
+reemplaza por antigüedad. Sólo se descarga si no existe o si se solicita
+explícitamente con `--rebuild-catalogo`; esto evita que una publicación dañada
+del portal sustituya un archivo local válido.
+
+No se elige el primer resultado ni un nombre individual ambiguo que conduzca a
+varios IDs. Esos casos permanecen en `_sin_operador/(correos)` con motivo, puntuación y
+candidatos para revisión. Cuando SATyS enumera varias razones sociales completas
+en el mismo expediente, cada una se consulta por separado, se conserva el orden
+original y la carpeta incluye cada pareja `ID_nombre`, separada con `__`. Una
+razón sin ID verificable se conserva como `sin_id_nombre` y se señala en el CSV;
+no se inventa ni se hereda el ID de otra empresa. En corridas manuales la
+consulta en línea se puede desactivar con `--sin-rpc-online` o
+`SATYS_RPC_CONSULTA_ONLINE=0`; la corrida diaria siempre fuerza el respaldo web.
+Los umbrales conservadores se ajustan con
+`SATYS_RPC_SIMILITUD_MINIMA` y `SATYS_RPC_MARGEN_MINIMO`.
+
+Para reprocesar exclusivamente folios numéricos de Internos ya descargados:
+
+```powershell
+python main_procesar.py --internos --solo-procesar `
+  --internos-registros numeros_registro.csv --sin-email --sin-sincronizar
+```
+
+Cuando también se proporciona `--internos-objetivos`, el archivo
+`Folios_Datos_Completos_Internos.xlsx` incluye una fila por cada pareja
+`bandeja/folio` solicitada. Los objetivos que agotaron sus intentos aparecen con
+`estado_descarga=FALTANTE`; el archivo se reabre y concilia antes de sustituir
+la versión anterior, evitando publicar un XLSX incompleto o corrupto.
+
+La ruta final es
+`output/<ID>_<nombre_normalizado>/<REGISTRO>/` (o la pareja bandeja/folio en
+Internos). Para varias razones sociales es
+`output/<ID1>_<nombre1>__<ID2>_<nombre2>.../<REGISTRO>/`. La subcarpeta por expediente evita
+que nombres repetidos —por ejemplo `metadata_satys.json`— se sobrescriban entre
+trámites del mismo operador. La copia conserva subcarpetas y fusiona de forma
+idempotente los archivos de una nueva corrida.
+
+Cada ejecución genera en `logs/`:
+
+- `auditoria_operadores_<modo>_<fecha>.csv`, con todas las decisiones;
+- `sin_operador_<modo>_<fecha>.csv`, sólo con pendientes;
+- `sin_operador_<modo>_ultimo.csv`, acceso estable al reporte más reciente.
+
+### Destino único de revisión manual y correos
+
+Después de leer los metadatos y resolver el RPC, cualquier expediente que no
+obtenga un operador seguro y cualquier `folio_opc` cuyo inicio sea `CORREO`
+—por ejemplo `CORREO-271`— se organiza exclusivamente en:
+
+```text
+output/_sin_operador/(correos)/<expediente>/
+```
+
+La regla es común a las tres bandejas: Administración de solicitudes/Internos
+IFT, Administración por Asignación/Trámites Nuevos y Enlace/Oficialía de
+Partes. Al final de la corrida también se migran carpetas heredadas ubicadas
+directamente bajo `_sin_operador`. Antes de retirar una copia anterior, el
+programa fusiona documentos reales, conserva conflictos con sufijo `__legacy`
+y verifica el contenido. Esta migración sólo opera en `output` y nunca borra ni
+modifica expedientes de `descargas`.
+
+### Política de archivos en `output/`
+
+Los archivos `metadata_satys.json`, `metadata_tramite_nuevo.json` y
+`metadata_completo.json` son evidencia interna del proceso y permanecen en
+`descargas/`. La organización por operador, `_sin_operador` y `(correos)` copia
+recursivamente sólo documentos reales no vacíos; omite todos los `.json`,
+temporales y archivos auxiliares. Al iniciar una corrida se retiran también los
+JSON heredados de ejecuciones anteriores. La sincronización con DEPI aplica la
+misma regla a su carpeta `output/`, sin eliminar los JSON operativos de
+`descargas/`.
+
+---
+
 ## 📊 Excel consolidado (`output/Folios_Datos_Completos.xlsx`)
 
 Se genera/actualiza al finalizar cada corrida con una fila por registro/folio, agregando todos los campos disponibles en `metadata_satys.json` y `metadata_tramite_nuevo.json` (folio, registro, asunto, operador, representante legal, tipo de trámite, fechas, etc.), más la ruta relativa donde quedó organizado en `output/` y `descargas/`. Si el archivo ya existe, los registros nuevos se agregan al final sin borrar los anteriores.
@@ -462,8 +597,8 @@ Más detalle operativo (montajes de red, permisos, puertos usados) en [`README_E
 - [X] Panel web (FastAPI) para monitoreo y corridas manuales, en reemplazo de la GUI de escritorio
 - [X] Automatización diaria vía `systemd timer`, con estado vivo en `logs/estado_actual.json`
 - [X] Lock compartido con liberación garantizada en corridas manuales, API y diarias
-- [X] Búsqueda RPC por comparación exacta `id_solicitante == ID OPERADOR`
-- [X] Notificación por correo al finalizar cada corrida
+- [X] Búsqueda RPC por ID exacto, nombre canónico único y respaldo oficial en línea
+- [X] Un único correo consolidado al finalizar la corrida diaria
 - [X] Exportación de Excel consolidado `Folios_Datos_Completos.xlsx`
 
 ### 🔲 Pendiente

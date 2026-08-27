@@ -12,19 +12,8 @@ from pathlib import Path
 from typing import Any, Mapping
 
 SIN_OPERADOR_DIR = os.getenv("SATYS_SIN_OPERADOR_DIR", "_sin_operador").strip() or "_sin_operador"
-SIN_OPERADOR_CORREO_DIR = (
-    os.getenv("SATYS_SIN_OPERADOR_CORREO_DIR", "sin_operador_CORREO").strip()
-    or "sin_operador_CORREO"
-)
-
-
-def _prefijos_correo() -> tuple[str, ...]:
-    raw = os.getenv("SATYS_FOLIO_OPC_CORREO_PREFIXES", "CORREO-2408")
-    prefijos = tuple(p.strip().upper() for p in raw.split(",") if p.strip())
-    return prefijos or ("CORREO-2408",)
-
-
-FOLIO_OPC_CORREO_PREFIXES = _prefijos_correo()
+SIN_OPERADOR_CORREO_DIR = str(Path(SIN_OPERADOR_DIR) / "(correos)")
+FOLIO_OPC_CORREO_PREFIXES = ("CORREO",)
 
 
 def texto_limpio(value: Any) -> str:
@@ -47,7 +36,7 @@ def es_folio_opc_correo(folio_opc: Any) -> bool:
 
 
 def carpeta_sin_operador(folio_opc: Any = "") -> str:
-    """Devuelve la carpeta de revisión manual que corresponde al folio OPC."""
+    """Separa la revisión general de los folios OPC clasificados como CORREO."""
     return SIN_OPERADOR_CORREO_DIR if es_folio_opc_correo(folio_opc) else SIN_OPERADOR_DIR
 
 

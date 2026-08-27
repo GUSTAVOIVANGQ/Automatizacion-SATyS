@@ -407,6 +407,8 @@ class InternosDiarioTest(unittest.TestCase):
 
         monitor_source = (root / "automatizar_registros_diario.py").read_text(encoding="utf-8")
         self.assertIn('cmd_main_internos.append("--sin-sincronizar")', monitor_source)
+        self.assertIn('"--rpc-online"', monitor_source)
+        self.assertGreaterEqual(monitor_source.count('"--sin-email"'), 2)
 
     def test_extractor_solo_internos_no_navega_a_oficialia(self):
         output = self.tmp / "solo_internos.txt"
@@ -616,42 +618,36 @@ class InternosDiarioTest(unittest.TestCase):
         self.assertEqual(meta["tipo_tramite"], "CGPE-01-008")
 
     def test_paraleliza_bandejas_y_conserva_el_orden_del_resumen(self):
-        activas = 0
-        max_activas = 0
-        lock = threading.Lock()
+        captura = {}
 
-        def worker(bandeja, _objetivos):
-            nonlocal activas, max_activas
-            with lock:
-                activas += 1
-                max_activas = max(max_activas, activas)
-            time.sleep(0.03)
-            with lock:
-                activas -= 1
-            return bandeja, [{"folio": bandeja, "ok": True}]
+        def supervisor(tareas, workers_activos, timeout_registro, reintentos):
+            captura["tareas"] = tareas
+            captura["workers"] = workers_activos
+            return [{"folio": bandeja, "ok": True} for _, bandeja, _ in tareas]
 
         bandejas = ["Recibidos", "En proceso", "Atendidos"]
         with patch.object(Parte1_descarga, "_validar_sesion_internos", return_value=True), \
-             patch.object(Parte1_descarga, "_worker_bandeja_internos", side_effect=worker), \
+             patch.object(Parte1_descarga, "_procesar_tareas_internos_subprocesos", side_effect=supervisor), \
              patch.object(Parte1_descarga, "guardar_resumen_global"):
             resultados = Parte1_descarga.descargar_internos_ift(
                 bandejas=bandejas,
                 workers=2,
             )
 
-        self.assertEqual(max_activas, 2)
+        self.assertEqual(captura["workers"], 2)
         self.assertEqual([item["folio"] for item in resultados], bandejas)
 
     def test_reparte_workers_dentro_de_una_misma_bandeja(self):
         llamadas = []
         lock = threading.Lock()
 
-        def worker(bandeja, objetivos):
+        def supervisor(tareas, **_kwargs):
             with lock:
-                llamadas.append((bandeja, list(objetivos)))
-            return bandeja, [
+                llamadas.extend((bandeja, list(folios)) for _, bandeja, folios in tareas)
+            return [
                 {"folio": folio, "ok": True}
-                for folio in objetivos
+                for _, _bandeja, folios in tareas
+                for folio in folios
             ]
 
         objetivos = [
@@ -659,7 +655,7 @@ class InternosDiarioTest(unittest.TestCase):
             for indice in range(12)
         ]
         with patch.object(Parte1_descarga, "_validar_sesion_internos", return_value=True), \
-             patch.object(Parte1_descarga, "_worker_bandeja_internos", side_effect=worker), \
+             patch.object(Parte1_descarga, "_procesar_tareas_internos_subprocesos", side_effect=supervisor), \
              patch.object(Parte1_descarga, "guardar_resumen_global"):
             resultados = Parte1_descarga.descargar_internos_ift(
                 objetivos=objetivos,
@@ -683,14 +679,11 @@ class InternosDiarioTest(unittest.TestCase):
             return bandeja, [{"folio": folio, "ok": True} for folio in objetivos]
 
         objetivos = [{"bandeja": "Atendidos", "folio": "190823"}]
-        with patch.object(Parte1_descarga, "_validar_sesion_internos", return_value=True), \
-             patch.object(Parte1_descarga, "_worker_bandeja_internos", side_effect=worker), \
+        with patch.object(Parte1_descarga, "_worker_bandeja_internos", side_effect=worker), \
              patch.object(Parte1_descarga, "INTERNOS_WORKER_REINTENTOS", 1), \
-             patch.object(Parte1_descarga, "INTERNOS_WORKER_ESPERA", 0), \
-             patch.object(Parte1_descarga, "guardar_resumen_global"):
-            resultados = Parte1_descarga.descargar_internos_ift(
-                objetivos=objetivos,
-                workers=1,
+             patch.object(Parte1_descarga, "INTERNOS_WORKER_ESPERA", 0):
+            _bandeja, resultados = Parte1_descarga._worker_bandeja_internos_con_reintentos(
+                "Atendidos", ["190823"]
             )
 
         self.assertEqual(llamadas, 2)
@@ -698,14 +691,11 @@ class InternosDiarioTest(unittest.TestCase):
 
     def test_segmento_vacio_agotado_se_convierte_en_error(self):
         objetivos = [{"bandeja": "Atendidos", "folio": "190823"}]
-        with patch.object(Parte1_descarga, "_validar_sesion_internos", return_value=True), \
-             patch.object(Parte1_descarga, "_worker_bandeja_internos", return_value=("Atendidos", [])) as worker, \
+        with patch.object(Parte1_descarga, "_worker_bandeja_internos", return_value=("Atendidos", [])) as worker, \
              patch.object(Parte1_descarga, "INTERNOS_WORKER_REINTENTOS", 1), \
-             patch.object(Parte1_descarga, "INTERNOS_WORKER_ESPERA", 0), \
-             patch.object(Parte1_descarga, "guardar_resumen_global"):
-            resultados = Parte1_descarga.descargar_internos_ift(
-                objetivos=objetivos,
-                workers=1,
+             patch.object(Parte1_descarga, "INTERNOS_WORKER_ESPERA", 0):
+            _bandeja, resultados = Parte1_descarga._worker_bandeja_internos_con_reintentos(
+                "Atendidos", ["190823"]
             )
 
         self.assertEqual(worker.call_count, 2)
@@ -715,9 +705,9 @@ class InternosDiarioTest(unittest.TestCase):
     def test_reserva_dos_segmentos_y_asigna_el_resto_segun_carga(self):
         llamadas = []
 
-        def worker(bandeja, objetivos):
-            llamadas.append((bandeja, list(objetivos)))
-            return bandeja, [{"folio": folio, "ok": True} for folio in objetivos]
+        def supervisor(tareas, **_kwargs):
+            llamadas.extend((bandeja, list(folios)) for _, bandeja, folios in tareas)
+            return []
 
         objetivos = [
             {"bandeja": "En proceso", "folio": str(140000 + indice)}
@@ -727,7 +717,7 @@ class InternosDiarioTest(unittest.TestCase):
             for indice in range(19)
         ]
         with patch.object(Parte1_descarga, "_validar_sesion_internos", return_value=True), \
-             patch.object(Parte1_descarga, "_worker_bandeja_internos", side_effect=worker), \
+             patch.object(Parte1_descarga, "_procesar_tareas_internos_subprocesos", side_effect=supervisor), \
              patch.object(Parte1_descarga, "guardar_resumen_global"):
             Parte1_descarga.descargar_internos_ift(
                 objetivos=objetivos,
@@ -742,9 +732,9 @@ class InternosDiarioTest(unittest.TestCase):
     def test_doce_workers_dan_dos_segmentos_a_cada_una_de_seis_bandejas(self):
         llamadas = []
 
-        def worker(bandeja, objetivos):
-            llamadas.append((bandeja, list(objetivos)))
-            return bandeja, [{"folio": folio, "ok": True} for folio in objetivos]
+        def supervisor(tareas, **_kwargs):
+            llamadas.extend((bandeja, list(folios)) for _, bandeja, folios in tareas)
+            return []
 
         objetivos = []
         for indice_bandeja, bandeja in enumerate(Parte1_descarga.BANDEJAS_INTERNOS_DEFAULT):
@@ -754,7 +744,7 @@ class InternosDiarioTest(unittest.TestCase):
             ])
 
         with patch.object(Parte1_descarga, "_validar_sesion_internos", return_value=True), \
-             patch.object(Parte1_descarga, "_worker_bandeja_internos", side_effect=worker), \
+             patch.object(Parte1_descarga, "_procesar_tareas_internos_subprocesos", side_effect=supervisor), \
              patch.object(Parte1_descarga, "guardar_resumen_global"):
             Parte1_descarga.descargar_internos_ift(
                 objetivos=objetivos,
@@ -778,11 +768,17 @@ class InternosDiarioTest(unittest.TestCase):
                 bandejas=["Atendidos"],
                 headless=True,
                 workers=4,
+                timeout_registro=321,
+                reintentos_registro=5,
             )
 
         self.assertEqual(rc, 0)
         indice = argv_capturado.index("--internos-workers")
         self.assertEqual(argv_capturado[indice + 1], "4")
+        indice_timeout = argv_capturado.index("--timeout-registro")
+        self.assertEqual(argv_capturado[indice_timeout + 1], "321")
+        indice_reintentos = argv_capturado.index("--reintentos-registro")
+        self.assertEqual(argv_capturado[indice_reintentos + 1], "5")
 
     def test_reporta_fallo_al_preparar_sesion_sin_crear_workers(self):
         with patch.object(

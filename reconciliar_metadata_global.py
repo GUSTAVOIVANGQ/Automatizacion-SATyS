@@ -3,8 +3,9 @@
 
 Este proceso es deliberadamente independiente de que SATyS tenga registros
 nuevos. Usa ``metadata_satys.json``/``metadata_tramite_nuevo.json`` como fuente
-de verdad, cruza ``id_solicitante`` contra el Excel RPC y sobrescribe los campos
-automáticos —incluida ``Ruta``— conservando columnas manuales del maestro.
+de verdad, resuelve el operador por ID/nombre exacto (con respaldo RPC en línea)
+y sobrescribe los campos automáticos —incluida ``Ruta``— conservando columnas
+manuales del maestro.
 """
 
 from __future__ import annotations
@@ -13,17 +14,25 @@ import argparse
 import json
 import logging
 import re
-import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import buscar_concesionario as bc
-from Parte3_rpc import construir_ruta
+from Parte3_rpc import construir_ruta, construir_ruta_operadores
+from Parte4_excel import (
+    copiar_archivos_publicables_output,
+    organizar_correo_exclusivo,
+)
 from configuracion_local import ruta_configurada
 from generar_excel_metadata_json import generar_excel_metadata_json
 from reconciliar_tramites_desde_folios import reconciliar
-from rutas_salida import destino_sin_operador, es_folio_opc_correo, folio_opc_desde_metadata
+from rutas_salida import (
+    destino_sin_operador,
+    es_folio_opc_correo,
+    folio_opc_desde_metadata,
+    ruta_relativa_sin_operador,
+)
 
 log = logging.getLogger("SATyS-ReconciliacionGlobal")
 logging.basicConfig(
@@ -151,29 +160,32 @@ def catalogo_rpc_mas_reciente(base_rpc: Path) -> Path:
     return archivos[0]
 
 
-def cargar_indice_rpc(base_rpc: Path) -> tuple[dict[str, dict[str, Any]], Path]:
-    excel_rpc = catalogo_rpc_mas_reciente(base_rpc)
-    catalogo = bc.cargar_catalogo_desde_excel(excel_rpc, "copeau", solo_vigentes=False)
-    preparado = bc.preparar_catalogo_para_matching(catalogo)
-    indice = {bc.normalizar_id(item.get("idBp")): item for item in preparado if bc.normalizar_id(item.get("idBp"))}
-    if not indice:
-        raise RuntimeError(f"El Excel RPC {excel_rpc} no produjo un catálogo válido.")
-    return indice, excel_rpc
+def cargar_indice_rpc(base_rpc: Path) -> tuple[dict[str, dict[str, Any]], Path | None]:
+    """Carga el Excel si es válido; el RPC en línea cubre el modo degradado."""
+    try:
+        excel_rpc = catalogo_rpc_mas_reciente(base_rpc)
+        catalogo = bc.cargar_catalogo_desde_excel(excel_rpc, "copeau", solo_vigentes=False)
+        preparado = bc.preparar_catalogo_para_matching(catalogo)
+        indice = {
+            bc.normalizar_id(item.get("idBp")): item
+            for item in preparado
+            if bc.normalizar_id(item.get("idBp"))
+        }
+        if not indice:
+            raise RuntimeError(f"El Excel RPC {excel_rpc} no produjo un catálogo válido.")
+        return indice, excel_rpc
+    except Exception as exc:
+        log.warning(
+            "Catálogo Excel RPC no disponible para reconciliación (%s); "
+            "se usará el RPC en línea por nombre exacto.",
+            exc,
+        )
+        return {}, None
 
 
-def _copiar_correos_existentes(carpeta: Path, destino: Path) -> int:
-    """Migra no destructivamente los CORREO-2408 al nuevo directorio."""
-    copiados = 0
-    destino.mkdir(parents=True, exist_ok=True)
-    for item in carpeta.rglob("*"):
-        if not item.is_file() or item.suffix.lower() == ".json":
-            continue
-        relativo = item.relative_to(carpeta)
-        target = destino / relativo
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(item, target)
-        copiados += 1
-    return copiados
+def _copiar_archivos_existentes(carpeta: Path, destino: Path) -> int:
+    """Copia documentos reales preservando subcarpetas; nunca publica JSON."""
+    return len(copiar_archivos_publicables_output(carpeta, destino))
 
 
 def construir_resultados(
@@ -191,8 +203,10 @@ def construir_resultados(
         "sin_operador": 0,
         "sin_operador_correo": 0,
         "archivos_correo_copiados": 0,
+        "archivos_organizados": 0,
         "metadata_duplicada": duplicados,
     }
+    catalogo = list(indice_rpc.values())
 
     for item in items:
         carpeta: Path = item["carpeta"]
@@ -205,7 +219,18 @@ def construir_resultados(
         id_solicitante = bc.normalizar_id(
             meta_satys.get("id_solicitante") or meta_tn.get("id_solicitante")
         )
-        match = indice_rpc.get(id_solicitante) if id_solicitante else None
+        nombre_satys = (
+            meta_satys.get("nombre_operador")
+            or meta_satys.get("concesionario")
+            or meta_tn.get("nombre_operador")
+            or meta_tn.get("concesionario")
+            or ""
+        )
+        resolucion = bc.resolver_operador_seguro(
+            id_solicitante,
+            nombre_satys,
+            catalogo,
+        )
 
         resultado: dict[str, Any] = {
             "folio": folio,
@@ -214,11 +239,7 @@ def construir_resultados(
             "registro": registro,
             "descargas_dir": str(carpeta),
             "id_solicitante": id_solicitante,
-            "nombre_operador": (
-                meta_satys.get("nombre_operador")
-                or meta_tn.get("nombre_operador")
-                or ""
-            ),
+            "nombre_operador": nombre_satys,
             "representante_legal": (
                 meta_satys.get("representante_legal")
                 or meta_tn.get("representante_legal")
@@ -226,43 +247,121 @@ def construir_resultados(
             ),
         }
 
-        if match:
-            ruta = construir_ruta(match["nombre_completo"], match["idBp"])
+        if es_folio_opc_correo(folio_opc):
+            identificador_correo = str(registro or identificador)
+            ruta_operador = ""
+            if resolucion.get("ok"):
+                if resolucion.get("operadores"):
+                    ruta_operador = construir_ruta_operadores(
+                        resolucion["operadores"],
+                        registro or identificador,
+                    )
+                else:
+                    ruta_operador = construir_ruta(
+                        resolucion["nombre_completo"],
+                        resolucion["idBp"],
+                        registro or identificador,
+                    )
+            resolucion["ruta_operador_rpc"] = ruta_operador
+            resolucion["ruta"] = ruta_relativa_sin_operador(
+                identificador_correo,
+                folio_opc,
+            )
+            destino = destino_sin_operador(
+                output_base,
+                identificador_correo,
+                folio_opc,
+            )
+            organizacion = (
+                organizar_correo_exclusivo(
+                    carpeta,
+                    output_base,
+                    identificador_correo,
+                    ruta_operador=ruta_operador,
+                    identificadores_legacy=(identificador,),
+                )
+                if migrar_correos
+                else {
+                    "destino": destino,
+                    "archivos_copiados": [],
+                    "verificado": False,
+                    "duplicados_retirados": [],
+                    "errores": [],
+                }
+            )
+            resultado.update({
+                "es_correo": True,
+                "identificador_correo": identificador_correo,
+                "rpc_ok": bool(resolucion.get("ok")),
+                "organizado_ok": organizacion["verificado"],
+                "archivos_copiados": len(organizacion["archivos_copiados"]),
+                "nombre_operador": (
+                    resolucion.get("nombre_completo") or nombre_satys
+                ),
+                "rpc_resultado": resolucion,
+                "sin_operador_dir": str(organizacion["destino"]),
+                "output_dir": str(organizacion["destino"]),
+                "duplicados_correo_retirados": organizacion["duplicados_retirados"],
+                "errores_organizacion_correo": organizacion["errores"],
+            })
+            stats["sin_operador_correo"] += 1
+            stats["archivos_correo_copiados"] += len(
+                organizacion["archivos_copiados"]
+            )
+        elif resolucion.get("ok"):
+            if resolucion.get("operadores"):
+                ruta = construir_ruta_operadores(
+                    resolucion["operadores"],
+                    registro or identificador,
+                )
+            else:
+                ruta = construir_ruta(
+                    resolucion["nombre_completo"],
+                    resolucion["idBp"],
+                    registro or identificador,
+                )
             destino = output_base / ruta.replace("\\", "/")
+            copiados = _copiar_archivos_existentes(carpeta, destino)
+            resolucion["ruta"] = ruta
             resultado.update({
                 "rpc_ok": True,
-                "nombre_operador": match["nombre_completo"],
-                "rpc_resultado": {
-                    "ok": True,
-                    "score": 1.0,
-                    "metodo": "id_exacto_reconciliacion_global",
-                    "idBp": match["idBp"],
-                    "numero_rpc": match["idBp"],
-                    "nombre_completo": match["nombre_completo"],
-                    "ruta": ruta,
-                },
+                "organizado_ok": copiados > 0,
+                "archivos_copiados": copiados,
+                "nombre_operador": resolucion["nombre_completo"],
+                "rpc_resultado": resolucion,
                 "output_dir": str(destino),
             })
             stats["rpc_ok"] += 1
+            stats["archivos_organizados"] += copiados
         else:
             destino = destino_sin_operador(output_base, identificador, folio_opc)
+            organizacion = (
+                organizar_correo_exclusivo(
+                    carpeta,
+                    output_base,
+                    identificador,
+                    identificadores_legacy=(registro,),
+                )
+                if migrar_correos
+                else {
+                    "destino": destino,
+                    "archivos_copiados": [],
+                    "verificado": False,
+                    "duplicados_retirados": [],
+                    "errores": [],
+                }
+            )
             resultado.update({
                 "rpc_ok": False,
-                "rpc_resultado": {
-                    "ok": False,
-                    "score": 0.0,
-                    "metodo": "id_exacto_reconciliacion_global",
-                    "id_solicitante": id_solicitante,
-                    "motivo": "id_solicitante_no_encontrado" if id_solicitante else "metadata_sin_id_solicitante",
-                },
-                "sin_operador_dir": str(destino),
-                "output_dir": str(destino),
+                "organizado_ok": organizacion["verificado"],
+                "archivos_copiados": len(organizacion["archivos_copiados"]),
+                "rpc_resultado": resolucion,
+                "sin_operador_dir": str(organizacion["destino"]),
+                "output_dir": str(organizacion["destino"]),
+                "duplicados_revision_retirados": organizacion["duplicados_retirados"],
+                "errores_organizacion_revision": organizacion["errores"],
             })
             stats["sin_operador"] += 1
-            if es_folio_opc_correo(folio_opc):
-                stats["sin_operador_correo"] += 1
-                if migrar_correos:
-                    stats["archivos_correo_copiados"] += _copiar_correos_existentes(carpeta, destino)
 
         resultados.append(resultado)
 
@@ -289,6 +388,14 @@ def ejecutar(
     if not resultados:
         raise RuntimeError(f"No se encontraron metadatos válidos bajo {descargas_base}.")
 
+    from reporte_operadores import generar_reportes_operadores
+
+    reportes_csv = generar_reportes_operadores(
+        resultados,
+        modo="reconciliacion_global",
+        logs_dir=project_root / "logs",
+    )
+
     consolidado = generar_excel_metadata_json(
         resultados=resultados,
         descargas_base=descargas_base,
@@ -305,10 +412,11 @@ def ejecutar(
     return {
         "ok": True,
         "fecha": datetime.now().isoformat(),
-        "excel_rpc": str(excel_rpc),
+        "excel_rpc": str(excel_rpc) if excel_rpc else "",
         "excel_consolidado": str(consolidado),
         "excel_maestro": str(excel_path),
         "estadisticas": stats,
+        "reportes_csv": reportes_csv,
         "reconciliacion": reconciliacion,
     }
 
