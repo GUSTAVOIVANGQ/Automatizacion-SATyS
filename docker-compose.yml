@@ -1,12 +1,12 @@
 name: satys
 
 x-satys-common: &satys-common
-  image: ${SATYS_IMAGE:-satys-api:2026.08.21-portable-oci-api-v1-8082-folio-modal1}
+  image: ${SATYS_IMAGE:-satys-api:2026.08.28-definitiva-cierre-seguro-rpc-publico-manual-correos-remitentes-email-post1}
   build:
     context: .
     args:
       PLAYWRIGHT_VERSION: "1.57.0"
-      SATYS_VERSION: "2026.08.21-portable-oci-api-v1-8082-folio-modal1"
+      SATYS_VERSION: "2026.08.28-definitiva-cierre-seguro-rpc-publico-manual-correos-remitentes-email-post1"
       SATYS_GIT_COMMIT: ${SATYS_GIT_COMMIT:-unknown}
   environment:
     TZ: ${SATYS_TZ:-America/Mexico_City}
@@ -18,6 +18,8 @@ x-satys-common: &satys-common
     SATYS_INTERNOS_WORKER_ESPERA: "${SATYS_INTERNOS_WORKER_ESPERA:-2}"
     SATYS_ZIP_MAX_ITERACIONES: "${SATYS_ZIP_MAX_ITERACIONES:-32}"
     SATYS_ZIP_RUTA_RELATIVA_MAX: "${SATYS_ZIP_RUTA_RELATIVA_MAX:-140}"
+    SATYS_RECONCILIACION_GLOBAL_TIMEOUT: "${SATYS_RECONCILIACION_GLOBAL_TIMEOUT:-1800}"
+    SATYS_SIN_OPERADOR_RPC_PUBLICO_TIMEOUT: "${SATYS_SIN_OPERADOR_RPC_PUBLICO_TIMEOUT:-1800}"
     SATYS_API_ALLOW_MANUAL: "1"
     SATYS_API_ALLOW_REPAIR: "1"
     SATYS_API_ALLOW_START: "0"

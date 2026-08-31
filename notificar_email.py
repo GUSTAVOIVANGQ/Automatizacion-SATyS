@@ -29,11 +29,14 @@ from __future__ import annotations
 import html
 import json
 import mimetypes
+import re
 import smtplib
 from datetime import datetime
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any
+
+import openpyxl
 
 from configuracion_local import carpeta_compartida, configuracion_email
 
@@ -186,6 +189,98 @@ def _adjuntar_archivo(msg: EmailMessage, path: Path) -> bool:
         return False
 
 
+def _ruta_resultado(r: dict[str, Any]) -> str:
+    """Devuelve la mejor Ruta conocida para clasificar el estado final."""
+    rpc = r.get("rpc_resultado") or {}
+    for value in (
+        r.get("ruta"),
+        rpc.get("ruta"),
+        r.get("output_dir"),
+        r.get("sin_operador_dir"),
+    ):
+        text = str(value or "").strip()
+        if text:
+            return text.replace("/", "\\")
+    return ""
+
+
+def _ruta_es_correos(value: Any) -> bool:
+    """True sólo para _sin_operador\\(correos)\\... (también ruta absoluta)."""
+    s = str(value or "").strip().replace("/", "\\").casefold()
+    s = re.sub(r"\\+", r"\\", s)
+    return bool(re.search(r"(?:^|\\)_sin_operador\\\(correos\)(?:\\|$)", s))
+
+
+def _ruta_es_revision(value: Any) -> bool:
+    """True para _sin_operador pendiente, excluyendo expresamente (correos)."""
+    s = str(value or "").strip().replace("/", "\\").casefold()
+    s = re.sub(r"\\+", r"\\", s)
+    if not re.search(r"(?:^|\\)_sin_operador(?:\\|$)", s):
+        return False
+    return not _ruta_es_correos(s)
+
+
+def conteos_revision_desde_excel(excel_path: str | Path) -> dict[str, int]:
+    """Cuenta el estado FINAL directamente desde TrámitesCRT.xlsx.
+
+    ``en_revision`` incluye únicamente filas cuya Ruta permanece bajo
+    ``_sin_operador`` y excluye ``_sin_operador\\(correos)``. Así el correo no
+    reutiliza contadores intermedios de workers ni duplica folios que aparecieron
+    en varias bandejas de Internos.
+    """
+    path = Path(excel_path)
+    salida = {
+        "total_excel": 0,
+        "en_revision": 0,
+        "correos_clasificados": 0,
+        "organizados_excel": 0,
+    }
+    if not path.is_file():
+        return salida
+
+    try:
+        wb = openpyxl.load_workbook(path, read_only=True, data_only=False)
+    except Exception:
+        return salida
+    try:
+        for sheet in ("Turnados recibidos", "Internos"):
+            if sheet not in wb.sheetnames:
+                continue
+            ws = wb[sheet]
+            rows = ws.iter_rows(values_only=True)
+            try:
+                headers = next(rows)
+            except StopIteration:
+                continue
+            header_map = {
+                re.sub(r"\\s+", " ", str(v or "").strip()).casefold(): i
+                for i, v in enumerate(headers)
+                if str(v or "").strip()
+            }
+            idx_ruta = header_map.get("ruta")
+            idx_id = header_map.get("1711")
+            if idx_ruta is None:
+                continue
+            for row in rows:
+                identificador = ""
+                if idx_id is not None and idx_id < len(row):
+                    identificador = str(row[idx_id] or "").strip()
+                ruta = row[idx_ruta] if idx_ruta < len(row) else ""
+                # Una fila real debe tener al menos 1711 o Ruta.
+                if not identificador and not str(ruta or "").strip():
+                    continue
+                salida["total_excel"] += 1
+                if _ruta_es_correos(ruta):
+                    salida["correos_clasificados"] += 1
+                elif _ruta_es_revision(ruta):
+                    salida["en_revision"] += 1
+                else:
+                    salida["organizados_excel"] += 1
+    finally:
+        wb.close()
+    return salida
+
+
 def conteos_desde_resultados(resultados: list[dict[str, Any]]) -> dict[str, int]:
     """Calcula los indicadores esenciales de una corrida consolidada."""
     exitosos = 0
@@ -197,6 +292,9 @@ def conteos_desde_resultados(resultados: list[dict[str, Any]]) -> dict[str, int]
     rpc_online = 0
     for r in resultados or []:
         es_correo = bool(r.get("es_correo"))
+        ruta_final = _ruta_resultado(r)
+        correo_clasificado = _ruta_es_correos(ruta_final)
+        revision_final = _ruta_es_revision(ruta_final)
         if es_correo:
             correos += 1
         if r.get("bandeja_internos") or r.get("_origen_proceso") == "internos":
@@ -215,18 +313,23 @@ def conteos_desde_resultados(resultados: list[dict[str, Any]]) -> dict[str, int]
             rpc_online += 1
 
         ok = bool(
-            not es_correo
-            and r.get("rpc_ok")
-            and r.get("organizado_ok")
-            and r.get("excel_ok")
+            correo_clasificado
+            or (
+                not revision_final
+                and r.get("rpc_ok")
+                and r.get("organizado_ok")
+                and r.get("excel_ok")
+            )
         )
         if ok:
             exitosos += 1
-        elif r.get("_fallido_controlado") or es_correo or (
+        elif revision_final or (
+            r.get("_fallido_controlado")
+            and bool(r.get("output_dir") or r.get("sin_operador_dir"))
+        ) or (
             not r.get("rpc_ok")
-            and (r.get("output_dir") or r.get("sin_operador_dir"))
+            and _ruta_es_revision(r.get("output_dir") or r.get("sin_operador_dir"))
         ):
-            # El expediente quedó resguardado en la carpeta única de revisión.
             sin_operador += 1
         else:
             errores += 1
@@ -245,18 +348,21 @@ def conteos_desde_resultados(resultados: list[dict[str, Any]]) -> dict[str, int]
 
 
 def _estado_texto(r: dict[str, Any]) -> tuple[str, str, str]:
+    ruta_final = _ruta_resultado(r)
+    if _ruta_es_correos(ruta_final):
+        return "Correo clasificado", "#075985", "#e0f2fe"
     if (
-        not r.get("es_correo")
+        not _ruta_es_revision(ruta_final)
         and r.get("rpc_ok")
         and r.get("organizado_ok")
         and r.get("excel_ok")
     ):
         return "Éxito", "#166534", "#dcfce7"
-    if r.get("_fallido_controlado") or r.get("es_correo") or (
-        not r.get("rpc_ok")
-        and (r.get("output_dir") or r.get("sin_operador_dir"))
+    if _ruta_es_revision(ruta_final) or (
+        r.get("_fallido_controlado")
+        and bool(r.get("output_dir") or r.get("sin_operador_dir"))
     ):
-        return "Revisión manual", "#92400e", "#fef3c7"
+        return "En revisión", "#92400e", "#fef3c7"
     return "Error", "#991b1b", "#fee2e2"
 
 
@@ -295,7 +401,7 @@ def _motivo_revision(r: dict[str, Any]) -> str:
 
 
 def _tabla_resultados_html(resultados: list[dict[str, Any]], max_mostrar: int = 25) -> str:
-    pendientes = [r for r in resultados or [] if _estado_texto(r)[0] != "Éxito"]
+    pendientes = [r for r in resultados or [] if _estado_texto(r)[0] in {"En revisión", "Error"}]
     if not pendientes:
         return "<tr><td colspan='4' style='padding:12px;color:#64748b;text-align:center;'>Sin pendientes de revisión.</td></tr>"
 
@@ -372,6 +478,7 @@ def construir_html(fecha_ejecucion: str,
     correos = int(conteos.get("correos", 0) or 0)
     rpc_excel = int(conteos.get("rpc_excel", 0) or 0)
     rpc_online = int(conteos.get("rpc_online", 0) or 0)
+    correos_clasificados = int(conteos.get("correos_clasificados_excel", 0) or 0)
     pct = lambda n: round((n / total) * 100) if total else 0
 
     fecha_fmt = fecha_ejecucion
@@ -412,7 +519,7 @@ def construir_html(fecha_ejecucion: str,
                 <div style="font-size:30px;font-weight:800;color:#16a34a;">{exitosos:,}</div><div style="font-size:12px;color:#15803d;font-weight:700;">EXITOSOS ({pct(exitosos)}%)</div>
               </td>
               <td style="background:#fffbeb;border:1px solid #fde68a;border-radius:14px;padding:18px;text-align:center;">
-                <div style="font-size:30px;font-weight:800;color:#d97706;">{sin_operador:,}</div><div style="font-size:12px;color:#92400e;font-weight:700;">FALLIDOS / REVISIÓN ({pct(sin_operador)}%)</div>
+                <div style="font-size:30px;font-weight:800;color:#d97706;">{sin_operador:,}</div><div style="font-size:12px;color:#92400e;font-weight:700;">EN REVISIÓN ({pct(sin_operador)}%)</div>
               </td>
               <td style="background:#fef2f2;border:1px solid #fecaca;border-radius:14px;padding:18px;text-align:center;">
                 <div style="font-size:30px;font-weight:800;color:#dc2626;">{errores:,}</div><div style="font-size:12px;color:#991b1b;font-weight:700;">ERRORES ({pct(errores)}%)</div>
@@ -421,7 +528,8 @@ def construir_html(fecha_ejecucion: str,
           </table>
           <div style="margin:4px 10px 0;background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;color:#334155;font-size:13px;">
             <b>Tipos:</b> Internos {internos:,} &nbsp;|&nbsp; Oficialía/otros {oficialia_otros:,} &nbsp;|&nbsp; Folio OPC CORREO {correos:,}<br>
-            <b>Operadores resueltos:</b> Excel RPC {rpc_excel:,} &nbsp;|&nbsp; buscador web RPC {rpc_online:,}
+            <b>Operadores resueltos:</b> Excel RPC {rpc_excel:,} &nbsp;|&nbsp; buscador web RPC {rpc_online:,}<br>
+            <b>Correos clasificados fuera de revisión:</b> {correos_clasificados:,}
           </div>
         </td></tr>
         <tr><td style="padding:8px 40px 22px;">
@@ -466,10 +574,11 @@ def construir_texto(fecha_ejecucion: str,
         "",
         f"Total: {conteos.get('total', 0)}",
         f"Exitosos: {conteos.get('exitosos', 0)}",
-        f"Fallidos / revisión manual: {conteos.get('sin_operador', 0)}",
+        f"En revisión: {conteos.get('sin_operador', 0)}",
         f"Errores: {conteos.get('errores', 0)}",
         f"Tipos: Internos={conteos.get('internos', 0)}, Oficialía/otros={conteos.get('oficialia_otros', 0)}, CORREO={conteos.get('correos', 0)}",
         f"Operadores resueltos: Excel RPC={conteos.get('rpc_excel', 0)}, buscador web RPC={conteos.get('rpc_online', 0)}",
+        f"Correos clasificados fuera de revisión: {conteos.get('correos_clasificados_excel', 0)}",
         "",
         "Salidas principales:",
     ]
@@ -478,7 +587,7 @@ def construir_texto(fecha_ejecucion: str,
     if log_path:
         lines.extend(["", f"Log: {log_path}"])
     lines.extend(["", "Pendientes que requieren atención:"])
-    pendientes = [r for r in (resultados or []) if _estado_texto(r)[0] != "Éxito"]
+    pendientes = [r for r in (resultados or []) if _estado_texto(r)[0] in {"En revisión", "Error"}]
     if not pendientes:
         lines.append("- Ninguno")
     for r in pendientes[:25]:
@@ -516,7 +625,8 @@ def enviar_notificacion(total_registros: int | None = None,
                         excel_path: str | Path = "TrámitesCRT.xlsx",
                         excel_metadata_path: str | Path | None = None,
                         carpeta_compartida: str | Path | None = None,
-                        habilitado: bool | None = None) -> bool:
+                        habilitado: bool | None = None,
+                        usar_conteo_revision_excel: bool = False) -> bool:
     """Envía correo de notificación final.
 
     Mantiene compatibilidad con llamadas antiguas y nuevas de main_procesar.py.
@@ -551,6 +661,25 @@ def enviar_notificacion(total_registros: int | None = None,
     })
     if conteos["total"] == 0 and registros:
         conteos["total"] = len(registros)
+
+    if usar_conteo_revision_excel:
+        final_excel = conteos_revision_desde_excel(excel_path)
+        if final_excel.get("total_excel", 0):
+            conteos["sin_operador"] = int(final_excel["en_revision"])
+            conteos["revision_manual"] = int(final_excel["en_revision"])
+            conteos["correos_clasificados_excel"] = int(final_excel["correos_clasificados"])
+            # Si no hay resultados de worker (por ejemplo postproceso manual),
+            # el Excel final es también la fuente del total. En una corrida
+            # diaria se conserva el total de resultados, pero el bloque verde
+            # se recalcula como complemento para que las tarjetas sumen 100%.
+            if conteos["total"] == 0:
+                conteos["total"] = int(final_excel["total_excel"])
+            conteos["exitosos"] = max(
+                0,
+                int(conteos["total"]) - int(conteos["errores"]) - int(conteos["sin_operador"]),
+            )
+        else:
+            conteos["correos_clasificados_excel"] = 0
 
     fecha_ejecucion = fecha_ejecucion or datetime.now().isoformat()
     project_root = Path(project_root or Path.cwd())

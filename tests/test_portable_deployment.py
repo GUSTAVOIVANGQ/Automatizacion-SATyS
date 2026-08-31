@@ -85,6 +85,9 @@ print("OK")
         self.assertIn('scripts/satys.sh internos', text)
         self.assertIn('api-run)', podman)
         self.assertIn('podman run --rm --name satys-api', podman)
+        self.assertIn('sin-operador-rpc)', podman)
+        self.assertIn('resolver_sin_operador_rpc_publico.py', podman)
+        self.assertIn('SATYS_SIN_OPERADOR_RPC_PUBLICO_TIMEOUT', podman)
 
 
 if __name__ == "__main__":

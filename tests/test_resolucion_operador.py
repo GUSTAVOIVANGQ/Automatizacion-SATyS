@@ -185,9 +185,9 @@ class ResolucionOperadorTests(unittest.TestCase):
         self.assertEqual(resultado["score"], 0.775)
         self.assertEqual(resultado["margen"], 1.25)
 
-    def test_ruta_usa_operador_y_subcarpeta_por_registro(self):
+    def test_ruta_usa_operador_y_jerarquia_documental_unica(self):
         ruta = construir_ruta("ADOLFO MÉRINO MEDINA", "100028", "CRT25-001350")
-        self.assertEqual(ruta, r"100028_adolfo_merino_medina\CRT25-001350")
+        self.assertEqual(ruta, r"100028_adolfo_merino_medina\01 EN\VE")
 
     def test_varias_razones_sociales_conservan_todos_los_ids_en_orden(self):
         nombres = (
@@ -258,7 +258,7 @@ class ResolucionOperadorTests(unittest.TestCase):
             "107347_grupo_at_t_celullar_s_de_r_l_de_c_v__"
             "107348_at_t_comercializacion_movil_s_de_r_l_de_c_v__"
             "521333_at_t_conecta_de_mexico_s_de_r_l_de_c_v\\"
-            "INTERNOS_EN_PROCESO_108444",
+            "01 EN\\VE",
         )
 
     def test_razon_sin_id_se_conserva_sin_heredar_otro_operador(self):
@@ -294,7 +294,7 @@ class ResolucionOperadorTests(unittest.TestCase):
         self.assertEqual(resultado["operadores"][1]["idBp"], "")
         self.assertEqual(resultado["razones_sin_id"], ["OPERADOR DESCONOCIDO"])
         self.assertIn(
-            "__sin_id_operador_desconocido\\INTERNO_1",
+            "__sin_id_operador_desconocido\\01 EN\\VE",
             construir_ruta_operadores(resultado["operadores"], "INTERNO_1"),
         )
 
@@ -364,7 +364,8 @@ class ResolucionOperadorTests(unittest.TestCase):
                 (
                     output
                     / "521142_cti_call_s_a_de_c_v"
-                    / "CRT25-001350"
+                    / "01 EN"
+                    / "VE"
                     / "metadata_satys.json"
                 ).exists()
             )
@@ -372,12 +373,13 @@ class ResolucionOperadorTests(unittest.TestCase):
                 (
                     output
                     / "521142_cti_call_s_a_de_c_v"
-                    / "CRT25-001350"
+                    / "01 EN"
+                    / "VE"
                     / "documento.pdf"
                 ).exists()
             )
 
-    def test_organizacion_excluye_json_y_evitar_colisiones_entre_registros(self):
+    def test_organizacion_fusiona_sin_sufijos_y_descarga_vigente_gana(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             salida = root / "output"
@@ -389,25 +391,64 @@ class ResolucionOperadorTests(unittest.TestCase):
             (registro_b / "metadata_satys.json").write_text('{"registro":"B"}', encoding="utf-8")
             (registro_a / "documento_a.pdf").write_bytes(b"A")
             (registro_b / "documento_b.pdf").write_bytes(b"B")
-            destino_a = salida / "100_operador_demo" / "CRT25-000001"
-            destino_a.mkdir(parents=True)
-            (destino_a / "metadata_completo.json").write_text("{}", encoding="utf-8")
+            (registro_a / "archivo.txt").write_bytes(b"version-A")
+            (registro_b / "archivo.txt").write_bytes(b"version-B")
+            anexos = registro_a / "anexos"
+            anexos.mkdir()
+            (anexos / "anexo.pdf").write_bytes(b"anexo")
+
+            operador = salida / "100_operador_demo"
+            destino = operador / "01 EN" / "VE"
+            destino.mkdir(parents=True)
+            (destino / "archivo.txt").write_bytes(b"anterior!")
+            (destino / "metadata_completo.json").write_text("{}", encoding="utf-8")
+
+            legacy_registro = operador / "CRT25-000000"
+            legacy_registro.mkdir()
+            (legacy_registro / "archivo_legacy.pdf").write_bytes(b"legacy")
+            (legacy_registro / "metadata_satys.json").write_text("{}", encoding="utf-8")
+
+            duplicado_2 = salida / "100_operador_demo_2" / "01 EN" / "VE"
+            duplicado_2.mkdir(parents=True)
+            (duplicado_2 / "archivo_dos.pdf").write_bytes(b"dos")
+            duplicado_3 = salida / "100_operador_demo_3" / "CRT25-000003"
+            duplicado_3.mkdir(parents=True)
+            (duplicado_3 / "archivo_tres.pdf").write_bytes(b"tres")
 
             with patch.object(Parte4_excel, "OUTPUT_BASE", salida):
+                resumen = Parte4_excel.consolidar_todas_carpetas_operadores(salida)
                 Parte4_excel.organizar_archivos(
                     registro_a,
-                    r"100_operador_demo\CRT25-000001",
+                    r"100_operador_demo\01 EN\VE",
+                )
+                Parte4_excel.organizar_archivos(
+                    registro_a,
+                    r"100_operador_demo\01 EN\VE",
                 )
                 Parte4_excel.organizar_archivos(
                     registro_b,
-                    r"100_operador_demo\CRT25-000002",
+                    r"100_operador_demo\01 EN\VE",
                 )
 
-            self.assertTrue((destino_a / "documento_a.pdf").exists())
-            self.assertTrue(
-                (salida / "100_operador_demo" / "CRT25-000002" / "documento_b.pdf").exists()
-            )
+            self.assertEqual(resumen["errores"], [])
+            self.assertEqual(resumen["operadores"], 1)
+            self.assertEqual(resumen["estructuras_retiradas"], 3)
+            self.assertEqual((destino / "archivo.txt").read_bytes(), b"version-B")
+            self.assertTrue((destino / "documento_a.pdf").exists())
+            self.assertTrue((destino / "documento_b.pdf").exists())
+            self.assertTrue((destino / "anexos" / "anexo.pdf").exists())
+            self.assertTrue((destino / "archivo_legacy.pdf").exists())
+            self.assertTrue((destino / "archivo_dos.pdf").exists())
+            self.assertTrue((destino / "archivo_tres.pdf").exists())
+            self.assertEqual([p.name for p in operador.iterdir()], ["01 EN"])
+            self.assertFalse((salida / "100_operador_demo_2").exists())
+            self.assertFalse((salida / "100_operador_demo_3").exists())
+            self.assertEqual(list(destino.glob("archivo_*.txt")), [])
             self.assertEqual(list(salida.rglob("*.json")), [])
+            self.assertEqual((registro_a / "archivo.txt").read_bytes(), b"version-A")
+            self.assertEqual((registro_b / "archivo.txt").read_bytes(), b"version-B")
+            self.assertTrue((registro_a / "metadata_satys.json").exists())
+            self.assertTrue((registro_b / "metadata_satys.json").exists())
 
     def test_reporte_csv_incluye_motivo_de_sin_operador(self):
         with tempfile.TemporaryDirectory() as td:

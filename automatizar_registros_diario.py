@@ -25,10 +25,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import queue
 import re
 import subprocess
 import sys
 import signal
+import threading
 import time
 import traceback
 from datetime import datetime
@@ -71,6 +73,8 @@ PYTHON_EXE_DEFAULT = Path(os.getenv("SATYS_PYTHON", sys.executable))
 EXTRAER_SCRIPT_DEFAULT = PROJECT_DIR / "extraer_registros_documentos.py"
 MAIN_SCRIPT_DEFAULT = PROJECT_DIR / "main_procesar.py"
 RECONCILIAR_SCRIPT_DEFAULT = PROJECT_DIR / "reconciliar_metadata_global.py"
+COMPLETAR_REMITENTES_PDF_SCRIPT_DEFAULT = PROJECT_DIR / "completar_remitentes_desde_pdfs.py"
+SIN_OPERADOR_RPC_PUBLICO_SCRIPT_DEFAULT = PROJECT_DIR / "resolver_sin_operador_rpc_publico.py"
 EXCEL_DEFAULT = ruta_configurada("excel", "TrámitesCRT.xlsx")
 REGISTROS_LATEST_DEFAULT = PROJECT_DIR / "registros.txt"
 INTERNOS_LATEST_DEFAULT = PROJECT_DIR / "folios_internos_nuevos.json"
@@ -93,6 +97,18 @@ INTENTOS_PAGINA_EXTRACCION_DEFAULT = 3
 # los reintentos por Registro de main_procesar.py.
 REINTENTOS_EXTRACCION_DEFAULT = max(0, int(PROCESAMIENTO_CFG.get("reintentos_extraccion", 2)))
 ESPERA_REINTENTO_EXTRACCION_DEFAULT = 0
+REMITENTES_PDF_TIMEOUT_DEFAULT = max(
+    300,
+    int(os.getenv("SATYS_REMITENTES_PDF_TIMEOUT", "1800")),
+)
+RECONCILIACION_GLOBAL_TIMEOUT_DEFAULT = max(
+    300,
+    int(os.getenv("SATYS_RECONCILIACION_GLOBAL_TIMEOUT", "1800")),
+)
+SIN_OPERADOR_RPC_PUBLICO_TIMEOUT_DEFAULT = max(
+    300,
+    int(os.getenv("SATYS_SIN_OPERADOR_RPC_PUBLICO_TIMEOUT", "1800")),
+)
 
 
 def normalizar_registro(valor: object) -> str:
@@ -540,6 +556,7 @@ def ejecutar_comando(
     titulo: str,
     estado: EstadoEjecucion | None = None,
     etapa: str = "",
+    timeout_segundos: int | None = None,
 ) -> int:
     """Ejecuta un comando mostrando/guardando salida y actualizando estado vivo."""
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -569,7 +586,9 @@ def ejecutar_comando(
 
         assert proc.stdout is not None
         ultima_actualizacion_estado = 0.0
-        for line in proc.stdout:
+
+        def registrar_linea(line: str) -> None:
+            nonlocal ultima_actualizacion_estado
             print(line, end="")
             log_file.write(line)
             log_file.flush()
@@ -577,7 +596,79 @@ def ejecutar_comando(
                 estado.actualizar(stage=etapa or titulo, ultima_linea=line.strip()[:500])
                 ultima_actualizacion_estado = time.time()
 
-        rc = proc.wait()
+        if timeout_segundos is None or timeout_segundos <= 0:
+            for line in proc.stdout:
+                registrar_linea(line)
+            rc = proc.wait()
+        else:
+            # Leer stdout en un hilo evita que un subproceso silencioso bloquee
+            # indefinidamente este monitor y, con ello, el correo y el cierre.
+            cola: queue.Queue[str | None] = queue.Queue()
+
+            def lector_stdout() -> None:
+                try:
+                    for line in proc.stdout:
+                        cola.put(line)
+                finally:
+                    cola.put(None)
+
+            hilo = threading.Thread(target=lector_stdout, daemon=True)
+            hilo.start()
+            inicio = time.monotonic()
+            fin_stdout = False
+            timeout_alcanzado = False
+
+            while not fin_stdout:
+                transcurrido = time.monotonic() - inicio
+                if transcurrido >= timeout_segundos:
+                    timeout_alcanzado = True
+                    mensaje_timeout = (
+                        f"\n[TIMEOUT] {titulo}: excedió {timeout_segundos}s; "
+                        "se terminará sólo este subproceso y el monitor continuará.\n"
+                    )
+                    print(mensaje_timeout, end="")
+                    log_file.write(mensaje_timeout)
+                    log_file.flush()
+                    if estado is not None:
+                        estado.actualizar(
+                            stage=f"{etapa or titulo}: timeout",
+                            ultima_linea=mensaje_timeout.strip()[:500],
+                        )
+                    try:
+                        proc.terminate()
+                    except ProcessLookupError:
+                        pass
+                    try:
+                        proc.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        try:
+                            proc.kill()
+                        except ProcessLookupError:
+                            pass
+                        proc.wait()
+                    break
+
+                try:
+                    item = cola.get(timeout=min(1.0, max(0.1, timeout_segundos - transcurrido)))
+                except queue.Empty:
+                    if proc.poll() is not None and not hilo.is_alive():
+                        break
+                    continue
+                if item is None:
+                    fin_stdout = True
+                else:
+                    registrar_linea(item)
+
+            if timeout_alcanzado:
+                rc = 124
+            else:
+                rc = proc.wait()
+
+        try:
+            proc.stdout.close()
+        except Exception:
+            pass
+
         if estado is not None:
             estado.actualizar(stage=f"{etapa or titulo}: terminado", return_code=rc)
         log_file.write(f"\n[{titulo}] return_code={rc}\n")
@@ -1053,6 +1144,14 @@ def enviar_resumen_email_diario(
     descargas_base = ruta_configurada("descargas", "descargas")
     output_base = ruta_configurada("output", "output")
     conteos = _email_mod.conteos_desde_resultados(resultados)
+    conteos_excel = _email_mod.conteos_revision_desde_excel(excel_path)
+    if conteos_excel.get("total_excel", 0):
+        conteos["sin_operador"] = int(conteos_excel["en_revision"])
+        conteos["revision_manual"] = int(conteos_excel["en_revision"])
+        conteos["correos_clasificados_excel"] = int(conteos_excel["correos_clasificados"])
+        if conteos["total"] == 0:
+            conteos["total"] = int(conteos_excel["total_excel"])
+        conteos["exitosos"] = max(0, conteos["total"] - conteos["errores"] - conteos["sin_operador"])
     if error_general:
         conteos["errores"] = max(1, conteos["errores"])
         conteos["total"] = max(1, conteos["total"])
@@ -1081,26 +1180,139 @@ def enviar_resumen_email_diario(
             excel_path=excel_path,
             excel_metadata_path=output_base / "Folios_Datos_Completos.xlsx",
             carpeta_compartida=carpeta_compartida(),
+            usar_conteo_revision_excel=True,
         ))
     except Exception as exc:
         print(f"⚠️  Error no crítico al construir/enviar el correo diario: {exc}")
         return False
 
 
-def consolidar_revision_manual_final() -> dict:
-    """Aplica al final de la corrida la ruta única de todos los sin_operador."""
-    from Parte4_excel import consolidar_sin_operador_legacy
+def cargar_reparaciones_sin_operador_rpc_publico(path: Path) -> dict:
+    try:
+        if not path.is_file():
+            return {}
+        value = json.loads(path.read_text(encoding="utf-8-sig", errors="replace"))
+        return value if isinstance(value, dict) else {}
+    except Exception as exc:
+        print(f"⚠️  No se pudo leer resumen de reparación RPC público: {exc}")
+        return {}
 
-    resumen = consolidar_sin_operador_legacy(ruta_configurada("output", "output"))
-    if resumen["errores"]:
-        for error in resumen["errores"]:
-            print(f"⚠️  Consolidación final sin_operador: {error}")
-    else:
-        print(
-            "✅ Revisión manual consolidada en _sin_operador/(correos): "
-            f"{resumen['carpetas_migradas']} carpeta(s) heredada(s) migrada(s)."
+
+def aplicar_reparaciones_a_resultados_email(
+    resultados: list[dict],
+    reparacion: dict,
+) -> list[dict]:
+    """Refleja en el correo final tanto RPC resuelto como clasificación correo."""
+    cambios = {
+        str(item.get("identificador") or "").strip().upper(): item
+        for item in reparacion.get("resultados", [])
+        if isinstance(item, dict)
+        and (
+            str(item.get("estado") or "").startswith(("reparado", "organizado_local"))
+            or str(item.get("estado") or "") in {
+                "clasificado_correo_memorandum",
+                "correo_memorandum_ya_clasificado",
+            }
         )
-    return resumen
+        and str(item.get("identificador") or "").strip()
+    }
+    if not cambios:
+        return list(resultados)
+
+    salida: list[dict] = []
+    for original in resultados:
+        item = dict(original)
+        claves = {
+            str(item.get(campo) or "").strip().upper()
+            for campo in ("registro", "folio", "folio_id", "folio_tabla_internos", "folio_internos")
+            if str(item.get(campo) or "").strip()
+        }
+        match = next((cambios[k] for k in claves if k in cambios), None)
+        if match:
+            estado = str(match.get("estado") or "")
+            ruta_nueva = str(match.get("ruta_nueva") or item.get("ruta") or "")
+            item["ruta"] = ruta_nueva
+            if ruta_nueva:
+                item["output_dir"] = str(Path("output") / Path(*[p for p in re.split(r"[\\/]+", ruta_nueva) if p]))
+            if estado in {"clasificado_correo_memorandum", "correo_memorandum_ya_clasificado"}:
+                item["es_correo"] = True
+                item["organizado_ok"] = True
+                item["excel_ok"] = True
+                item["_clasificado_correo_final"] = True
+            else:
+                item["rpc_ok"] = True
+                item["organizado_ok"] = True
+                item["excel_ok"] = True
+                item["nombre_operador"] = match.get("nombre_rpc", item.get("nombre_operador", ""))
+                item["rpc_resultado"] = {
+                    "ok": True,
+                    "idBp": match.get("id_operador", ""),
+                    "nombre_completo": match.get("nombre_rpc", ""),
+                    "fuente": match.get("fuente_rpc", "rpc_publico_final"),
+                    "metodo": match.get("metodo_rpc", "rpc_publico_final"),
+                    "ruta": ruta_nueva,
+                }
+                item["_reparado_rpc_publico_final"] = True
+        salida.append(item)
+    return salida
+
+
+def ejecutar_completar_remitentes_pdf(
+    *,
+    python_exe: Path,
+    script: Path,
+    excel: Path,
+    log_path: Path,
+    estado: EstadoEjecucion,
+    timeout_segundos: int = REMITENTES_PDF_TIMEOUT_DEFAULT,
+) -> int:
+    """Completa campos de remitente desde todos los PDF antes de reconciliar."""
+    cmd = [
+        str(python_exe),
+        str(script),
+        "--excel", str(excel),
+        "--descargas", str(ruta_configurada("descargas", "descargas")),
+        "--logs-dir", str(LOG_DIR_DEFAULT),
+    ]
+    return ejecutar_comando(
+        cmd,
+        PROJECT_DIR,
+        log_path,
+        "4) COMPLETAR SOLICITANTE/REPRESENTANTE DESDE PDF",
+        estado=estado,
+        etapa="completando_remitentes_pdf",
+        timeout_segundos=timeout_segundos,
+    )
+
+
+def ejecutar_reparacion_sin_operador_rpc_publico(
+    *,
+    python_exe: Path,
+    script: Path,
+    excel: Path,
+    log_path: Path,
+    estado: EstadoEjecucion,
+    timeout_segundos: int = SIN_OPERADOR_RPC_PUBLICO_TIMEOUT_DEFAULT,
+) -> int:
+    """Última reparación de _sin_operador; usa exclusivamente el RPC público."""
+    cmd = [
+        str(python_exe),
+        str(script),
+        "--excel", str(excel),
+        "--descargas", str(ruta_configurada("descargas", "descargas")),
+        "--output", str(ruta_configurada("output", "output")),
+        "--shared", str(carpeta_compartida()),
+        "--logs-dir", str(LOG_DIR_DEFAULT),
+    ]
+    return ejecutar_comando(
+        cmd,
+        PROJECT_DIR,
+        log_path,
+        "6) REPARAR _SIN_OPERADOR CON BUSCADOR PÚBLICO RPC",
+        estado=estado,
+        etapa="reparando_sin_operador_rpc_publico",
+        timeout_segundos=timeout_segundos,
+    )
 
 
 def ejecutar_reconciliacion_global(
@@ -1111,6 +1323,7 @@ def ejecutar_reconciliacion_global(
     log_path: Path,
     estado: EstadoEjecucion,
     sin_backup: bool = False,
+    timeout_segundos: int = RECONCILIACION_GLOBAL_TIMEOUT_DEFAULT,
 ) -> int:
     """Reconcilia siempre el Excel maestro desde todos los metadata JSON."""
     cmd = [
@@ -1118,6 +1331,7 @@ def ejecutar_reconciliacion_global(
         str(script),
         "--excel", str(excel),
         "--resumen-json", str(LOG_DIR_DEFAULT / "reconciliacion_global_ultimo.json"),
+        "--sin-reorganizar-output",
     ]
     if sin_backup:
         cmd.append("--sin-backup")
@@ -1125,9 +1339,10 @@ def ejecutar_reconciliacion_global(
         cmd,
         PROJECT_DIR,
         log_path,
-        "4) RECONCILIAR TRÁMITESCRT DESDE TODOS LOS METADATA",
+        "5) RECONCILIAR TRÁMITESCRT DESDE TODOS LOS METADATA",
         estado=estado,
         etapa="reconciliando_excel_global",
+        timeout_segundos=timeout_segundos,
     )
 
 def construir_parser() -> argparse.ArgumentParser:
@@ -1140,10 +1355,62 @@ def construir_parser() -> argparse.ArgumentParser:
                         help="Ruta a extraer_registros_documentos.py.")
     parser.add_argument("--main-script", type=Path, default=MAIN_SCRIPT_DEFAULT,
                         help="Ruta a main_procesar.py.")
+    parser.add_argument(
+        "--completar-remitentes-pdf-script",
+        type=Path,
+        default=COMPLETAR_REMITENTES_PDF_SCRIPT_DEFAULT,
+        help="Ruta a completar_remitentes_desde_pdfs.py.",
+    )
+    parser.add_argument(
+        "--sin-completar-remitentes-pdf",
+        action="store_true",
+        help="Desactiva sólo la corrección previa de Solicitante/Representante desde PDFs.",
+    )
+    parser.add_argument(
+        "--timeout-remitentes-pdf",
+        type=int,
+        default=REMITENTES_PDF_TIMEOUT_DEFAULT,
+        help=(
+            "Timeout duro de la corrección desde PDFs. Si se excede, la etapa "
+            "termina con código 124 y la reconciliación/correo continúan. "
+            f"Default: {REMITENTES_PDF_TIMEOUT_DEFAULT}."
+        ),
+    )
     parser.add_argument("--reconciliar-script", type=Path, default=RECONCILIAR_SCRIPT_DEFAULT,
                         help="Ruta a reconciliar_metadata_global.py.")
+    parser.add_argument(
+        "--sin-operador-rpc-publico-script",
+        type=Path,
+        default=SIN_OPERADOR_RPC_PUBLICO_SCRIPT_DEFAULT,
+        help="Ruta a resolver_sin_operador_rpc_publico.py.",
+    )
+    parser.add_argument(
+        "--sin-reparacion-sin-operador-rpc-publico",
+        action="store_true",
+        help="Desactiva sólo la reparación final de Rutas _sin_operador con el RPC público.",
+    )
+    parser.add_argument(
+        "--timeout-sin-operador-rpc-publico",
+        type=int,
+        default=SIN_OPERADOR_RPC_PUBLICO_TIMEOUT_DEFAULT,
+        help=(
+            "Timeout duro de la reparación final RPC público. Si se excede, "
+            "la etapa termina con código 124 y el correo/cierre continúan. "
+            f"Default: {SIN_OPERADOR_RPC_PUBLICO_TIMEOUT_DEFAULT}."
+        ),
+    )
     parser.add_argument("--sin-reconciliacion-global", action="store_true",
                         help="Desactiva la reconciliación completa de TrámitesCRT.xlsx; solo diagnóstico.")
+    parser.add_argument(
+        "--timeout-reconciliacion-global",
+        type=int,
+        default=RECONCILIACION_GLOBAL_TIMEOUT_DEFAULT,
+        help=(
+            "Timeout duro de la reconciliación global en segundos. Si se excede, "
+            "la etapa termina con código 124 y el monitor continúa al correo/cierre. "
+            f"Default: {RECONCILIACION_GLOBAL_TIMEOUT_DEFAULT}."
+        ),
+    )
     parser.add_argument("--solo-internos", action="store_true",
                         help="Omite Oficialia; inventaria las seis bandejas de Internos y procesa solo Folios nuevos.")
     parser.add_argument("--folio-internos", default="", metavar="FOLIO",
@@ -1597,13 +1864,8 @@ def main() -> int:
                     log_path=log_path,
                     estado=estado,
                 )
-            consolidacion_revision = consolidar_revision_manual_final()
-            resumen["consolidacion_sin_operador"] = consolidacion_revision
-            rc_consolidacion = 4 if consolidacion_revision["errores"] else 0
-            rc_sin_pendientes = rc_reconciliacion or rc_consolidacion
             resumen["return_code_reconciliacion_global"] = rc_reconciliacion
-            resumen["return_code_consolidacion_sin_operador"] = rc_consolidacion
-            resumen["ok"] = rc_sin_pendientes == 0
+            resumen["ok"] = rc_reconciliacion == 0
             if args.solo_internos:
                 base_mensaje = "No hay descargas pendientes de Internos."
                 mensaje_notificacion = (
@@ -1633,12 +1895,11 @@ def main() -> int:
                 habilitado=not args.sin_notificacion,
             )
             estado.finalizar(
-                ok=rc_sin_pendientes == 0,
+                ok=rc_reconciliacion == 0,
                 mensaje=resumen["mensaje"],
                 total_registros_satys=len(registros_satys),
                 total_nuevos=0,
                 return_code_reconciliacion_global=rc_reconciliacion,
-                return_code_consolidacion_sin_operador=rc_consolidacion,
             )
             if args.sin_email:
                 print("\nℹ️  Correo diario deshabilitado por --sin-email.")
@@ -1649,10 +1910,10 @@ def main() -> int:
                     log_path=log_path,
                     excel_path=args.excel,
                     modo="CORRIDA DIARIA — SIN PENDIENTES",
-                    error_general=resumen["mensaje"] if rc_sin_pendientes else "",
+                    error_general=resumen["mensaje"] if rc_reconciliacion else "",
                 )
             sincronizar_estado_diario_depi()
-            return rc_sin_pendientes
+            return rc_reconciliacion
 
         # 4) Ejecutar main_procesar.py por Registro.
         if args.no_procesar:
@@ -1817,6 +2078,21 @@ def main() -> int:
             ))
         resumen["return_code_main"] = rc_main
 
+        # El Excel más reciente se corrige ANTES de la reconciliación global.
+        # Sólo rellena Solicitante Promovente / Representante Legal vacíos o
+        # SIN REMITENTE, buscando en todos los PDF del expediente original.
+        rc_remitentes_pdf = 0
+        if not args.solo_internos and not args.sin_completar_remitentes_pdf:
+            rc_remitentes_pdf = ejecutar_completar_remitentes_pdf(
+                python_exe=args.python_exe,
+                script=args.completar_remitentes_pdf_script,
+                excel=args.excel,
+                log_path=log_path,
+                estado=estado,
+                timeout_segundos=args.timeout_remitentes_pdf,
+            )
+        resumen["return_code_completar_remitentes_pdf"] = rc_remitentes_pdf
+
         rc_reconciliacion = 0
         if reconciliacion_habilitada:
             rc_reconciliacion = ejecutar_reconciliacion_global(
@@ -1826,13 +2102,10 @@ def main() -> int:
                 log_path=log_path,
                 estado=estado,
                 sin_backup=(rc_main == 0 and rc_main_internos == 0),
+                timeout_segundos=args.timeout_reconciliacion_global,
             )
         resumen["return_code_reconciliacion_global"] = rc_reconciliacion
-        consolidacion_revision = consolidar_revision_manual_final()
-        resumen["consolidacion_sin_operador"] = consolidacion_revision
-        rc_consolidacion = 4 if consolidacion_revision["errores"] else 0
-        resumen["return_code_consolidacion_sin_operador"] = rc_consolidacion
-        rc_final = rc_main or rc_main_internos or rc_reconciliacion or rc_consolidacion
+        rc_final = rc_main or rc_main_internos or rc_remitentes_pdf or rc_reconciliacion
 
         fallidos_latest = PROJECT_DIR / "registros_fallidos" / "registros_fallidos_latest.txt"
         fallidos = []
@@ -1852,6 +2125,41 @@ def main() -> int:
                 [item["folio"] for item in objetivos_internos],
                 origen="internos",
             )
+
+        # Única etapa adicional previa al correo: vuelve a intentar únicamente
+        # las filas cuya Ruta sigue en _sin_operador. Primero usa nombre_operador
+        # de metadata_satys.json contra el buscador público RPC (nunca el Excel
+        # oficial); después clasifica en _sin_operador/(correos) los pendientes
+        # cuya fuente descargas contiene MEMORANDUM.pdf. Todo cambio se replica a
+        # DEPI antes del correo y un timeout nunca bloquea el cierre.
+        rc_reparacion_sin_operador = 0
+        resumen_reparacion_sin_operador = {}
+        if not args.solo_internos and not args.sin_reparacion_sin_operador_rpc_publico:
+            rc_reparacion_sin_operador = ejecutar_reparacion_sin_operador_rpc_publico(
+                python_exe=args.python_exe,
+                script=args.sin_operador_rpc_publico_script,
+                excel=args.excel,
+                log_path=log_path,
+                estado=estado,
+                timeout_segundos=args.timeout_sin_operador_rpc_publico,
+            )
+            resumen_reparacion_sin_operador = cargar_reparaciones_sin_operador_rpc_publico(
+                LOG_DIR_DEFAULT / "reparacion_sin_operador_rpc_publico_ultimo.json"
+            )
+            resultados_email = aplicar_reparaciones_a_resultados_email(
+                resultados_email,
+                resumen_reparacion_sin_operador,
+            )
+        resumen["return_code_reparacion_sin_operador_rpc_publico"] = rc_reparacion_sin_operador
+        resumen["reparacion_sin_operador_rpc_publico"] = {
+            "total_sin_operador_excel": resumen_reparacion_sin_operador.get("total_sin_operador_excel", 0),
+            "total_reparados": resumen_reparacion_sin_operador.get("total_reparados", 0),
+            "total_pendientes": resumen_reparacion_sin_operador.get("total_pendientes", 0),
+            "total_memorandum_detectados": resumen_reparacion_sin_operador.get("total_memorandum_detectados", 0),
+            "total_correos_confirmados": resumen_reparacion_sin_operador.get("total_correos_confirmados", 0),
+            "cambios_excel_correos": resumen_reparacion_sin_operador.get("cambios_excel_correos", 0),
+        }
+
         conteos_email = (
             _email_mod.conteos_desde_resultados(resultados_email)
             if _EMAIL_DISPONIBLE
@@ -1870,7 +2178,11 @@ def main() -> int:
                 f"Procesados {len(nuevos)} registro(s) de Oficialia y "
                 f"{len(objetivos_internos)} folio(s) de Internos. "
                 f"Codigos main: Oficialia={rc_main}, Internos={rc_main_internos}. "
-                f"Reconciliación global: {rc_reconciliacion}. Fallidos controlados: {len(fallidos)}."
+                f"Remitentes PDF: {rc_remitentes_pdf}. Reconciliación global: {rc_reconciliacion}. "
+                f"Reparación _sin_operador RPC público: {rc_reparacion_sin_operador} "
+                f"({resumen_reparacion_sin_operador.get('total_reparados', 0)} reparado(s); "
+                f"{resumen_reparacion_sin_operador.get('total_correos_confirmados', 0)} en (correos)). "
+                f"Fallidos controlados: {len(fallidos)}."
             )
 
         detalle_final = (
@@ -1908,7 +2220,6 @@ def main() -> int:
             return_code_main=rc_main,
             return_code_main_internos=rc_main_internos,
             return_code_reconciliacion_global=rc_reconciliacion,
-            return_code_consolidacion_sin_operador=rc_consolidacion,
         )
         # ─────────────────────────────────────────────────────────────────────
         if args.folio_internos:

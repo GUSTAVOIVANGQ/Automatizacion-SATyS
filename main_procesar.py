@@ -90,6 +90,7 @@ from Parte4_excel import (
     arbol_publicable_copiado_completo,
     copiar_archivos_publicables_output,
     copiar_archivo_robusto,
+    consolidar_todas_carpetas_operadores,
     eliminar_arbol_robusto,
     organizar_archivos,
     organizar_correo_exclusivo,
@@ -573,8 +574,16 @@ def descubrir_carpetas_de_folio(folio: str) -> list[tuple[Path, str]]:
     return carpetas
 
 
-def limpiar_revision_manual_resuelta(revision: Path, destino: Path) -> bool:
-    """Fusiona y retira una copia vieja de ``sin_operador`` ya resuelta."""
+def limpiar_revision_manual_resuelta(
+    revision: Path,
+    destino: Path,
+    carpeta_descarga: Path | None = None,
+) -> bool:
+    """Fusiona y retira una copia vieja de ``sin_operador`` ya resuelta.
+
+    Si existe una colisión de nombre, la fuente vigente de ``descargas`` se
+    vuelve a copiar al final. La rutina nunca mueve ni elimina esa fuente.
+    """
     if not revision.exists() or not revision.is_dir():
         return False
 
@@ -594,6 +603,14 @@ def limpiar_revision_manual_resuelta(revision: Path, destino: Path) -> bool:
         if not arbol_publicable_copiado_completo(objetivo, destino):
             log.warning("⚠️  No se retiró %s: la verificación de copia falló.", objetivo)
             return False
+        if carpeta_descarga is not None:
+            copiar_archivos_publicables_output(carpeta_descarga, destino)
+            if not arbol_publicable_copiado_completo(carpeta_descarga, destino):
+                log.warning(
+                    "⚠️  No se retiró %s: falló la verificación final contra descargas.",
+                    objetivo,
+                )
+                return False
         eliminar_arbol_robusto(objetivo)
         log.info("🧹 Revisión manual resuelta y retirada: %s", objetivo)
         return True
@@ -990,6 +1007,7 @@ def procesar_folio(
                 carpeta,
                 OUTPUT_BASE,
                 identificador_revision,
+                folio_opc=folio_opc,
                 ruta_operador=ruta_operador_rpc,
                 identificadores_legacy=(folio_id, identificador_archivos),
             )
@@ -1026,15 +1044,17 @@ def procesar_folio(
                 resultado["revision_manual_limpiada"] = limpiar_revision_manual_resuelta(
                     destino_revision_manual,
                     destino,
+                    carpeta,
                 )
         else:
-            # Toda coincidencia no resuelta usa el mismo destino exclusivo que
-            # los folios CORREO. La rutina fusiona copias antiguas y sólo retira
-            # duplicados después de verificar los documentos contra descargas/.
+            # Una coincidencia no resuelta permanece directamente en
+            # output/_sin_operador. La rutina fusiona copias antiguas y sólo
+            # retira duplicados después de verificar contra descargas/.
             organizacion_revision = organizar_correo_exclusivo(
                 carpeta,
                 OUTPUT_BASE,
                 identificador_revision,
+                folio_opc=folio_opc,
                 identificadores_legacy=(folio_id, identificador_archivos),
             )
             sin_op_dir = organizacion_revision["destino"]
@@ -1432,6 +1452,17 @@ Ejemplos:
                 "🧹 Se retiraron %d JSON heredado(s) de output; los metadatos permanecen en descargas.",
                 len(json_output_eliminados),
             )
+        if ORGANIZAR_DESCARGAS:
+            consolidacion_operadores = consolidar_todas_carpetas_operadores(OUTPUT_BASE)
+            if consolidacion_operadores["estructuras_retiradas"]:
+                log.info(
+                    "🧹 Organización inicial: %d estructura(s) heredada(s) fusionada(s) "
+                    "en %d operador(es) bajo 01 EN/VE.",
+                    consolidacion_operadores["estructuras_retiradas"],
+                    consolidacion_operadores["operadores"],
+                )
+            for error_consolidacion in consolidacion_operadores["errores"]:
+                log.warning("⚠️  No se pudo consolidar una salida de operador: %s", error_consolidacion)
 
         # Banner
         print("\n" + "╔" + "═" * 68 + "╗")

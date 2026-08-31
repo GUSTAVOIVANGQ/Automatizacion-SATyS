@@ -19,7 +19,8 @@ Automatización del flujo completo de **descarga, procesamiento y organización*
 - Extrae metadatos del trámite directamente de la web (sin OCR).
 - Descarga en paralelo todos los archivos asociados a cada registro/folio, con reintentos automáticos.
 - Consulta el RPC primero por el Excel oficial (`id_solicitante == ID OPERADOR` o nombre canónico único) y, si no resuelve, usa el buscador público actual del RPC.
-- Actualiza `TrámitesCRT.xlsx` y organiza los archivos descargados en `/output/<operador>/`.
+- Actualiza `TrámitesCRT.xlsx` y organiza los archivos descargados en
+  `/output/<operador>/01 EN/VE/`.
 - Genera un Excel consolidado (`output/Folios_Datos_Completos.xlsx`) con todos los campos extraídos.
 - Conserva los JSON de control exclusivamente en `descargas/`; las carpetas de
   expedientes bajo `output/` contienen sólo los archivos reales descargados.
@@ -55,7 +56,7 @@ Automatización del flujo completo de **descarga, procesamiento y organización*
 │                                                                       │
 │  PARTE 4 — EXCEL Y CARPETAS                                         │
 │  ├── Inserción de resultados en TrámitesCRT.xlsx                    │
-│  └── Copia final a output/<operador>/ o _sin_operador/(correos)/ │
+│  └── Copia a output/<operador>/01 EN/VE o _sin_operador/    │
 │                                                                       │
 │  EXPORTACIÓN FINAL                                                   │
 │  ├── Genera/actualiza output/Folios_Datos_Completos.xlsx            │
@@ -155,9 +156,9 @@ Automatizacion-SATyS/
 │
 ├── descargas/<registro>/             # Carpeta de tránsito (archivos recién descargados)
 ├── output/                           # Destino final organizado por operador
-│   ├── <id>_<nombre_operador>/
-│   ├── _sin_operador/
-│   │   └── (correos)/                 # Todo sin operador y folio_opc CORREO
+│   ├── <id>_<nombre_operador>/01 EN/VE/
+│   ├── _sin_operador/                 # Sin coincidencia RPC → revisión manual
+│   │   └── (correos)/                 # Sólo folio_opc que empieza con CORREO
 │   └── Folios_Datos_Completos.xlsx   # Excel consolidado
 ├── registros_diarios/                # Copias históricas de los TXT de registros detectados
 ├── base_de_datos_rpc/                # Catálogo de Concesiones RPC descargado
@@ -242,7 +243,7 @@ El monitor diario invoca los procesadores de Internos y Oficialía con
 total, exitosos, fallidos/revisión manual, errores, tipos de expediente,
 resoluciones por Excel/web y las rutas de `output`, `descargas` y los tres Excel.
 
-> Release actual: `2026.08.27-rpc-diario-correo-unico1`.
+> Release actual: `2026.08.27-definitiva-organizacion-ve1`.
 > Guía de despliegue nuevo: [`DESPLIEGUE_NUEVO.md`](DESPLIEGUE_NUEVO.md).
 > Trazabilidad del backlog: [`docs/BACKLOG_IMPLEMENTACION.md`](docs/BACKLOG_IMPLEMENTACION.md).
 
@@ -486,7 +487,7 @@ explícitamente con `--rebuild-catalogo`; esto evita que una publicación dañad
 del portal sustituya un archivo local válido.
 
 No se elige el primer resultado ni un nombre individual ambiguo que conduzca a
-varios IDs. Esos casos permanecen en `_sin_operador/(correos)` con motivo, puntuación y
+varios IDs. Esos casos permanecen en `_sin_operador` con motivo, puntuación y
 candidatos para revisión. Cuando SATyS enumera varias razones sociales completas
 en el mismo expediente, cada una se consulta por separado, se conserva el orden
 original y la carpeta incluye cada pareja `ID_nombre`, separada con `__`. Una
@@ -510,13 +511,19 @@ Cuando también se proporciona `--internos-objetivos`, el archivo
 `estado_descarga=FALTANTE`; el archivo se reabre y concilia antes de sustituir
 la versión anterior, evitando publicar un XLSX incompleto o corrupto.
 
-La ruta final es
-`output/<ID>_<nombre_normalizado>/<REGISTRO>/` (o la pareja bandeja/folio en
-Internos). Para varias razones sociales es
-`output/<ID1>_<nombre1>__<ID2>_<nombre2>.../<REGISTRO>/`. La subcarpeta por expediente evita
-que nombres repetidos —por ejemplo `metadata_satys.json`— se sobrescriban entre
-trámites del mismo operador. La copia conserva subcarpetas y fusiona de forma
-idempotente los archivos de una nueva corrida.
+La ruta final de todo expediente con concesionario resuelto es
+`output/<ID>_<nombre_normalizado>/01 EN/VE/`. Para varias razones sociales es
+`output/<ID1>_<nombre1>__<ID2>_<nombre2>.../01 EN/VE/`. Todos los documentos del
+mismo concesionario se fusionan ahí de forma idempotente y las subcarpetas que
+existan dentro de la descarga se conservan debajo de `VE`. Si el mismo nombre
+ya existe, el archivo de la descarga que se está procesando reemplaza esa misma
+ruta; nunca se generan copias `archivo_1` ni carpetas de operador `_2` o `_3`.
+
+Al iniciar el procesamiento, las antiguas carpetas por Registro y las variantes
+numéricas del mismo operador se fusionan en la carpeta canónica. Cada archivo se
+comprueba byte a byte antes de retirar la estructura duplicada. Esta migración
+opera exclusivamente dentro de `output`; los archivos y JSON de `descargas`
+permanecen intactos.
 
 Cada ejecución genera en `logs/`:
 
@@ -524,11 +531,16 @@ Cada ejecución genera en `logs/`:
 - `sin_operador_<modo>_<fecha>.csv`, sólo con pendientes;
 - `sin_operador_<modo>_ultimo.csv`, acceso estable al reporte más reciente.
 
-### Destino único de revisión manual y correos
+### Separación entre revisión manual y correos
 
-Después de leer los metadatos y resolver el RPC, cualquier expediente que no
-obtenga un operador seguro y cualquier `folio_opc` cuyo inicio sea `CORREO`
-—por ejemplo `CORREO-271`— se organiza exclusivamente en:
+Los expedientes que no obtienen un operador seguro permanecen directamente en:
+
+```text
+output/_sin_operador/<expediente>/
+```
+
+Sólo un `folio_opc` cuyo inicio sea `CORREO` —por ejemplo `CORREO-271`— tiene
+prioridad sobre la carpeta general y se organiza en:
 
 ```text
 output/_sin_operador/(correos)/<expediente>/
@@ -536,11 +548,10 @@ output/_sin_operador/(correos)/<expediente>/
 
 La regla es común a las tres bandejas: Administración de solicitudes/Internos
 IFT, Administración por Asignación/Trámites Nuevos y Enlace/Oficialía de
-Partes. Al final de la corrida también se migran carpetas heredadas ubicadas
-directamente bajo `_sin_operador`. Antes de retirar una copia anterior, el
-programa fusiona documentos reales, conserva conflictos con sufijo `__legacy`
-y verifica el contenido. Esta migración sólo opera en `output` y nunca borra ni
-modifica expedientes de `descargas`.
+Partes. No existe una migración final que mezcle los pendientes generales con
+los correos. Al reprocesar un expediente, cualquier copia mal clasificada se
+fusiona y verifica antes de retirarse. Esta operación sólo afecta `output` y
+nunca borra ni modifica expedientes de `descargas`.
 
 ### Política de archivos en `output/`
 

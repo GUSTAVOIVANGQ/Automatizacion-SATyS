@@ -1,6 +1,6 @@
 param(
     [Parameter(Position=0)]
-    [ValidateSet('bootstrap','doctor','build','api-up','api-down','status','logs','smoke','daily','internos','internos-check','folio','test','help')]
+    [ValidateSet('bootstrap','doctor','build','api-up','api-down','status','logs','smoke','daily','internos','internos-check','folio','postproceso-final','sin-operador-rpc','test','help')]
     [string]$Command = 'help',
 
     [Parameter(Position=1)]
@@ -35,7 +35,7 @@ if ($Command -eq 'doctor') {
 }
 
 if ($Command -eq 'help') {
-    Write-Host 'Uso: .\scripts\satys.ps1 bootstrap|doctor|build|api-up|api-down|status|logs|smoke|daily|internos|internos-check|folio NUMERO|test'
+    Write-Host 'Uso: .\scripts\satys.ps1 bootstrap|doctor|build|api-up|api-down|status|logs|smoke|daily|internos|internos-check|folio NUMERO|postproceso-final|sin-operador-rpc|test'
     exit 0
 }
 
@@ -54,5 +54,7 @@ switch ($Command) {
         if ($Folio -notmatch '^\d{1,15}$') { throw 'Uso: .\scripts\satys.ps1 folio NUMERO' }
         docker compose run --rm --entrypoint python satys-worker automatizar_registros_diario.py --folio-internos $Folio --sin-email --headless
     }
+    'postproceso-final' { docker compose run --rm --entrypoint python satys-worker postprocesar_final.py }
+    'sin-operador-rpc' { docker compose run --rm --entrypoint python satys-worker resolver_sin_operador_rpc_publico.py }
     'test'     { docker compose run --rm --entrypoint python satys-worker -m unittest discover tests }
 }

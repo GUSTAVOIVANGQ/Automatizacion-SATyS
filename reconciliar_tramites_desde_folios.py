@@ -33,6 +33,13 @@ def _texto(value: Any) -> str:
     return str(value or "").strip()
 
 
+def _valor_remitente_faltante(value: Any) -> bool:
+    """Vacío/SIN REMITENTE se consideran pendientes; un valor válido se preserva."""
+    text = _texto(value).upper()
+    text = re.sub(r"\s+", " ", text).strip()
+    return text in {"", "SIN REMITENTE"}
+
+
 def _registro(value: Any) -> str:
     text = _texto(value).upper()
     return text if REGISTRO_RE.fullmatch(text) else ""
@@ -57,10 +64,34 @@ def _ruta_desde_output(value: Any) -> str:
 
 
 def _headers(ws) -> dict[str, int]:
+    """Obtiene encabezados sin recorrer dimensiones fantasma del libro.
+
+    Algunos archivos ``TrámitesCRT.xlsx`` conservan formato en una celda muy
+    lejana. OpenPyXL refleja esa celda en ``max_row``/``max_column`` aunque no
+    contenga datos, y recorrer toda esa dimensión puede convertir una
+    reconciliación de segundos en horas. Para hojas normales usamos las celdas
+    materializadas; para hojas ``read_only`` usamos únicamente la primera fila.
+    """
+    cells = getattr(ws, "_cells", None)
+    if isinstance(cells, dict):
+        encabezados = {}
+        for (row, col), cell in cells.items():
+            if row != 1:
+                continue
+            text = _texto(cell.value)
+            if text:
+                encabezados[text] = col
+        if encabezados:
+            return encabezados
+
+    primera_fila = next(
+        ws.iter_rows(min_row=1, max_row=1, values_only=True),
+        (),
+    )
     return {
-        _texto(ws.cell(1, col).value): col
-        for col in range(1, ws.max_column + 1)
-        if _texto(ws.cell(1, col).value)
+        _texto(value): col
+        for col, value in enumerate(primera_fila, start=1)
+        if _texto(value)
     }
 
 
@@ -95,6 +126,7 @@ def reconciliar(
 ) -> dict[str, Any]:
     tramites_path = Path(tramites_path)
     folios_path = Path(folios_path)
+    print(f"[RECON-EXCEL] Iniciando: maestro={tramites_path} fuente={folios_path}")
     if not tramites_path.exists():
         raise FileNotFoundError(f"No existe el Excel maestro: {tramites_path}")
     if not folios_path.exists():
@@ -127,8 +159,16 @@ def reconciliar(
     source_rows: list[dict[str, Any]] = []
     source_seen: set[str] = set()
     source_duplicates: list[str] = []
-    for row_num in range(2, ws_f.max_row + 1):
-        item = _row_dict(ws_f, row_num, headers_f)
+    max_source_col = max(headers_f.values(), default=0)
+    for row_values in ws_f.iter_rows(
+        min_row=2,
+        max_col=max_source_col or None,
+        values_only=True,
+    ):
+        item = {
+            name: row_values[col - 1] if col <= len(row_values) else None
+            for name, col in headers_f.items()
+        }
         registro = _registro(item.get("registro") or item.get("metadata_satys.registro"))
         if not registro:
             continue
@@ -139,6 +179,7 @@ def reconciliar(
         item["registro"] = registro
         source_rows.append(item)
     wb_f.close()
+    print(f"[RECON-EXCEL] Fuente consolidada: {len(source_rows)} registro(s) CRT único(s)")
 
     # Indexar filas existentes por Registro. Las duplicadas se consolidan usando
     # la primera; sus valores manuales se combinan cuando la primera está vacía.
@@ -146,9 +187,21 @@ def reconciliar(
     target_duplicates: list[str] = []
     manual_rows: list[list[Any]] = []
     phantom_removed = 0
-    max_col = ws_t.max_column
+    # Sólo las columnas con encabezado forman parte del maestro. Evita usar
+    # ws.max_column, que puede quedar inflado por formato residual lejano.
+    max_col = max(headers_t.values())
 
-    for row_num in range(2, ws_t.max_row + 1):
+    cells_t = getattr(ws_t, "_cells", {})
+    if isinstance(cells_t, dict):
+        filas_con_datos = sorted({
+            row
+            for (row, col), cell in cells_t.items()
+            if row >= 2 and col <= max_col and cell.value not in (None, "")
+        })
+    else:
+        filas_con_datos = list(range(2, ws_t.max_row + 1))
+
+    for row_num in filas_con_datos:
         values = [ws_t.cell(row_num, col).value for col in range(1, max_col + 1)]
         registro = _registro(values[headers_t["1711"] - 1])
         if registro:
@@ -164,6 +217,12 @@ def reconciliar(
             phantom_removed += 1
         elif any(value not in (None, "") for value in values):
             manual_rows.append(values)
+
+    print(
+        f"[RECON-EXCEL] Maestro real: {len(filas_con_datos)} fila(s) con datos, "
+        f"{max_col} columna(s) con encabezado; dimensión declarada por Excel: "
+        f"{ws_t.max_row}x{ws_t.max_column}"
+    )
 
     output_rows: list[list[Any]] = []
     appended = 0
@@ -207,26 +266,31 @@ def reconciliar(
 
         setv("1711", registro)
         setv("Memo/Volante", _primero(item, "folio", "metadata_satys.folio", "metadata_tramite_nuevo.folio"))
-        setv(
-            "Solicitante Promovente",
-            _primero(
-                item,
-                "metadata_satys.solicitante",
-                "metadata_tramite_nuevo.solicitante",
-                "nombre_operador",
-                "metadata_satys.nombre_operador",
-                "metadata_tramite_nuevo.nombre_operador",
-            ),
+        # Estos dos campos pueden haber sido reparados minutos antes desde los
+        # PDF originales de descargas. La reconciliación global NO debe borrar
+        # ni reemplazar un valor válido ya presente en el maestro. Sólo rellena
+        # cuando el Excel sigue vacío/SIN REMITENTE y la fuente trae valor válido.
+        col_sol = headers_t.get("Solicitante Promovente")
+        sol_fuente = _primero(
+            item,
+            "metadata_satys.solicitante",
+            "metadata_tramite_nuevo.solicitante",
+            "nombre_operador",
+            "metadata_satys.nombre_operador",
+            "metadata_tramite_nuevo.nombre_operador",
         )
-        setv(
-            "Representante Legal",
-            _primero(
-                item,
-                "representante_legal",
-                "metadata_satys.representante_legal",
-                "metadata_tramite_nuevo.representante_legal",
-            ),
+        if col_sol and _valor_remitente_faltante(values[col_sol - 1]) and not _valor_remitente_faltante(sol_fuente):
+            setv("Solicitante Promovente", sol_fuente)
+
+        col_rep = headers_t.get("Representante Legal")
+        rep_fuente = _primero(
+            item,
+            "representante_legal",
+            "metadata_satys.representante_legal",
+            "metadata_tramite_nuevo.representante_legal",
         )
+        if col_rep and _valor_remitente_faltante(values[col_rep - 1]) and not _valor_remitente_faltante(rep_fuente):
+            setv("Representante Legal", rep_fuente)
         setv("Asunto", asunto)
         setv("Tipo Trámite", tipo)
         setv("Fecha de creación", fecha)
@@ -250,14 +314,20 @@ def reconciliar(
     output_rows.extend(existing_by_record[key] for key in target_only)
     output_rows.extend(manual_rows)
 
-    old_max_row = ws_t.max_row
+    old_data_rows = list(filas_con_datos)
     for r_offset, values in enumerate(output_rows, start=2):
         for col, value in enumerate(values, start=1):
             ws_t.cell(r_offset, col).value = value
 
     new_last = len(output_rows) + 1
-    if old_max_row > new_last:
-        ws_t.delete_rows(new_last + 1, old_max_row - new_last)
+    # No usar delete_rows() contra ws.max_row: un solo formato fantasma en la
+    # fila 1,048,576 hace que OpenPyXL intente desplazar cientos de miles de
+    # filas. Se limpian únicamente filas que realmente contenían datos.
+    for row_num in old_data_rows:
+        if row_num <= new_last:
+            continue
+        for col in range(1, max_col + 1):
+            ws_t.cell(row_num, col).value = None
 
     # Guardado atómico y respaldo antes de sustituir el maestro.
     backup_path = None
@@ -267,9 +337,11 @@ def reconciliar(
         shutil.copy2(tramites_path, backup_path)
 
     temp_path = tramites_path.with_name(f".{tramites_path.name}.tmp")
+    print(f"[RECON-EXCEL] Guardando {len(output_rows)} fila(s) en temporal atómico...")
     wb_t.save(temp_path)
     wb_t.close()
     reemplazar_desde_temporal(temp_path, tramites_path)
+    print("[RECON-EXCEL] Reconciliación terminada y maestro sustituido correctamente.")
 
     valid_final = len(source_rows) + len(target_only)
     routes_blank = sum(1 for item in source_rows if not _ruta_desde_output(item.get("output")))
@@ -284,6 +356,8 @@ def reconciliar(
         "target_duplicates": sorted(set(target_duplicates)),
         "valid_final": valid_final,
         "routes_blank": routes_blank,
+        "target_rows_scanned": len(old_data_rows),
+        "target_columns_scanned": max_col,
         "backup": str(backup_path) if backup_path else "",
         "output": str(tramites_path),
     }

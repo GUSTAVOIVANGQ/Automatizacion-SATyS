@@ -8,7 +8,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import main_procesar
-from Parte4_excel import consolidar_sin_operador_legacy
 from reconciliar_metadata_global import construir_resultados
 from rutas_salida import (
     carpeta_sin_operador,
@@ -31,42 +30,12 @@ class RutasSalidaTests(unittest.TestCase):
             r"_sin_operador\(correos)\CRT26-000001",
         )
 
-    def test_todo_sin_operador_va_a_subcarpeta_unica_de_revision(self):
-        self.assertEqual(
-            carpeta_sin_operador("VE-185606"),
-            str(Path("_sin_operador") / "(correos)"),
-        )
+    def test_sin_operador_general_permanece_en_raiz_separada(self):
+        self.assertEqual(carpeta_sin_operador("VE-185606"), "_sin_operador")
         self.assertEqual(
             ruta_relativa_sin_operador("CRT26-009999", "VE-185606"),
-            r"_sin_operador\(correos)\CRT26-009999",
+            r"_sin_operador\CRT26-009999",
         )
-
-    def test_consolidacion_final_migra_legacy_sin_tocar_descargas(self):
-        with tempfile.TemporaryDirectory() as td:
-            root = Path(td)
-            output = root / "output"
-            descargas = root / "descargas" / "CRT26-000010"
-            legacy = output / "_sin_operador" / "CRT26-000010"
-            destino = output / "_sin_operador" / "(correos)" / "CRT26-000010"
-            descargas.mkdir(parents=True)
-            legacy.mkdir(parents=True)
-            destino.mkdir(parents=True)
-            (descargas / "metadata_satys.json").write_text("{}", encoding="utf-8")
-            (descargas / "original.pdf").write_bytes(b"descarga-intacta")
-            (legacy / "documento.pdf").write_bytes(b"version-legacy")
-            (legacy / "metadata_satys.json").write_text("{}", encoding="utf-8")
-            (destino / "documento.pdf").write_bytes(b"version-actual")
-
-            resumen = consolidar_sin_operador_legacy(output)
-
-            self.assertEqual(resumen["errores"], [])
-            self.assertEqual(resumen["carpetas_migradas"], 1)
-            self.assertFalse(legacy.exists())
-            self.assertEqual((destino / "documento.pdf").read_bytes(), b"version-actual")
-            self.assertEqual((destino / "documento__legacy.pdf").read_bytes(), b"version-legacy")
-            self.assertEqual(list(destino.rglob("*.json")), [])
-            self.assertEqual((descargas / "original.pdf").read_bytes(), b"descarga-intacta")
-            self.assertTrue((descargas / "metadata_satys.json").exists())
 
     def test_reconciliacion_calcula_ruta_por_id_y_migra_correo(self):
         with tempfile.TemporaryDirectory() as td:
@@ -147,6 +116,11 @@ class RutasSalidaTests(unittest.TestCase):
                 "norm": "operador demo",
                 "compact": "operadordemo",
             }]
+            carpeta_compartida_operador = output / "123_operador_demo" / "01 EN" / "VE"
+            carpeta_compartida_operador.mkdir(parents=True)
+            (carpeta_compartida_operador / "otro_expediente.pdf").write_bytes(
+                b"no pertenece al correo"
+            )
 
             with (
                 patch.object(main_procesar, "OUTPUT_BASE", output),
@@ -196,6 +170,11 @@ class RutasSalidaTests(unittest.TestCase):
                         (output / "123_operador_demo" / registro).exists(),
                         bandeja,
                     )
+                    self.assertEqual(
+                        (carpeta_compartida_operador / "otro_expediente.pdf").read_bytes(),
+                        b"no pertenece al correo",
+                        bandeja,
+                    )
 
     def test_sin_operador_copia_documentos_pero_no_metadata_json(self):
         with tempfile.TemporaryDirectory() as td:
@@ -213,7 +192,9 @@ class RutasSalidaTests(unittest.TestCase):
             )
             (carpeta / "metadata_completo.json").write_text("{}", encoding="utf-8")
             (carpeta / "documento.pdf").write_bytes(b"real")
-            destino_legacy = output / "_sin_operador" / "CRT26-009999"
+            # Simula una clasificación de la release retractada: el expediente
+            # normal estaba incorrectamente dentro de (correos).
+            destino_legacy = output / "_sin_operador" / "(correos)" / "CRT26-009999"
             destino_legacy.mkdir(parents=True)
             (destino_legacy / "archivo_anterior.txt").write_text("anterior", encoding="utf-8")
 
@@ -236,7 +217,7 @@ class RutasSalidaTests(unittest.TestCase):
                     folio_id="CRT26-009999",
                 )
 
-            destino = output / "_sin_operador" / "(correos)" / "CRT26-009999"
+            destino = output / "_sin_operador" / "CRT26-009999"
             self.assertEqual(Path(resultado["output_dir"]), destino)
             self.assertTrue(resultado["organizado_ok"])
             self.assertTrue((destino / "documento.pdf").exists())

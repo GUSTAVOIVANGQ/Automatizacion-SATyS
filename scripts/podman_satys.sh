@@ -21,10 +21,26 @@ INTERNOS_WORKER_REINTENTOS="${SATYS_INTERNOS_WORKER_REINTENTOS:-2}"
 INTERNOS_WORKER_ESPERA="${SATYS_INTERNOS_WORKER_ESPERA:-2}"
 ZIP_MAX_ITERACIONES="${SATYS_ZIP_MAX_ITERACIONES:-32}"
 ZIP_RUTA_RELATIVA_MAX="${SATYS_ZIP_RUTA_RELATIVA_MAX:-140}"
+REMITENTES_PDF_TIMEOUT="${SATYS_REMITENTES_PDF_TIMEOUT:-1800}"
+RECONCILIACION_GLOBAL_TIMEOUT="${SATYS_RECONCILIACION_GLOBAL_TIMEOUT:-1800}"
+SIN_OPERADOR_RPC_PUBLICO_TIMEOUT="${SATYS_SIN_OPERADOR_RPC_PUBLICO_TIMEOUT:-1800}"
+POSTPROCESO_FINAL_TIMEOUT="${SATYS_POSTPROCESO_FINAL_TIMEOUT:-7200}"
 SHM_SIZE="${SATYS_SHM_SIZE:-6g}"
 
 [[ "$INTERNOS_WORKERS" =~ ^[1-9][0-9]*$ ]] || {
   echo "ERROR: SATYS_INTERNOS_WORKERS debe ser un entero positivo" >&2
+  exit 2
+}
+[[ "$REMITENTES_PDF_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || {
+  echo "ERROR: SATYS_REMITENTES_PDF_TIMEOUT debe ser un entero positivo" >&2
+  exit 2
+}
+[[ "$SIN_OPERADOR_RPC_PUBLICO_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || {
+  echo "ERROR: SATYS_SIN_OPERADOR_RPC_PUBLICO_TIMEOUT debe ser un entero positivo" >&2
+  exit 2
+}
+[[ "$POSTPROCESO_FINAL_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || {
+  echo "ERROR: SATYS_POSTPROCESO_FINAL_TIMEOUT debe ser un entero positivo" >&2
   exit 2
 }
 
@@ -49,6 +65,10 @@ common=(
   -e "SATYS_INTERNOS_WORKER_ESPERA=$INTERNOS_WORKER_ESPERA"
   -e "SATYS_ZIP_MAX_ITERACIONES=$ZIP_MAX_ITERACIONES"
   -e "SATYS_ZIP_RUTA_RELATIVA_MAX=$ZIP_RUTA_RELATIVA_MAX"
+  -e "SATYS_REMITENTES_PDF_TIMEOUT=$REMITENTES_PDF_TIMEOUT"
+  -e "SATYS_RECONCILIACION_GLOBAL_TIMEOUT=$RECONCILIACION_GLOBAL_TIMEOUT"
+  -e "SATYS_SIN_OPERADOR_RPC_PUBLICO_TIMEOUT=$SIN_OPERADOR_RPC_PUBLICO_TIMEOUT"
+  -e "SATYS_POSTPROCESO_FINAL_TIMEOUT=$POSTPROCESO_FINAL_TIMEOUT"
   -e SATYS_API_ALLOW_MANUAL=1
   -e SATYS_API_ALLOW_REPAIR=1
   -e SATYS_API_ALLOW_START=0
@@ -133,6 +153,54 @@ case "$cmd" in
       "$IMAGE" python automatizar_registros_diario.py --folio-internos "$folio" \
       --internos-workers "$INTERNOS_WORKERS" --sin-email --headless
     ;;
+  remitentes-pdf)
+    [[ -f "$RUNTIME/TrámitesCRT.xlsx" ]] || { echo "ERROR: falta $RUNTIME/TrámitesCRT.xlsx" >&2; exit 3; }
+    name="satys-remitentes-pdf-$(date +%Y%m%d-%H%M%S)"
+    echo "Ejecutando sólo corrección Solicitante/Representante desde todos los PDF de descargas (timeout ${REMITENTES_PDF_TIMEOUT}s)..."
+    set +e
+    timeout --signal=TERM --kill-after=30s "${REMITENTES_PDF_TIMEOUT}s" \
+      podman run --rm --name "$name" "${common[@]}" \
+      "$IMAGE" python completar_remitentes_desde_pdfs.py "$@"
+    rc=$?
+    set -e
+    if [[ $rc -eq 124 || $rc -eq 137 ]]; then
+      podman rm -f "$name" >/dev/null 2>&1 || true
+      echo "ERROR: completar remitentes PDF excedió ${REMITENTES_PDF_TIMEOUT}s (rc=$rc)." >&2
+    fi
+    exit "$rc"
+    ;;
+  postproceso-final)
+    [[ -f "$RUNTIME/TrámitesCRT.xlsx" ]] || { echo "ERROR: falta $RUNTIME/TrámitesCRT.xlsx" >&2; exit 3; }
+    name="satys-postproceso-final-$(date +%Y%m%d-%H%M%S)"
+    echo "Ejecutando postproceso final: remitentes PDF -> reconciliación -> RPC público/(correos) -> output+Excel a DEPI -> correo (timeout global ${POSTPROCESO_FINAL_TIMEOUT}s)..."
+    set +e
+    timeout --signal=TERM --kill-after=30s "${POSTPROCESO_FINAL_TIMEOUT}s" \
+      podman run --rm --name "$name" "${common[@]}" \
+      "$IMAGE" python postprocesar_final.py "$@"
+    rc=$?
+    set -e
+    if [[ $rc -eq 124 || $rc -eq 137 ]]; then
+      podman rm -f "$name" >/dev/null 2>&1 || true
+      echo "ERROR: postproceso final excedió ${POSTPROCESO_FINAL_TIMEOUT}s (rc=$rc)." >&2
+    fi
+    exit "$rc"
+    ;;
+  sin-operador-rpc)
+    [[ -f "$RUNTIME/TrámitesCRT.xlsx" ]] || { echo "ERROR: falta $RUNTIME/TrámitesCRT.xlsx" >&2; exit 3; }
+    name="satys-sin-operador-rpc-$(date +%Y%m%d-%H%M%S)"
+    echo "Ejecutando reparación _sin_operador: RPC público + clasificación MEMORANDUM.pdf en (correos) (timeout global ${SIN_OPERADOR_RPC_PUBLICO_TIMEOUT}s)..."
+    set +e
+    timeout --signal=TERM --kill-after=30s "${SIN_OPERADOR_RPC_PUBLICO_TIMEOUT}s" \
+      podman run --rm --name "$name" "${common[@]}" \
+      "$IMAGE" python resolver_sin_operador_rpc_publico.py "$@"
+    rc=$?
+    set -e
+    if [[ $rc -eq 124 || $rc -eq 137 ]]; then
+      podman rm -f "$name" >/dev/null 2>&1 || true
+      echo "ERROR: reparación _sin_operador excedió ${SIN_OPERADOR_RPC_PUBLICO_TIMEOUT}s (rc=$rc)." >&2
+    fi
+    exit "$rc"
+    ;;
   smoke)
     exec podman run --rm --name "satys-smoke-$$" "${common[@]}" \
       "$IMAGE" python scripts/smoke_internos.py --workers "$INTERNOS_WORKERS"
@@ -155,6 +223,12 @@ Uso: scripts/podman_satys.sh COMANDO
   internos   Inventariar seis bandejas y procesar solo Folios Internos nuevos
   internos-check  Validar acceso, inventario y comparación sin procesar Folios
   folio NUMERO     Procesar de principio a fin un Folio Internos, sin correo
+  remitentes-pdf    Completar Solicitante/Representante desde todos los PDF de descargas
+                    (acepta --dry-run; no ejecuta la corrida diaria)
+  postproceso-final Ejecutar desde el Excel final: remitentes PDF -> reconciliación -> RPC público/(correos)
+                    -> fusionar output -> sincronizar output+TrámitesCRT.xlsx a DEPI -> correo corregido
+  sin-operador-rpc  Ejecutar reparación _sin_operador: RPC público + PDF tipo MEMORANDO/MEMORANDUM -> (correos)
+                    (acepta args del módulo, por ejemplo --dry-run)
   test       Ejecutar tests dentro de la imagen
 EOF
     ;;

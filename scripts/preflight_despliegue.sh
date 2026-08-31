@@ -60,6 +60,10 @@ required=(
   extraer_registros_documentos.py
   automatizar_registros_diario.py
   main_procesar.py
+  extraer_operador.py
+  completar_remitentes_desde_pdfs.py
+  resolver_sin_operador_rpc_publico.py
+  postprocesar_final.py
   scripts/run_satys_diario.sh
   scripts/run_satys_internos.sh
   scripts/run_satys_internos_nuevos.sh
@@ -67,6 +71,10 @@ required=(
   scripts/desplegar_release_completa.sh
   scripts/smoke_internos.py
   tests/test_internos_diario.py
+  tests/test_completar_remitentes_pdf.py
+  tests/test_reparacion_sin_operador_rpc_publico.py
+  tests/test_postproceso_final.py
+  tests/test_correo_diario.py
   config/configuracion_local.example.json
 )
 for rel in "${required[@]}"; do
@@ -140,6 +148,20 @@ grep -q 'def _cerrar_paginas_emergentes' "$RELEASE_DIR/Parte1_descarga.py"
 grep -q -- '--internos-workers' "$RELEASE_DIR/main_procesar.py"
 grep -q -- '--solo-internos' "$RELEASE_DIR/extraer_registros_documentos.py"
 grep -q -- '--solo-internos' "$RELEASE_DIR/automatizar_registros_diario.py"
+grep -q 'COMPLETAR SOLICITANTE/REPRESENTANTE DESDE PDF' "$RELEASE_DIR/automatizar_registros_diario.py"
+grep -q 'RECONCILIAR TRÁMITESCRT DESDE TODOS LOS METADATA' "$RELEASE_DIR/automatizar_registros_diario.py"
+grep -q 'REPARAR _SIN_OPERADOR CON BUSCADOR PÚBLICO RPC' "$RELEASE_DIR/automatizar_registros_diario.py"
+grep -q 'remitentes-pdf)' "$RELEASE_DIR/scripts/podman_satys.sh"
+grep -q 'sin-operador-rpc)' "$RELEASE_DIR/scripts/podman_satys.sh"
+grep -q 'postproceso-final)' "$RELEASE_DIR/scripts/podman_satys.sh"
+grep -q 'EN REVISIÓN' "$RELEASE_DIR/notificar_email.py"
+grep -q 'conteos_revision_desde_excel' "$RELEASE_DIR/notificar_email.py"
+grep -q 'ProcesoLock(proceso="postprocesar_final.py")' "$RELEASE_DIR/postprocesar_final.py"
+grep -q 'ProcesoLock(proceso="resolver_sin_operador_rpc_publico.py")' "$RELEASE_DIR/resolver_sin_operador_rpc_publico.py"
+grep -q 'CORREOS_DIR_NAME = "(correos)"' "$RELEASE_DIR/resolver_sin_operador_rpc_publico.py"
+grep -q 'MEMORANDO/MEMORANDUM' "$RELEASE_DIR/resolver_sin_operador_rpc_publico.py"
+grep -q 'pdfplumber' "$RELEASE_DIR/requirements-linux.lock.txt"
+grep -q 'extraer_de_pdf' "$RELEASE_DIR/completar_remitentes_desde_pdfs.py"
 
 TMP_CACHE="$(mktemp -d)"
 trap 'rm -rf "$TMP_CACHE"' EXIT

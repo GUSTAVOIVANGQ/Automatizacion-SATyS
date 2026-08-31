@@ -1,10 +1,10 @@
 {
   "product": "Automatizacion-SATyS",
-  "version": "2026.08.18-portable-oci-api-v1-8082-internos4",
+  "version": "2026.08.28-definitiva-cierre-seguro-rpc-publico-manual-correos-remitentes-email-post1",
   "git_commit": "unknown",
-  "created_utc": "2026-08-18T19:59:55.737089+00:00",
+  "created_utc": "2026-08-28T23:48:38.941498+00:00",
   "contains_secrets": false,
-  "file_count": 122,
+  "file_count": 141,
   "files": [
     {
       "path": ".dockerignore",
@@ -13,8 +13,8 @@
     },
     {
       "path": ".env.example",
-      "bytes": 853,
-      "sha256": "a0e36b33726692229d9c12679f8d6db5f918a7231f1c843ea1e3ab08d6b516a9"
+      "bytes": 1441,
+      "sha256": "ee6fd0f5a8f64645090c9871c8aa32ba7e78c5acbf290368aed46cfb02ae632b"
     },
     {
       "path": ".github/workflows/ci.yml",
@@ -48,8 +48,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 4290,
-      "sha256": "357e2e833170f4f946a85a1bd892b3461789f9bf95dc593e1cdbb744434db05d"
+      "bytes": 25385,
+      "sha256": "4843668cca6721277f2d50e8b1c90119a5362ad140ecae74f91c57674057936f"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -73,8 +73,8 @@
     },
     {
       "path": "DESPLIEGUE_INTERNOS_IFT_8082.md",
-      "bytes": 1075,
-      "sha256": "32acc1a187ace1e0b5fb3ccb2f0427890470e26d90b25e74020dd8f195c5b249"
+      "bytes": 2370,
+      "sha256": "976b0cbe30eb7d86e369cd4373055c7bc7241e94c9f042d6c98c7537bc72d874"
     },
     {
       "path": "DESPLIEGUE_LINUX_V3.md",
@@ -88,8 +88,8 @@
     },
     {
       "path": "DESPLIEGUE_UI2_8082.md",
-      "bytes": 1884,
-      "sha256": "8d6fc8f57f6b0db3b5764f4a72dd4dd0755a80ee79e3e1b9f05e45c15ece8919"
+      "bytes": 1885,
+      "sha256": "264aee7036bb91cc643aad362d5939db2bc0b1e12707b31627425b7198bd8e78"
     },
     {
       "path": "Dockerfile",
@@ -113,8 +113,8 @@
     },
     {
       "path": "Parte1_descarga.py",
-      "bytes": 310363,
-      "sha256": "3ea1202b8a34c45b9e991686fe0e3a335508e3a2fd5e83adaa8187012b5bcc1e"
+      "bytes": 353197,
+      "sha256": "2430efa95e066d9463e157f711b488f6d68e4b954283e6fe6a23628fbaa5e2b8"
     },
     {
       "path": "Parte2_extraer.py",
@@ -123,23 +123,23 @@
     },
     {
       "path": "Parte3_rpc.py",
-      "bytes": 18736,
-      "sha256": "7bc1f602abc46776e067d35ad3b81a151f4ba8578fa99dce79ae7f890f7d40ad"
+      "bytes": 21157,
+      "sha256": "8b3aa25acb7aa8d6dbe18892948a6650174176f53d06ba0fd91fd251338a0720"
     },
     {
       "path": "Parte4_excel.py",
-      "bytes": 24489,
-      "sha256": "b2c8c9562a7516539f9c84e363d4ef585ecd6a009de974036d787279a26d8204"
+      "bytes": 42278,
+      "sha256": "0fa306a38e31064d2e783e9cebb428b97017e7841b0697f4e70f6a44fb5ca630"
     },
     {
       "path": "QUICKSTART_PORTABLE.md",
-      "bytes": 2378,
-      "sha256": "32cbf0b62df5e7842c785b64f0fbfd21524e052e327e8e849c66e8113a52e9e9"
+      "bytes": 4928,
+      "sha256": "453067e85d11acdefc518f6018d5bd5f54109e6a18f60952a75bbbe66811a7be"
     },
     {
       "path": "README.md",
-      "bytes": 26594,
-      "sha256": "4fd337e72a3d893df6e9ee8df060c161ee7129fe627ff0ca66f66b45474f6aa4"
+      "bytes": 35314,
+      "sha256": "45a87ec885097c37dc34eeb4265963ef6f5bb66c9865c3d4598623c6ed02fee2"
     },
     {
       "path": "README_BACKEND_LINUX.md",
@@ -168,13 +168,13 @@
     },
     {
       "path": "RELEASE_20260814_INTERNOS_IFT.md",
-      "bytes": 5665,
-      "sha256": "8da7005b6c72b4dbf3ffa56f101271749d940c0acbe28d02553f370489b6642c"
+      "bytes": 5817,
+      "sha256": "d801ea2c4b14a61034ced0ebf4b7aa60e618357c0306064f0522134bcc2ab632"
     },
     {
       "path": "VERSION",
-      "bytes": 46,
-      "sha256": "dc32816f707d4a384f51baad586682f55289f5168142e7cd4a4d790da4dcd8d4"
+      "bytes": 86,
+      "sha256": "9659acdfe55de8f6551e3e81f16ab966453e3463612268be290934e36d57b5d3"
     },
     {
       "path": "api_models.py",
@@ -183,28 +183,33 @@
     },
     {
       "path": "automatizar_registros_diario.py",
-      "bytes": 61295,
-      "sha256": "9f18d295b5c6ddd9439cb2d5b932ceb37c79540a003ec35e53cf37abb81915b6"
+      "bytes": 98545,
+      "sha256": "6d3220d5044684978832fb1ca74fad62cff61bcd3a0f9531e720c2df8c4654aa"
     },
     {
       "path": "buscar_concesionario.py",
-      "bytes": 12289,
-      "sha256": "2754de065ff042aa8a45c141e2871fb8af0c98d20f442309a4da7a465695cafd"
+      "bytes": 43562,
+      "sha256": "b0cc02e7301ed4707aadf4c0bbb798a15bb66751653b76f52e1448fa7e3ecbf7"
+    },
+    {
+      "path": "completar_remitentes_desde_pdfs.py",
+      "bytes": 18566,
+      "sha256": "93c11cc9d91c062b867de3fbf835470510c5f6b7e52d351de651db08a3b92418"
     },
     {
       "path": "config/configuracion_local.example.json",
-      "bytes": 695,
-      "sha256": "3ce56fe92c7ea103a08df32d2ba9732166ab9b8ef4eede0a2ad53b761e3314cc"
+      "bytes": 698,
+      "sha256": "3d34eabb57f68dbb853a4f6c811e2e8783d1118593777ad8f6a197d97a083a4a"
     },
     {
       "path": "config/configuracion_local.json.PLANTILLA",
-      "bytes": 695,
-      "sha256": "3ce56fe92c7ea103a08df32d2ba9732166ab9b8ef4eede0a2ad53b761e3314cc"
+      "bytes": 698,
+      "sha256": "3d34eabb57f68dbb853a4f6c811e2e8783d1118593777ad8f6a197d97a083a4a"
     },
     {
       "path": "configuracion_local.py",
-      "bytes": 4372,
-      "sha256": "d974d363ed50321090e7180f1a97db614646fb7b6a68fcde9c3801bc07cd08e1"
+      "bytes": 5832,
+      "sha256": "c6a50f6914d8fea7a7020fd52752b7eab37639eaece8393366fe8dc60fa52117"
     },
     {
       "path": "deploy/nginx-satys.conf",
@@ -213,13 +218,13 @@
     },
     {
       "path": "deploy/satys.env.example",
-      "bytes": 475,
-      "sha256": "dd0caac0e82b1f738633aec7b95194cb632b241ca2516f6d56d92aeb306e323e"
+      "bytes": 824,
+      "sha256": "f417f5565515cb267bc9ffb71b637f64e005b6aadc7c755455828613ecae8437"
     },
     {
       "path": "deploy/srvmbcudaqa01.env.example",
-      "bytes": 805,
-      "sha256": "94e025c7003d8e2b7713ba25bbccf2df1c961953e33f962663cc3565eb2c0308"
+      "bytes": 1239,
+      "sha256": "331c3991b2b47273a9de06fbe79b84e5b36debfef2597a91f735bfead56c5607"
     },
     {
       "path": "descargar_concesiones_rpc.py",
@@ -228,8 +233,8 @@
     },
     {
       "path": "docker-compose.yml",
-      "bytes": 2199,
-      "sha256": "188863db229644e1a0cc86fddd66af3c958f26074cd43919f226a98708903b7b"
+      "bytes": 2795,
+      "sha256": "69b025a0a9d7bbe21a162c5c1c17f37a6849711e1d50605aee1db799a55d290e"
     },
     {
       "path": "docs/API.md",
@@ -262,9 +267,14 @@
       "sha256": "ac231b6db7b2110ff68c8482152116d0a1a671fe3e2591be7f0691884e5919d0"
     },
     {
+      "path": "docs/REPARACION_SIN_OPERADOR_RPC_PUBLICO.md",
+      "bytes": 2027,
+      "sha256": "703894130590c83d856f532f29e695f505b41776f29b3adc3a13e5374ea73b3b"
+    },
+    {
       "path": "estado_descargas.py",
-      "bytes": 1777,
-      "sha256": "291028dfd432f650b6db2e52268ecf0f09343d082d60fe0991272339c2b93f69"
+      "bytes": 13195,
+      "sha256": "5f7edf9d62ac2b272773ea26f572fbd37a5542e6506376cd8dcdd6433c2a6fee"
     },
     {
       "path": "estado_ejecucion.py",
@@ -272,9 +282,14 @@
       "sha256": "4705030d9343897ba975dbd8f402e0315e4e353c49802c1629efec8dceb8f5ba"
     },
     {
+      "path": "extraer_operador.py",
+      "bytes": 26930,
+      "sha256": "fc4ea48290a956de2fa2c327607cc06f63eeb0ec88fed6b08c096fbe429ed901"
+    },
+    {
       "path": "extraer_registros_documentos.py",
-      "bytes": 97243,
-      "sha256": "5faa4a91ad36ecd0c560dbb1c9147f8bd98acd664cc259266c4efa7bedca172b"
+      "bytes": 110595,
+      "sha256": "573ba09a3f8f9052d2f39eec9c9425339d2c6ce8beaaa83ef32f729453404b9f"
     },
     {
       "path": "generar_excel_folios.py",
@@ -283,8 +298,13 @@
     },
     {
       "path": "generar_excel_metadata_json.py",
-      "bytes": 10639,
-      "sha256": "7c9bc5e5802c9d62d553b8959fa1350234b3d5fbf7966aca06cb66450c05bedf"
+      "bytes": 20142,
+      "sha256": "46054cbc07d6bd96d56dae555fe62ddc4ad618176bf656eb2226b6ae98b7d098"
+    },
+    {
+      "path": "guardado_seguro.py",
+      "bytes": 1141,
+      "sha256": "6b4c74c34c1177bdd81daa8d8263bd2f9e65b60e9a4ada1418fbf99f8dac9dc3"
     },
     {
       "path": "login_satys.py",
@@ -293,13 +313,18 @@
     },
     {
       "path": "main_procesar.py",
-      "bytes": 88019,
-      "sha256": "dd2588eb894c855b269fcfd209b4243375bfb8d3ed6cb148ab9720476b6dfd83"
+      "bytes": 103731,
+      "sha256": "c595ee7071dc630dd49998d3aa879957ea9b00e8f6bf11123f1f0ae501318c69"
     },
     {
       "path": "notificar_email.py",
-      "bytes": 29312,
-      "sha256": "40c0bc61dcb54a4606eaa178d265f8fcaf93abbb51c120caeb5b8de59c54acac"
+      "bytes": 37037,
+      "sha256": "dd1994ad6e14e8d655e57d8d390f521d24bb74fdf9ee50d883d620fa9c0ad2bb"
+    },
+    {
+      "path": "postprocesar_final.py",
+      "bytes": 11363,
+      "sha256": "6bf80e61be6d51bf050f88a122844c01dfe079f24a2ff93caad9bb3d5219916d"
     },
     {
       "path": "proceso_lock.py",
@@ -313,18 +338,23 @@
     },
     {
       "path": "reconciliar_metadata_global.py",
-      "bytes": 13640,
-      "sha256": "7743d6c7a50c6d66b762abc0e75bea6aded7c6fddbc53ad83a5e72a470528bee"
+      "bytes": 19367,
+      "sha256": "61eca076f2cbac5abaf0f0a9e2d58183d8c3d5eec522e68b70bd84e518ad3b75"
     },
     {
       "path": "reconciliar_tramites_desde_folios.py",
-      "bytes": 11011,
-      "sha256": "54d927b5708a6571992216ab9780c2c1696a198c19ea080cd1666eabad47fefe"
+      "bytes": 14581,
+      "sha256": "edac60bebea3a0e1158400fba78b4d68308ef4707dacf98def1b477e57d99c18"
     },
     {
       "path": "reparar_id_solicitante.py",
       "bytes": 21298,
       "sha256": "f91561a54daa31e8fa6b808f6c03f582dcb64faa0510f70be31db24f6bf176e8"
+    },
+    {
+      "path": "reporte_operadores.py",
+      "bytes": 6059,
+      "sha256": "b1223bc733911f6f7803f3ce213050a7ff8eb6043901751c607844f81c1e4837"
     },
     {
       "path": "requirements-dev.txt",
@@ -333,18 +363,23 @@
     },
     {
       "path": "requirements-linux.in",
-      "bytes": 375,
-      "sha256": "d9a81cc1d843c5bccb76f760233765dee82bb48809f80ccc46a6ebcb23f23f85"
+      "bytes": 459,
+      "sha256": "00503edb0b57ceed0f222b2f6dc8bebd648135ea8fe6bc1383e4a9fa202e2808"
     },
     {
       "path": "requirements-linux.lock.txt",
-      "bytes": 882,
-      "sha256": "02a6d4f7db5c4d649aa5df0f1c4a252c3d6f192dfe5b8d52b274192dbb4f1980"
+      "bytes": 1004,
+      "sha256": "ab6084b367c0983516fe42204a10414f35ec992329c0b2b74e4c893e5f7f42c1"
     },
     {
       "path": "requirements-linux.txt",
-      "bytes": 176,
-      "sha256": "1d69a284dc145220611a50a41ab43bf81cced4e00e0cfea977c9c19d8650399b"
+      "bytes": 260,
+      "sha256": "b8b2096b0bd472c8050be5e8ad2e257a062506e6a6a28986b847df88a7cb733d"
+    },
+    {
+      "path": "resolver_sin_operador_rpc_publico.py",
+      "bytes": 41657,
+      "sha256": "668276160ca4b5dc59d2e6ea96f436cf2418fae5c8f42eb7f2a6f2e7ab5284b2"
     },
     {
       "path": "ruta_carpeta_compartida.txt",
@@ -353,8 +388,8 @@
     },
     {
       "path": "rutas_salida.py",
-      "bytes": 2289,
-      "sha256": "b16f96d8be0cab9eafa07c3bff4881f972cd55a681d5f0385f770cfadba7fb3f"
+      "bytes": 1981,
+      "sha256": "7fcee2f958d8bb7d85fe0a6e154d937aac88e52e26205acfbcbc5a7c6f7a542f"
     },
     {
       "path": "satys_api.py",
@@ -388,18 +423,18 @@
     },
     {
       "path": "scripts/desplegar_release_completa.sh",
-      "bytes": 13464,
-      "sha256": "9c680502b98ab187976e0098d3d539621894e9f06309ba3b47a6bf0070a04913"
+      "bytes": 13666,
+      "sha256": "4606e9acf88e72351e4edfd8bf6e8377a2514ee646d1d6ddd7041893a39b68d1"
     },
     {
       "path": "scripts/docker_preflight.sh",
-      "bytes": 1986,
-      "sha256": "90046e1d430b8d6566c38c46e83448f565ffbdf54e3389f2d88da25b762fdef0"
+      "bytes": 2140,
+      "sha256": "aefda15793a181e20d9846b5bbb51ec2aec41c102117db4468445c55756c652d"
     },
     {
       "path": "scripts/docker_satys.sh",
-      "bytes": 1222,
-      "sha256": "ea75716c78696f77f4db307bc3fc43d826ca40f9f97c7bb932d502007b74fefe"
+      "bytes": 2310,
+      "sha256": "04e682f65efdee7afca7ba93669b15d28d2cbc0c9556b67a7acaabc123499b05"
     },
     {
       "path": "scripts/doctor_portable.sh",
@@ -433,18 +468,28 @@
     },
     {
       "path": "scripts/podman_satys.sh",
-      "bytes": 5014,
-      "sha256": "f904163a81d54854a6a12912b416bdf61fbd00d91350476be59cde1bcfe1a8ae"
+      "bytes": 10705,
+      "sha256": "80b0702b4572cb1eb4174defbf20092751310a86b8973d401b35d0d53248e6c7"
     },
     {
       "path": "scripts/preflight_despliegue.sh",
-      "bytes": 8707,
-      "sha256": "52f710018a1526d6084854ec43c2c0747cab336d807fc73238fc935f59528552"
+      "bytes": 10153,
+      "sha256": "35cbb0126dd7417f2b50bced83331cf2bdcb666e6389fc6ede2bf31d0dd3ae33"
     },
     {
       "path": "scripts/preparar_release.py",
-      "bytes": 11071,
-      "sha256": "02235d72459f1337a67caa2a0bfcdc10e8abea2095ce0a9ae610dc04ddefdfd8"
+      "bytes": 11722,
+      "sha256": "fcf76882d1f3871ee542d33a6204cf2ca71066abfed65f0e266ee912b4186fce"
+    },
+    {
+      "path": "scripts/procesar_folio_internos.ps1",
+      "bytes": 1719,
+      "sha256": "306ad1aa498009d1ea51fd2d0a4c529661bc38a5a89456e81057f90a7bdc6978"
+    },
+    {
+      "path": "scripts/procesar_folio_internos.sh",
+      "bytes": 1190,
+      "sha256": "1ecb76a270aa2e6d1371834edc35d548806c27d186d4dc7ed48fa3e4085ccb89"
     },
     {
       "path": "scripts/publicar_imagen.sh",
@@ -463,28 +508,28 @@
     },
     {
       "path": "scripts/run_satys_internos.ps1",
-      "bytes": 1132,
-      "sha256": "eba4c4362509a4875dbf776b28544fe554eb6709f6c65aaa8c70d09f0db1562c"
+      "bytes": 1142,
+      "sha256": "e63a93209486849f6b4462e4959779722f3fac664e17c590dd3d17727e5b67fe"
     },
     {
       "path": "scripts/run_satys_internos.sh",
-      "bytes": 889,
-      "sha256": "ad124a250ffc3633b79ac56e03c2362ddab6d879d3e7c4804e5163c2a48092c3"
+      "bytes": 904,
+      "sha256": "be006ac3ecedb7bd1077fc55a1c7067c0bbd7a2c63f6c175a9169f7846c42d0c"
     },
     {
       "path": "scripts/run_satys_internos_nuevos.ps1",
-      "bytes": 1150,
-      "sha256": "0da7740ed3b58ffce6dec86716075808cdb4dc4c834445e1a71f2ebb8ce9e19d"
+      "bytes": 1592,
+      "sha256": "46dfd84431be4cd1b8690ad613f92c2b2e8d8373836ef579e72f70188c75ba5e"
     },
     {
       "path": "scripts/run_satys_internos_nuevos.sh",
-      "bytes": 828,
-      "sha256": "115c23db7ab90359b638087bc81d9a954f32ef47a0cc1e35a48f2bc53d116c8a"
+      "bytes": 1050,
+      "sha256": "4ba775c996a52e4f0aec7971af15474e34350461b08b5ae26a165fb4062909dc"
     },
     {
       "path": "scripts/satys.ps1",
-      "bytes": 2311,
-      "sha256": "1895868f4584430d1abd8fffbcbf0812f073920da95d6730f72e08cc1a2b57ad"
+      "bytes": 3144,
+      "sha256": "712431d1408dad754e0c4b0911615c76b806339d9423b3f98a07823b1a7a4adc"
     },
     {
       "path": "scripts/satys.sh",
@@ -493,8 +538,8 @@
     },
     {
       "path": "scripts/smoke_internos.py",
-      "bytes": 3651,
-      "sha256": "69b59a72b16a220ce77c77ab4972ac69f52631d1ce0f90c3c11b770c67366893"
+      "bytes": 3648,
+      "sha256": "63c98b289adc4efe48f7f17bfd6536a83537dd2b5fa2f5109861e730d18bd3b0"
     },
     {
       "path": "scripts/validar_catalogo_rpc.py",
@@ -508,8 +553,8 @@
     },
     {
       "path": "sincronizacion_depi.py",
-      "bytes": 5518,
-      "sha256": "e169c13a48090ceed1f04d448681054006ec1f67797eca3f110921cfe3f0a95b"
+      "bytes": 6260,
+      "sha256": "3bdee0423f40cfd693005752d935d4edbbe61077d53d13f41d9031809d8f288f"
     },
     {
       "path": "systemd/README.md",
@@ -552,29 +597,64 @@
       "sha256": "6102db85eb9413dd45c04149e12d05d5d3a09f62927d03aa118756ddaf1184f6"
     },
     {
+      "path": "tests/test_auditoria_descargas.py",
+      "bytes": 6052,
+      "sha256": "67357f8fa8a385c0b9191ecdee63991a0c442c31e3746d4bb796c292e9009bcc"
+    },
+    {
+      "path": "tests/test_cierre_reconciliacion.py",
+      "bytes": 4771,
+      "sha256": "3319303c790028baa4ea949e6643b31f5b2135bf3698aa7a3f44c80a627605d9"
+    },
+    {
+      "path": "tests/test_completar_remitentes_pdf.py",
+      "bytes": 9326,
+      "sha256": "497a7ed10fc72b1fc12c32fbac63886ddad8eeca81f764fb65c62e515928b18b"
+    },
+    {
+      "path": "tests/test_correo_diario.py",
+      "bytes": 8293,
+      "sha256": "f40cc0280ee50809571d8d95cc9236e8b634824aab2473e2844c52e922b01f3b"
+    },
+    {
       "path": "tests/test_ejecucion_diaria_unica.sh",
       "bytes": 1388,
       "sha256": "45953c370f638272c11fb2d4254b6c25603757dd5659b1c3bd7be89fee81d040"
     },
     {
       "path": "tests/test_espera_robusta_tabla_satys.py",
-      "bytes": 13593,
-      "sha256": "92735605569471b46f56b2b0a40cdd343a9d91b7da7fcb49c4fde99058136b76"
+      "bytes": 19645,
+      "sha256": "18ffced7b86c4d68ef802a1dc098051a0c4f00f744425d9421d1143072bab09f"
+    },
+    {
+      "path": "tests/test_guardado_seguro.py",
+      "bytes": 3403,
+      "sha256": "f7566fd4c2427c01fd664a8230a56692422a95fbcd5dd28bae5e585d23d98e4f"
     },
     {
       "path": "tests/test_internos_diario.py",
-      "bytes": 16043,
-      "sha256": "5835e6c620e609053f1ab77f53f83b22dfa812bdf99315cd1b21e4d077eece7c"
+      "bytes": 41351,
+      "sha256": "d85ae1b7ff7890e56d52cba83c8592398d65e76281a20aa1fa5dc4da11b3ff97"
+    },
+    {
+      "path": "tests/test_internos_watchdog_y_excel.py",
+      "bytes": 10972,
+      "sha256": "cb50e9eea3641c248bc034cd58d736fff1eff0eb7d5af200d0cbd53ff9c4f474"
     },
     {
       "path": "tests/test_portable_deployment.py",
-      "bytes": 3284,
-      "sha256": "0b648497d6a66c00d292bcee57c8e9ff61723695f6e9f9249d465f2e4571c7f7"
+      "bytes": 4325,
+      "sha256": "0723cb66a15353f762e04206f22785c2ed4a634175a5916ad3e0af122e54c632"
+    },
+    {
+      "path": "tests/test_postproceso_final.py",
+      "bytes": 1217,
+      "sha256": "07f6f30fe015e5c3f090f5c20a264aef4a17ee908794605e21a84a94a71ff51e"
     },
     {
       "path": "tests/test_reintentos_extraccion_satys.py",
-      "bytes": 7055,
-      "sha256": "45e85303c0092db4bc0a2d33c9bfc91eb58e05f1c0bf0cd03e89b85418678c20"
+      "bytes": 7133,
+      "sha256": "963ad095d76e16565c99db328375674ce48749ba4cdaed69450b8f6bf153312d"
     },
     {
       "path": "tests/test_reparacion_id.py",
@@ -582,9 +662,24 @@
       "sha256": "e6717dab4e4245316ea8299574f63d1dbff5ade17c20b24ef91236bd935d2885"
     },
     {
+      "path": "tests/test_reparacion_sin_operador_rpc_publico.py",
+      "bytes": 24455,
+      "sha256": "3fa259a661e6a6c18863c009fb012b95f18741da036e9e2160f04a3f7eb3cb7c"
+    },
+    {
+      "path": "tests/test_resolucion_operador.py",
+      "bytes": 21063,
+      "sha256": "ed5a92fc6489879c8d8057b85b675c0c5816fee12545f6c681da524f30fb0e56"
+    },
+    {
       "path": "tests/test_rutas_y_reconciliacion.py",
-      "bytes": 4571,
-      "sha256": "3df4261120342b1609272eb26284dde95d48b8d5c9f1a471f05b41f202895ec9"
+      "bytes": 13127,
+      "sha256": "d3704b39613914c6ea5b6961e2b1f28b24bc4ab68eba318107a828aafa92052a"
+    },
+    {
+      "path": "tests/test_zip_seguro.py",
+      "bytes": 4372,
+      "sha256": "febee69cfbdfe61e9b5025fe620c089b4293b304bedac69a18ee654045d61181"
     },
     {
       "path": "web/static/app.js",

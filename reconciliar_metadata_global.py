@@ -21,9 +21,10 @@ from typing import Any
 import buscar_concesionario as bc
 from Parte3_rpc import construir_ruta, construir_ruta_operadores
 from Parte4_excel import (
-    copiar_archivos_publicables_output,
+    organizar_archivos,
     organizar_correo_exclusivo,
 )
+from estado_descargas import iter_archivos_publicables_output
 from configuracion_local import ruta_configurada
 from generar_excel_metadata_json import generar_excel_metadata_json
 from reconciliar_tramites_desde_folios import reconciliar
@@ -183,17 +184,13 @@ def cargar_indice_rpc(base_rpc: Path) -> tuple[dict[str, dict[str, Any]], Path |
         return {}, None
 
 
-def _copiar_archivos_existentes(carpeta: Path, destino: Path) -> int:
-    """Copia documentos reales preservando subcarpetas; nunca publica JSON."""
-    return len(copiar_archivos_publicables_output(carpeta, destino))
-
-
 def construir_resultados(
     descargas_base: Path,
     output_base: Path,
     indice_rpc: dict[str, dict[str, Any]],
     *,
     migrar_correos: bool = True,
+    reorganizar_output: bool = True,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     items, duplicados = descubrir_metadata(descargas_base)
     resultados: list[dict[str, Any]] = []
@@ -207,8 +204,20 @@ def construir_resultados(
         "metadata_duplicada": duplicados,
     }
     catalogo = list(indice_rpc.values())
+    total_items = len(items)
+    log.info(
+        "Reconciliación global: %d metadata(s); reorganizar_output=%s",
+        total_items,
+        reorganizar_output,
+    )
 
-    for item in items:
+    for indice_item, item in enumerate(items, start=1):
+        if indice_item == 1 or indice_item % 100 == 0 or indice_item == total_items:
+            log.info(
+                "Reconciliación global: procesando metadata %d/%d",
+                indice_item,
+                total_items,
+            )
         carpeta: Path = item["carpeta"]
         meta_satys = item["meta_satys"]
         meta_tn = item["meta_tn"]
@@ -277,14 +286,15 @@ def construir_resultados(
                     carpeta,
                     output_base,
                     identificador_correo,
+                    folio_opc=folio_opc,
                     ruta_operador=ruta_operador,
                     identificadores_legacy=(identificador,),
                 )
-                if migrar_correos
+                if migrar_correos and reorganizar_output
                 else {
                     "destino": destino,
                     "archivos_copiados": [],
-                    "verificado": False,
+                    "verificado": destino.is_dir(),
                     "duplicados_retirados": [],
                     "errores": [],
                 }
@@ -321,11 +331,29 @@ def construir_resultados(
                     registro or identificador,
                 )
             destino = output_base / ruta.replace("\\", "/")
-            copiados = _copiar_archivos_existentes(carpeta, destino)
+            if reorganizar_output:
+                destino_organizado = organizar_archivos(
+                    carpeta,
+                    ruta,
+                    output_base=output_base,
+                )
+                copiados = (
+                    sum(1 for _ in iter_archivos_publicables_output(carpeta))
+                    if destino_organizado is not None
+                    else 0
+                )
+                organizado_ok = destino_organizado is not None
+            else:
+                # El pipeline principal ya organizó descargas -> output. La
+                # reconciliación diaria sólo necesita reconstruir Excel/Ruta;
+                # volver a copiar y comparar byte a byte decenas de miles de
+                # archivos históricos puede tardar horas y no aporta datos.
+                copiados = 0
+                organizado_ok = destino.is_dir()
             resolucion["ruta"] = ruta
             resultado.update({
                 "rpc_ok": True,
-                "organizado_ok": copiados > 0,
+                "organizado_ok": organizado_ok,
                 "archivos_copiados": copiados,
                 "nombre_operador": resolucion["nombre_completo"],
                 "rpc_resultado": resolucion,
@@ -340,13 +368,14 @@ def construir_resultados(
                     carpeta,
                     output_base,
                     identificador,
+                    folio_opc=folio_opc,
                     identificadores_legacy=(registro,),
                 )
-                if migrar_correos
+                if migrar_correos and reorganizar_output
                 else {
                     "destino": destino,
                     "archivos_copiados": [],
-                    "verificado": False,
+                    "verificado": destino.is_dir(),
                     "duplicados_retirados": [],
                     "errores": [],
                 }
@@ -376,6 +405,7 @@ def ejecutar(
     base_rpc: Path,
     project_root: Path,
     migrar_correos: bool = True,
+    reorganizar_output: bool = True,
     crear_backup: bool = True,
 ) -> dict[str, Any]:
     indice_rpc, excel_rpc = cargar_indice_rpc(base_rpc)
@@ -384,6 +414,7 @@ def ejecutar(
         output_base,
         indice_rpc,
         migrar_correos=migrar_correos,
+        reorganizar_output=reorganizar_output,
     )
     if not resultados:
         raise RuntimeError(f"No se encontraron metadatos válidos bajo {descargas_base}.")
@@ -432,6 +463,14 @@ def construir_parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-rpc", type=Path, default=project_root / "base_de_datos_rpc")
     parser.add_argument("--resumen-json", type=Path, default=project_root / "logs" / "reconciliacion_global_ultimo.json")
     parser.add_argument("--sin-migrar-correos", action="store_true")
+    parser.add_argument(
+        "--sin-reorganizar-output",
+        action="store_true",
+        help=(
+            "No vuelve a copiar/verificar todos los archivos históricos de descargas a output; "
+            "sólo reconstruye rutas, reportes y Excel. Recomendado para la corrida diaria."
+        ),
+    )
     parser.add_argument("--sin-backup", action="store_true")
     return parser
 
@@ -447,6 +486,7 @@ def main() -> int:
             base_rpc=args.base_rpc,
             project_root=Path(__file__).resolve().parent,
             migrar_correos=not args.sin_migrar_correos,
+            reorganizar_output=not args.sin_reorganizar_output,
             crear_backup=not args.sin_backup,
         )
         args.resumen_json.write_text(json.dumps(resumen, ensure_ascii=False, indent=2), encoding="utf-8")

@@ -1,6 +1,6 @@
 # SATyS — Quickstart portable
 
-Versión: `2026.08.21-portable-oci-api-v1-8082-folio-modal1`
+Versión: `2026.08.28-definitiva-cierre-seguro-rpc-publico-manual-correos-remitentes-email-post1`
 
 ## Objetivo
 
@@ -53,6 +53,24 @@ Para una corrida real:
 bash scripts/podman_satys.sh daily
 ```
 
+Para ejecutar **sólo** la reparación final de filas `Ruta=_sin_operador`, sin
+inventariar SATyS ni ejecutar Internos/Oficialía: primero intenta el buscador
+público RPC y después clasifica en `_sin_operador/(correos)` los pendientes
+cuya fuente original `descargas` contiene `MEMORANDUM.pdf`:
+
+```bash
+bash scripts/podman_satys.sh sin-operador-rpc
+```
+
+La ejecución independiente toma el mismo lock global que la corrida diaria,
+por lo que se niega a iniciar si SATyS ya está procesando. Usa el Excel,
+`descargas`, `output` y DEPI persistentes montados desde el runtime. Para una
+auditoría sin modificar archivos ni Excel:
+
+```bash
+bash scripts/podman_satys.sh sin-operador-rpc --dry-run
+```
+
 Para revisar de principio a fin un único Folio de Internos, sin enviar correo:
 
 ```bash
@@ -96,3 +114,32 @@ La imagen y el paquete Python están fijados en `1.57.0`. Una actualización de 
 ## Equipo nuevo fuera de la red institucional
 
 Puede construir la imagen, iniciar la API, ejecutar tests unitarios y desarrollar el panel. El login/extracción real sólo funciona desde una red con acceso a `https://satys.ift.org.mx/`.
+
+
+### Corrección manual de remitentes desde PDFs
+
+Sin ejecutar la corrida diaria completa:
+
+```bash
+bash scripts/podman_satys.sh remitentes-pdf --dry-run
+bash scripts/podman_satys.sh remitentes-pdf
+```
+
+Sólo modifica `Solicitante Promovente`/`Representante Legal` vacíos o `SIN REMITENTE`; `descargas` es sólo lectura.
+
+## Postproceso final sin volver a SATyS
+
+Para ejecutar únicamente la parte final sobre el Excel/runtime ya existente:
+
+```bash
+bash scripts/podman_satys.sh postproceso-final
+```
+
+Orden: completa remitentes desde todos los PDF de `descargas`, reconcilia el Excel, reintenta `_sin_operador` con RPC público, clasifica memorandos en `(correos)`, fusiona/organiza `output`, sincroniza `output` + `TrámitesCRT.xlsx` a DEPI y finalmente envía el correo consolidado. La tarjeta `EN REVISIÓN` usa el Excel final y excluye `_sin_operador/(correos)`.
+
+Para ejecutar el mismo postproceso sin mandar correo:
+
+```bash
+bash scripts/podman_satys.sh postproceso-final --sin-email
+```
+

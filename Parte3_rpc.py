@@ -359,12 +359,14 @@ def construir_ruta(nombre: str, id_bp: str, registro: str = "") -> str:
     r"""
     Construye la ruta estandarizada para el Excel.
 
-    Formato recomendado:
-      <idBp>_<nombre_limpio>\<registro>
+    Formato obligatorio:
+      <idBp>_<nombre_limpio>\01 EN\VE
 
-    La subcarpeta por registro evita que ``metadata_satys.json`` o anexos con
-    nombres repetidos se sobrescriban cuando el mismo operador tiene varios
-    trámites. Si no se recibe registro, devuelve sólo la carpeta del operador.
+    ``registro`` se conserva en la firma por compatibilidad con llamadas
+    anteriores, pero no forma parte de la ruta. Todos los documentos del mismo
+    concesionario se fusionan en su única carpeta documental; si llega de nuevo
+    el mismo nombre de archivo, la copia vigente de ``descargas`` lo reemplaza
+    sin crear sufijos ``_1``, ``_2`` o ``_3``.
     """
     id_limpio = re.sub(r"[^A-Za-z0-9_-]", "", str(id_bp or "").strip())
     nombre_limpio = _segmento_ruta_seguro(nombre)
@@ -372,13 +374,7 @@ def construir_ruta(nombre: str, id_bp: str, registro: str = "") -> str:
         f"{id_limpio}_{nombre_limpio}".strip("_"),
         90,
     )
-    registro_limpio = _acortar_segmento(
-        _segmento_ruta_seguro(registro, guion=True, minusculas=False),
-        60,
-    )
-    if registro_limpio:
-        return f"{carpeta_operador}\\{registro_limpio}"
-    return carpeta_operador
+    return f"{carpeta_operador}\\01 EN\\VE"
 
 
 def construir_ruta_operadores(
@@ -410,13 +406,7 @@ def construir_ruta_operadores(
         "__".join(segmentos) or "sin_id_sin_nombre",
         230,
     )
-    registro_limpio = _acortar_segmento(
-        _segmento_ruta_seguro(registro, guion=True, minusculas=False),
-        60,
-    )
-    if registro_limpio:
-        return f"{carpeta_operador}\\{registro_limpio}"
-    return carpeta_operador
+    return f"{carpeta_operador}\\01 EN\\VE"
 
 
 # ────────────────────────────────────────────────────────

@@ -1,3 +1,97 @@
+# 2026.08.28-definitiva-cierre-seguro-rpc-publico-manual-correos-remitentes-email-post1
+
+- Corrige el correo consolidado: la tarjeta amarilla se renombra a `EN REVISIÓN (X%)` y su cantidad se toma directamente del `TrámitesCRT.xlsx` final. Sólo cuenta filas cuya `Ruta` permanece bajo `_sin_operador`; excluye expresamente `_sin_operador/(correos)` y evita duplicados intermedios de workers/bandejas.
+- Los expedientes ya clasificados en `_sin_operador/(correos)` dejan de aparecer como pendientes de revisión en la tabla del correo; se reporta además su cantidad como `Correos clasificados fuera de revisión`.
+- Añade `postprocesar_final.py` y el comando `bash scripts/podman_satys.sh postproceso-final`, que ejecuta sin volver a SATyS: completar remitentes desde PDF -> reconciliación global segura -> RPC público + clasificación `(correos)` -> fusión/organización de `output` -> sincronización de `output` y `TrámitesCRT.xlsx` a DEPI -> correo final corregido.
+- El postproceso conserva `descargas` intacto, usa el mismo lock global SATyS y tiene timeout global configurable mediante `SATYS_POSTPROCESO_FINAL_TIMEOUT` (7200 s por defecto).
+- La sincronización final del postproceso publica únicamente `output/` y `TrámitesCRT.xlsx`, evitando volver a copiar innecesariamente todo `descargas/`.
+
+# 2026.08.28-definitiva-cierre-seguro-rpc-publico-manual-correos-remitentes1
+
+- Antes de la reconciliación global, completa `Solicitante Promovente` y `Representante Legal` sólo cuando estén vacíos o `SIN REMITENTE`, recorriendo todos los PDF del expediente original en `descargas` con la lógica tolerante de `extraer_operador.py`.
+- Recorre todos los PDF de cada expediente; si diferentes documentos arrojan valores incompatibles, no inventa ni sobreescribe y deja auditoría para revisión.
+- La reconciliación global preserva los valores válidos recién recuperados desde PDF frente a metadata vacío o `SIN REMITENTE`.
+- La clasificación `(correos)` reconoce `MEMORANDO`, `MEMORANDUM`, `MEMORÁNDUM`, sufijos y variantes leves del nombre del PDF; `memo.pdf` por sí solo no clasifica.
+- Añade el comando manual `bash scripts/podman_satys.sh remitentes-pdf [--dry-run]`.
+- Añade `pdfplumber` y sus dependencias fijadas a la imagen OCI.
+
+# 2026.08.28-definitiva-cierre-seguro-rpc-publico-manual-correos1
+
+- Extiende la etapa final/manual `sin-operador-rpc`: después del intento exclusivo con buscador público RPC, vuelve a leer `TrámitesCRT.xlsx` y procesa sólo las filas que todavía mantienen `Ruta` bajo `_sin_operador`.
+- Si la fuente original conciliada en `descargas` contiene recursivamente un archivo llamado `MEMORANDUM.pdf` (sin distinguir mayúsculas/minúsculas y tolerando espacios externos en el nombre), clasifica el expediente en `output/_sin_operador/(correos)/<carpeta>`.
+- Conserva `descargas` intacto; fusiona archivos históricos sin nombres inventados y después copia desde `descargas`, por lo que la fuente original vigente prevalece ante la misma ruta/nombre. Los JSON siguen excluidos de `output`.
+- Actualiza la columna `Ruta` únicamente después de verificar la organización local y, cuando DEPI está habilitado, la publicación en `<SATYS_SHARED_DIR>/output/_sin_operador/(correos)/...`; si DEPI falla, la Ruta y la carpeta anterior permanecen pendientes para reintento.
+- La regla es idempotente y se ejecuta dentro de la misma única etapa previa al correo, por lo que también aplica al comando independiente `bash scripts/podman_satys.sh sin-operador-rpc`.
+- Añade auditoría `total_memorandum_detectados`, `total_correos_confirmados`, `total_correos_ya_clasificados` y `cambios_excel_correos`.
+
+# 2026.08.28-definitiva-cierre-seguro-rpc-publico-manual1
+
+- Añade comando independiente `scripts/podman_satys.sh sin-operador-rpc` para ejecutar únicamente la reparación final de `Ruta=_sin_operador` con el buscador público RPC, sin ejecutar la corrida diaria completa.
+- El comando reutiliza el runtime productivo (`TrámitesCRT.xlsx`, `descargas`, `output`, logs y DEPI), admite `--dry-run` y aplica `SATYS_SIN_OPERADOR_RPC_PUBLICO_TIMEOUT`.
+- `resolver_sin_operador_rpc_publico.py` adquiere/hereda `ProcesoLock`, evitando modificar Excel/output en paralelo con una corrida diaria; una colisión de lock termina con código 3.
+- Se mantienen las garantías anteriores: RPC público exclusivamente, `descargas` como fuente, fusión sin nombres duplicados, actualización de `Ruta` sólo tras sincronización DEPI verificada y cierre seguro.
+
+# 2026.08.28-definitiva-cierre-seguro-rpc-publico1
+
+- Añade una única etapa final, inmediatamente antes del correo diario, para reintentar las filas de `TrámitesCRT.xlsx` cuya columna `Ruta` aún apunta a `_sin_operador`.
+- La llave de conciliación es la columna `1711`; soporta Registros `CRTxx-xxxxxx` y Folios numéricos de Internos, incluso rutas como `_sin_operador\\internos__Fuera_de_tiempo__135531`.
+- La etapa toma `nombre_operador` exclusivamente de `descargas/**/metadata_satys.json` y consulta directamente el buscador público RPC (`searchConcesiones` + `searchBP`). No carga ni usa el Excel oficial RPC para esta reparación final.
+- Una resolución pública segura crea/reutiliza `output/<ID>_<nombre_normalizado>/01 EN/VE`, fusiona archivos históricos sin generar sufijos `_1/_2/_3`, y copia al final desde `descargas` para que la fuente original vigente prevalezca ante el mismo nombre/ruta.
+- Tras verificar la copia, actualiza `Ruta` en `TrámitesCRT.xlsx`, conserva un backup previo y retira únicamente la carpeta `_sin_operador` correspondiente a la fila reparada; `descargas` nunca se elimina ni modifica.
+- Replica antes del correo cada destino reparado a `<SATYS_SHARED_DIR>/output` (producción: `/depi/dgp/DEI_DATOS/SATyS/output`), preservando archivos históricos únicos del recurso compartido y retirando sólo la antigua carpeta de revisión ya reparada.
+- El correo consolidado refleja como exitosos los registros recuperados por esta etapa.
+- Timeout duro independiente `SATYS_SIN_OPERADOR_RPC_PUBLICO_TIMEOUT` (1800 s por defecto): si el RPC público o la etapa se atascan, el monitor continúa al correo y al cierre.
+- Genera auditoría `logs/reparacion_sin_operador_rpc_publico_*.json/.csv` y `reparacion_sin_operador_rpc_publico_ultimo.json`.
+
+# 2026.08.28-definitiva-cierre-seguro1
+
+- Corrige el cierre diario que podía permanecer activo durante horas después de
+  terminar SATyS/Parte 1: la reconciliación de `TrámitesCRT.xlsx` ya no recorre
+  dimensiones fantasma de OpenPyXL ni ejecuta `delete_rows()` sobre cientos de
+  miles de filas vacías creadas sólo por formato residual.
+- La reconciliación global diaria conserva RPC, rutas, reportes y Excel, pero ya
+  no vuelve a copiar ni comparar byte a byte todo el histórico de `descargas`
+  contra `output` después de que el pipeline principal ya lo organizó.
+- Añade progreso cada 100 metadata durante la reconciliación global para evitar
+  periodos largos sin señal visible de avance.
+- Añade timeout duro de 1800 segundos a la reconciliación global. Si se excede,
+  sólo termina ese subproceso con código `124`; el monitor padre continúa al
+  correo consolidado, actualización de estado y cierre en vez de quedar vivo
+  indefinidamente.
+- Mantiene intactas las reglas de negocio de la release base
+  `2026.08.27-definitiva-organizacion-ve1`; no elimina ni mueve `descargas`.
+
+# 2026.08.27-definitiva-organizacion-ve1
+
+- Restaura la ruta documental obligatoria
+  `output/<ID>_<nombre_concesionario>/01 EN/VE/` para cualquier bandeja.
+- Fusiona en esa misma carpeta los archivos de todos los expedientes del
+  concesionario, conserva las subcarpetas internas de cada descarga y no mueve
+  ni elimina ningún contenido bajo `descargas/`.
+- Si un archivo ya existe en la misma ruta, la versión de `descargas` lo
+  reemplaza sin crear `archivo_1`, `archivo_2` u otras copias renombradas.
+- Migra al iniciar el procesamiento las antiguas carpetas por Registro y las variantes
+  artificiales del operador terminadas en `_1`, `_2`, `_3`, etc.; verifica los
+  contenidos byte a byte antes de retirar esos duplicados de `output`.
+- Mantiene todos los JSON exclusivamente en `descargas` y depura los heredados
+  de la carpeta canónica de salida.
+- Evita retirar la carpeta compartida `01 EN/VE` al reclasificar un expediente
+  `CORREO`; sólo se consideran copias legacy identificables de ese expediente.
+
+# 2026.08.27-definitiva-sin-operador-separado1
+
+- Revierte la consolidación general de pendientes dentro de `(correos)`.
+- Los expedientes sin concesionario permanecen directamente en
+  `output/_sin_operador/<expediente>`.
+- Sólo los expedientes cuyo `folio_opc` comienza con `CORREO` se organizan en
+  `output/_sin_operador/(correos)/<expediente>`.
+- Elimina del monitor diario la migración final que mezclaba ambas categorías.
+- Si un expediente normal hubiera quedado temporalmente bajo `(correos)`, al
+  volver a procesarlo se fusionan y verifican sus documentos en `_sin_operador`
+  antes de retirar la copia mal clasificada; `descargas` permanece intacto.
+- Conserva la búsqueda RPC Excel→web, el único correo diario consolidado, las
+  validaciones de descarga y la política de no publicar JSON en `output`.
+
 # 2026.08.27-rpc-diario-correo-unico1
 
 - La corrida diaria fuerza la resolución segura en dos niveles: catálogo Excel
@@ -128,6 +222,15 @@
   concluir la validación local; el correo continúa deshabilitado.
 - El lanzador PowerShell resuelve `python.exe` a una ruta absoluta cuando no
   existe un entorno virtual ni se definió `SATYS_PYTHON`.
+
+## 2026.08.28-definitiva-cierre-seguro-rpc-publico-manual-correos-remitentes1
+
+- Antes de la reconciliación global, completa `Solicitante Promovente` y `Representante Legal` sólo cuando estén vacíos o `SIN REMITENTE`, recorriendo todos los PDF del expediente original en `descargas` con la lógica tolerante de `extraer_operador.py`.
+- Si distintos PDF producen valores incompatibles, no inventa ni sobreescribe: conserva el pendiente y genera auditoría JSON/CSV.
+- La reconciliación de `TrámitesCRT.xlsx` preserva valores válidos ya corregidos desde PDF frente a metadata vacío/`SIN REMITENTE`.
+- La regla `(correos)` reconoce nombres PDF `MEMORANDO`, `MEMORANDUM`, `MEMORÁNDUM`, sufijos y variantes leves; `memo.pdf` por sí solo no clasifica.
+- Nuevo comando manual `scripts/podman_satys.sh remitentes-pdf [--dry-run]`.
+- Se añade `pdfplumber` y dependencias fijadas a la imagen OCI.
 
 ## 2026.08.21-portable-oci-api-v1-8082-folio1
 

@@ -31,6 +31,14 @@ case "$cmd" in
     exec docker compose run --rm --entrypoint python satys-worker automatizar_registros_diario.py \
       --folio-internos "$folio" --internos-workers "$INTERNOS_WORKERS" --sin-email --headless
     ;;
+  postproceso-final)
+    exec docker compose run --rm --entrypoint python satys-worker \
+      postprocesar_final.py "$@"
+    ;;
+  sin-operador-rpc)
+    exec docker compose run --rm --entrypoint python satys-worker \
+      resolver_sin_operador_rpc_publico.py "$@"
+    ;;
   test) exec docker compose run --rm --entrypoint python satys-worker -m unittest discover tests ;;
-  *) echo "Uso: scripts/docker_satys.sh {build|api-up|api-down|status|logs|smoke|daily|internos|internos-check|folio NUMERO|test}" ;;
+  *) echo "Uso: scripts/docker_satys.sh {build|api-up|api-down|status|logs|smoke|daily|internos|internos-check|folio NUMERO|postproceso-final|sin-operador-rpc|test}" ;;
 esac
