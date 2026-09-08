@@ -63,6 +63,7 @@ required=(
   extraer_operador.py
   completar_remitentes_desde_pdfs.py
   resolver_sin_operador_rpc_publico.py
+  organizar_trimestres_2026.py
   postprocesar_final.py
   scripts/run_satys_diario.sh
   scripts/run_satys_internos.sh
@@ -73,6 +74,7 @@ required=(
   tests/test_internos_diario.py
   tests/test_completar_remitentes_pdf.py
   tests/test_reparacion_sin_operador_rpc_publico.py
+  tests/test_organizar_trimestres_2026.py
   tests/test_postproceso_final.py
   tests/test_correo_diario.py
   config/configuracion_local.example.json
@@ -154,6 +156,13 @@ grep -q 'REPARAR _SIN_OPERADOR CON BUSCADOR PÚBLICO RPC' "$RELEASE_DIR/automati
 grep -q 'remitentes-pdf)' "$RELEASE_DIR/scripts/podman_satys.sh"
 grep -q 'sin-operador-rpc)' "$RELEASE_DIR/scripts/podman_satys.sh"
 grep -q 'postproceso-final)' "$RELEASE_DIR/scripts/podman_satys.sh"
+grep -q 'trimestres-2026)' "$RELEASE_DIR/scripts/podman_satys.sh"
+grep -q 'ORGANIZAR VENTANAS 2026Q3/2026Q4 ANTES DEL CORREO' "$RELEASE_DIR/automatizar_registros_diario.py"
+grep -q 'ProcesoLock(proceso="organizar_trimestres_2026.py")' "$RELEASE_DIR/organizar_trimestres_2026.py"
+grep -q '2026-10-01' "$RELEASE_DIR/organizar_trimestres_2026.py"
+grep -q '2027-03-31' "$RELEASE_DIR/organizar_trimestres_2026.py"
+grep -q 'rutas_excel_actualizadas' "$RELEASE_DIR/organizar_trimestres_2026.py"
+grep -q 'destino_normal' "$RELEASE_DIR/organizar_trimestres_2026.py"
 grep -q 'EN REVISIÓN' "$RELEASE_DIR/notificar_email.py"
 grep -q 'conteos_revision_desde_excel' "$RELEASE_DIR/notificar_email.py"
 grep -q 'ProcesoLock(proceso="postprocesar_final.py")' "$RELEASE_DIR/postprocesar_final.py"

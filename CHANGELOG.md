@@ -1,3 +1,35 @@
+# 2026.09.08-trimestres-2026q3q4-antes-correo1
+
+## 2026.09.08-trimestres-q3-2026-q4-2027-ruta-excel1
+
+- Corrige la ventana `2026Q4`: ahora corresponde a `01-ene-2027..31-mar-2027`; enero-marzo de 2026 queda fuera.
+- Mantiene cada expediente seleccionado en **dos ubicaciones**: `output/<Ruta base>` y `output/<bucket>/<Ruta base>`.
+- Actualiza `TrámitesCRT.xlsx` al final con `Ruta=2026Q3\<Ruta base>` o `Ruta=2026Q4\<Ruta base>`, sin duplicar prefijos en reejecuciones.
+- Con DEPI habilitado, sincroniza los dos destinos y después publica también el Excel actualizado; una falla DEPI impide confirmar la nueva Ruta para las filas afectadas.
+- `descargas` permanece intacto y continúa teniendo precedencia en colisiones de mismo pathname.
+
+## 2026.09.08-trimestres-2026q3q4-streaming-content-fix2
+
+- Corrige la organización adicional 2026 para que `descargas` gane siempre una colisión por pathname aunque el archivo viejo de `output/2026Q3` o `output/2026Q4` tenga exactamente el mismo tamaño y mtime.
+- La igualdad se valida por contenido binario en bloques; si el contenido difiere, se sobrescribe el archivo canónico sin crear sufijos `_1`, `_2` ni variantes por folio.
+- Mantiene el escaneo secuencial/streaming del Excel incorporado en `streaming-fix1`.
+
+
+## 2026.09.08-trimestres-2026q3q4-streaming-fix1
+
+- Corrige la lectura de `TrámitesCRT.xlsx` en `organizar_trimestres_2026.py`: en modo `read_only` ya no usa `ws.cell()` por fila, evitando reparsear el XML miles de veces.
+- El Excel se recorre una sola vez con `iter_rows(values_only=True)`, con progreso visible cada 500 filas.
+- Mantiene sin cambios las reglas solicitadas: 01-oct..15-dic -> `output/2026Q3` y 01-ene..31-mar -> `output/2026Q4`, fuente `descargas`, fusión canónica y réplica DEPI.
+- `--dry-run` sigue siendo no destructivo y ahora termina en segundos para el tamaño actual de `TrámitesCRT.xlsx`.
+
+- Añade `organizar_trimestres_2026.py` y el comando independiente `bash scripts/podman_satys.sh trimestres-2026` (con `--dry-run` y `--sin-sync-depi`).
+- Implementa el mapeo personalizado solicitado: 01-oct-2026..15-dic-2026 → `output/2026Q3/<Ruta>`; 01-ene-2026..31-mar-2026 → `output/2026Q4/<Ruta>`.
+- Usa `1711` para conciliar la fuente en `descargas`, incluida la estructura de Internos, y reproduce la columna `Ruta` como jerarquía bajo el bucket.
+- Fusiona recursivamente sin inventar duplicados; el archivo vigente de `descargas` prevalece ante el mismo path, los archivos distintos se conservan y JSON no se publica en `output`.
+- Replica las Rutas tocadas a DEPI bajo `output/2026Q3` / `output/2026Q4` antes del correo; reejecutar es idempotente y omite archivos ya idénticos.
+- La corrida diaria ejecuta esta etapa después de RPC público / clasificación `(correos)` y antes del único correo. El postproceso manual también la incluye antes de su sincronización/correo final.
+- Añade timeout `SATYS_TRIMESTRES_2026_TIMEOUT=3600`; el timeout global de `postproceso-final` sube a 10800 s para cubrir la nueva etapa.
+
 # 2026.08.28-definitiva-cierre-seguro-rpc-publico-manual-correos-remitentes-email-post1
 
 - Corrige el correo consolidado: la tarjeta amarilla se renombra a `EN REVISIÓN (X%)` y su cantidad se toma directamente del `TrámitesCRT.xlsx` final. Sólo cuenta filas cuya `Ruta` permanece bajo `_sin_operador`; excluye expresamente `_sin_operador/(correos)` y evita duplicados intermedios de workers/bandejas.

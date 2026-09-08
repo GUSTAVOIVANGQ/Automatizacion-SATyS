@@ -1,10 +1,10 @@
 {
   "product": "Automatizacion-SATyS",
-  "version": "2026.08.28-definitiva-cierre-seguro-rpc-publico-manual-correos-remitentes-email-post1",
+  "version": "2026.09.08-trimestres-q3-2026-q4-2027-ruta-excel1",
   "git_commit": "unknown",
-  "created_utc": "2026-08-28T23:48:38.941498+00:00",
+  "created_utc": "2026-09-08T22:08:15.425207+00:00",
   "contains_secrets": false,
-  "file_count": 141,
+  "file_count": 144,
   "files": [
     {
       "path": ".dockerignore",
@@ -14,7 +14,7 @@
     {
       "path": ".env.example",
       "bytes": 1441,
-      "sha256": "ee6fd0f5a8f64645090c9871c8aa32ba7e78c5acbf290368aed46cfb02ae632b"
+      "sha256": "19b7fb563c3cdaecaee4e9aada09321b87154a6135661bf3f3345f8b60ed72da"
     },
     {
       "path": ".github/workflows/ci.yml",
@@ -48,8 +48,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 25385,
-      "sha256": "4843668cca6721277f2d50e8b1c90119a5362ad140ecae74f91c57674057936f"
+      "bytes": 28413,
+      "sha256": "03ecaa364263d7ddf02abe2ecaeb26126c9888bf73889d44ecbdc98f0f5465c5"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -133,8 +133,8 @@
     },
     {
       "path": "QUICKSTART_PORTABLE.md",
-      "bytes": 4928,
-      "sha256": "453067e85d11acdefc518f6018d5bd5f54109e6a18f60952a75bbbe66811a7be"
+      "bytes": 6275,
+      "sha256": "3e485116b6fb700934614f383aec17fa55a4c430cca9a780d7c5b63fcfbed411"
     },
     {
       "path": "README.md",
@@ -172,9 +172,14 @@
       "sha256": "d801ea2c4b14a61034ced0ebf4b7aa60e618357c0306064f0522134bcc2ab632"
     },
     {
+      "path": "RELEASE_20260908_TRIMESTRES_2026.md",
+      "bytes": 1736,
+      "sha256": "566e53cf5ce057d6e9488d2dbbccac59cd2379ecf3831bc9d14bc0caa1f61b88"
+    },
+    {
       "path": "VERSION",
-      "bytes": 86,
-      "sha256": "9659acdfe55de8f6551e3e81f16ab966453e3463612268be290934e36d57b5d3"
+      "bytes": 50,
+      "sha256": "756cc60cbfdcb8e219a43ba2a8f67b528cd33c2447f055509528adddddb20595"
     },
     {
       "path": "api_models.py",
@@ -183,8 +188,8 @@
     },
     {
       "path": "automatizar_registros_diario.py",
-      "bytes": 98545,
-      "sha256": "6d3220d5044684978832fb1ca74fad62cff61bcd3a0f9531e720c2df8c4654aa"
+      "bytes": 102091,
+      "sha256": "0626e45d7814ff35f64ccab95fa2fc31e575e3478991d8600159812095732f4f"
     },
     {
       "path": "buscar_concesionario.py",
@@ -219,12 +224,12 @@
     {
       "path": "deploy/satys.env.example",
       "bytes": 824,
-      "sha256": "f417f5565515cb267bc9ffb71b637f64e005b6aadc7c755455828613ecae8437"
+      "sha256": "5ea38438af007f75821b2f3e4f778e74d889716533be402b5d5d4caf6e56521a"
     },
     {
       "path": "deploy/srvmbcudaqa01.env.example",
       "bytes": 1239,
-      "sha256": "331c3991b2b47273a9de06fbe79b84e5b36debfef2597a91f735bfead56c5607"
+      "sha256": "4088b0ca7d163654208773e8912abf14862d5d0fa4f2a46163ce7b1d67a8d29d"
     },
     {
       "path": "descargar_concesiones_rpc.py",
@@ -233,8 +238,8 @@
     },
     {
       "path": "docker-compose.yml",
-      "bytes": 2795,
-      "sha256": "69b025a0a9d7bbe21a162c5c1c17f37a6849711e1d50605aee1db799a55d290e"
+      "bytes": 2954,
+      "sha256": "c5b31ff542a9c4b803fd3903a5382f53ae61b554b2137b90d13592892d1f8cc3"
     },
     {
       "path": "docs/API.md",
@@ -322,9 +327,14 @@
       "sha256": "dd1994ad6e14e8d655e57d8d390f521d24bb74fdf9ee50d883d620fa9c0ad2bb"
     },
     {
+      "path": "organizar_trimestres_2026.py",
+      "bytes": 30141,
+      "sha256": "ed0848844ddda0fcb4e6fbb6b91a08c0f57a1af1c007bcd2a6a62d9d0e26e235"
+    },
+    {
       "path": "postprocesar_final.py",
-      "bytes": 11363,
-      "sha256": "6bf80e61be6d51bf050f88a122844c01dfe079f24a2ff93caad9bb3d5219916d"
+      "bytes": 12702,
+      "sha256": "8566738bc268f1a72abc80699d55dda6db376c0cb14d23694a40f875494d0b94"
     },
     {
       "path": "proceso_lock.py",
@@ -433,8 +443,8 @@
     },
     {
       "path": "scripts/docker_satys.sh",
-      "bytes": 2310,
-      "sha256": "04e682f65efdee7afca7ba93669b15d28d2cbc0c9556b67a7acaabc123499b05"
+      "bytes": 2460,
+      "sha256": "62246a91d9a308b855db3cd85e50cbbc8895cfbe2bb22664431cd24659607e35"
     },
     {
       "path": "scripts/doctor_portable.sh",
@@ -468,13 +478,13 @@
     },
     {
       "path": "scripts/podman_satys.sh",
-      "bytes": 10705,
-      "sha256": "80b0702b4572cb1eb4174defbf20092751310a86b8973d401b35d0d53248e6c7"
+      "bytes": 12054,
+      "sha256": "fbb259a3cc843cd58f1575bb31102a7c66d5d3e09c62c00fec99e3935cfe437b"
     },
     {
       "path": "scripts/preflight_despliegue.sh",
-      "bytes": 10153,
-      "sha256": "35cbb0126dd7417f2b50bced83331cf2bdcb666e6389fc6ede2bf31d0dd3ae33"
+      "bytes": 10783,
+      "sha256": "a04f9afb82d859c61d6f4c3ee6507248c3335c48d045389090bcc03b18f6d898"
     },
     {
       "path": "scripts/preparar_release.py",
@@ -528,8 +538,8 @@
     },
     {
       "path": "scripts/satys.ps1",
-      "bytes": 3144,
-      "sha256": "712431d1408dad754e0c4b0911615c76b806339d9423b3f98a07823b1a7a4adc"
+      "bytes": 3290,
+      "sha256": "0bced6d0b7c40579b691aaa8ea34e77606977857c10923858bbdfede027edb82"
     },
     {
       "path": "scripts/satys.sh",
@@ -613,8 +623,8 @@
     },
     {
       "path": "tests/test_correo_diario.py",
-      "bytes": 8293,
-      "sha256": "f40cc0280ee50809571d8d95cc9236e8b634824aab2473e2844c52e922b01f3b"
+      "bytes": 8679,
+      "sha256": "c4a19cc7bdada0208d28ac5a42e04e7a0d588eeda8a3c60cb028bfadbaacd0f6"
     },
     {
       "path": "tests/test_ejecucion_diaria_unica.sh",
@@ -642,14 +652,19 @@
       "sha256": "cb50e9eea3641c248bc034cd58d736fff1eff0eb7d5af200d0cbd53ff9c4f474"
     },
     {
+      "path": "tests/test_organizar_trimestres_2026.py",
+      "bytes": 15321,
+      "sha256": "30e815fa206d9a9baf234a06c9e65831f17d256a95ade9b4e52040a85c4b35de"
+    },
+    {
       "path": "tests/test_portable_deployment.py",
       "bytes": 4325,
       "sha256": "0723cb66a15353f762e04206f22785c2ed4a634175a5916ad3e0af122e54c632"
     },
     {
       "path": "tests/test_postproceso_final.py",
-      "bytes": 1217,
-      "sha256": "07f6f30fe015e5c3f090f5c20a264aef4a17ee908794605e21a84a94a71ff51e"
+      "bytes": 1325,
+      "sha256": "7b157cc778155d63aab10b20f36e7882315faaaa1bdace79d113447930c1d52e"
     },
     {
       "path": "tests/test_reintentos_extraccion_satys.py",

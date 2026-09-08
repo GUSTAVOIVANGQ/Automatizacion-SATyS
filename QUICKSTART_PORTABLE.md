@@ -1,6 +1,6 @@
 # SATyS — Quickstart portable
 
-Versión: `2026.08.28-definitiva-cierre-seguro-rpc-publico-manual-correos-remitentes-email-post1`
+Versión: `2026.09.08-trimestres-q3-2026-q4-2027-ruta-excel1`
 
 ## Objetivo
 
@@ -143,3 +143,40 @@ Para ejecutar el mismo postproceso sin mandar correo:
 bash scripts/podman_satys.sh postproceso-final --sin-email
 ```
 
+
+## Organización adicional 2026Q3 / 2026Q4
+
+La release incluye una exportación adicional, idempotente y no destructiva,
+basada en `TrámitesCRT.xlsx`. El mapeo es **personalizado** y se conserva tal
+como fue solicitado (no corresponde a los trimestres calendario habituales):
+
+- `Fecha de creación` entre **01/10/2026 y 15/12/2026** → `output/2026Q3/<Ruta>`.
+- `Fecha de creación` entre **01/01/2026 y 31/03/2026** → `output/2026Q4/<Ruta>`.
+
+La columna `1711` localiza la carpeta fuente en `descargas`; la columna `Ruta`
+define la jerarquía que se reproduce dentro del bucket. Los archivos se
+fusionan sin inventar sufijos y `descargas` conserva siempre los originales.
+Los JSON no se publican en `output`. La misma Ruta del bucket se replica a
+`<SATYS_SHARED_DIR>/output/2026Q3` o `2026Q4` antes del correo diario.
+
+Auditoría sin copiar:
+
+```bash
+bash scripts/podman_satys.sh trimestres-2026 --dry-run
+```
+
+Ejecución real de **sólo** esta implementación:
+
+```bash
+bash scripts/podman_satys.sh trimestres-2026
+```
+
+Para organizar sólo localmente sin DEPI:
+
+```bash
+bash scripts/podman_satys.sh trimestres-2026 --sin-sync-depi
+```
+
+El timeout de esta etapa se controla con `SATYS_TRIMESTRES_2026_TIMEOUT`
+(3600 segundos por defecto). La corrida diaria ejecuta esta etapa después de la
+reparación final de `Ruta` (RPC público / `(correos)`) y antes del único correo.

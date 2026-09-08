@@ -6,8 +6,9 @@ Orden productivo:
   1) Completar Solicitante/Representante desde todos los PDF de descargas.
   2) Reconciliar TrámitesCRT.xlsx desde metadata, sin recopiar todo output.
   3) Reparar _sin_operador exclusivamente con RPC público y clasificar correos.
-  4) Sincronizar output/ + TrámitesCRT.xlsx al recurso DEPI.
-  5) Enviar el correo consolidado con EN REVISIÓN calculado desde el Excel final.
+  4) Mantener output normal + crear Q3/Q4 y actualizar Ruta en TrámitesCRT.xlsx.
+  5) Sincronizar output/ + TrámitesCRT.xlsx al recurso DEPI.
+  6) Enviar el correo consolidado con EN REVISIÓN calculado desde el Excel final.
 
 La fuente original ``descargas`` nunca se elimina ni se mueve.
 """
@@ -32,6 +33,7 @@ PYTHON = Path(os.getenv("SATYS_PYTHON", sys.executable))
 REMITENTES_TIMEOUT = max(300, int(os.getenv("SATYS_REMITENTES_PDF_TIMEOUT", "1800")))
 RECON_TIMEOUT = max(300, int(os.getenv("SATYS_RECONCILIACION_GLOBAL_TIMEOUT", "1800")))
 SINOP_TIMEOUT = max(300, int(os.getenv("SATYS_SIN_OPERADOR_RPC_PUBLICO_TIMEOUT", "1800")))
+TRIMESTRES_TIMEOUT = max(300, int(os.getenv("SATYS_TRIMESTRES_2026_TIMEOUT", "3600")))
 
 
 def _print_and_log(text: str, fh) -> None:
@@ -100,7 +102,7 @@ def cargar_resultados_email(descargas: Path) -> list[dict]:
 
 def construir_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description="Ejecuta sólo el postproceso final: Excel/PDF -> reconciliación -> RPC público -> output/DEPI -> correo."
+        description="Ejecuta sólo el postproceso final: Excel/PDF -> reconciliación -> RPC público -> 2026Q3/2026Q4 -> output/DEPI -> correo."
     )
     p.add_argument("--excel", type=Path, default=ruta_configurada("excel", "TrámitesCRT.xlsx"))
     p.add_argument("--descargas", type=Path, default=ruta_configurada("descargas", "descargas"))
@@ -108,6 +110,7 @@ def construir_parser() -> argparse.ArgumentParser:
     p.add_argument("--shared", type=Path, default=carpeta_compartida())
     p.add_argument("--sin-email", action="store_true", help="Ejecuta todo el postproceso pero no envía correo final.")
     p.add_argument("--sin-sync-depi", action="store_true", help="No hace la sincronización final output+Excel a DEPI.")
+    p.add_argument("--sin-trimestres-2026", action="store_true", help="Omite sólo la exportación adicional output/2026Q3 y output/2026Q4.")
     p.add_argument("--sin-lock", action="store_true", help="Sólo para pruebas; no usar en producción.")
     return p
 
@@ -180,11 +183,34 @@ def main() -> int:
             )
             resumen["pasos"]["sin_operador_rpc_publico"] = rc_rpc
 
+            rc_trim = 0
+            if args.sin_trimestres_2026:
+                _print_and_log("\n4) Organización adicional 2026Q3/2026Q4 omitida por --sin-trimestres-2026.\n", fh)
+            else:
+                cmd_trim = [
+                    str(PYTHON), str(PROJECT_DIR / "organizar_trimestres_2026.py"),
+                    "--excel", str(args.excel),
+                    "--descargas", str(args.descargas),
+                    "--output", str(args.output),
+                    "--shared", str(args.shared),
+                    "--logs-dir", str(LOGS_DIR),
+                    "--sin-lock",
+                ]
+                if args.sin_sync_depi:
+                    cmd_trim.append("--sin-sync-depi")
+                rc_trim = ejecutar_paso(
+                    cmd_trim,
+                    "4) ORGANIZAR VENTANAS 2026Q3/2026Q4 ANTES DEL CORREO",
+                    TRIMESTRES_TIMEOUT,
+                    fh,
+                )
+            resumen["pasos"]["organizar_trimestres_2026"] = rc_trim
+
             rc_sync = 0
             if args.sin_sync_depi:
-                _print_and_log("\n4) Sincronización final DEPI omitida por --sin-sync-depi.\n", fh)
+                _print_and_log("\n5) Sincronización final DEPI omitida por --sin-sync-depi.\n", fh)
             else:
-                _print_and_log("\n4) SINCRONIZAR OUTPUT + TrámitesCRT.xlsx A DEPI\n", fh)
+                _print_and_log("\n5) SINCRONIZAR OUTPUT + TrámitesCRT.xlsx A DEPI\n", fh)
                 sync = sincronizar_salidas(
                     PROJECT_DIR,
                     args.shared,
@@ -213,7 +239,7 @@ def main() -> int:
             # desde este TrámitesCRT.xlsx final, excluyendo (correos).
             rc_email = 0
             if args.sin_email:
-                _print_and_log("\n5) Correo omitido por --sin-email.\n", fh)
+                _print_and_log("\n6) Correo omitido por --sin-email.\n", fh)
             else:
                 import automatizar_registros_diario as diario
                 resultados = cargar_resultados_email(args.descargas)
@@ -229,7 +255,7 @@ def main() -> int:
                     error_general=error_general,
                 )
                 rc_email = 0 if ok_email else 1
-                _print_and_log(f"\n5) CORREO FINAL return_code={rc_email}\n", fh)
+                _print_and_log(f"\n6) CORREO FINAL return_code={rc_email}\n", fh)
             resumen["pasos"]["correo_final"] = rc_email
 
         import notificar_email

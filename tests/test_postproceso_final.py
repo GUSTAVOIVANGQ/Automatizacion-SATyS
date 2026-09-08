@@ -12,11 +12,13 @@ class PostprocesoFinalTests(unittest.TestCase):
         pos_rem = fuente.index("completar_remitentes_desde_pdfs.py")
         pos_rec = fuente.index("reconciliar_metadata_global.py")
         pos_rpc = fuente.index("resolver_sin_operador_rpc_publico.py")
+        pos_trim = fuente.index("organizar_trimestres_2026.py")
         pos_sync = fuente.index("sincronizar_salidas(")
         pos_mail = fuente.index("enviar_resumen_email_diario(")
         self.assertLess(pos_rem, pos_rec)
         self.assertLess(pos_rec, pos_rpc)
-        self.assertLess(pos_rpc, pos_sync)
+        self.assertLess(pos_rpc, pos_trim)
+        self.assertLess(pos_trim, pos_sync)
         self.assertLess(pos_sync, pos_mail)
 
     def test_sync_final_es_solo_output_y_excel(self):

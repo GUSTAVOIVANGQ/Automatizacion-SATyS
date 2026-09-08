@@ -75,6 +75,7 @@ MAIN_SCRIPT_DEFAULT = PROJECT_DIR / "main_procesar.py"
 RECONCILIAR_SCRIPT_DEFAULT = PROJECT_DIR / "reconciliar_metadata_global.py"
 COMPLETAR_REMITENTES_PDF_SCRIPT_DEFAULT = PROJECT_DIR / "completar_remitentes_desde_pdfs.py"
 SIN_OPERADOR_RPC_PUBLICO_SCRIPT_DEFAULT = PROJECT_DIR / "resolver_sin_operador_rpc_publico.py"
+ORGANIZAR_TRIMESTRES_2026_SCRIPT_DEFAULT = PROJECT_DIR / "organizar_trimestres_2026.py"
 EXCEL_DEFAULT = ruta_configurada("excel", "TrámitesCRT.xlsx")
 REGISTROS_LATEST_DEFAULT = PROJECT_DIR / "registros.txt"
 INTERNOS_LATEST_DEFAULT = PROJECT_DIR / "folios_internos_nuevos.json"
@@ -108,6 +109,10 @@ RECONCILIACION_GLOBAL_TIMEOUT_DEFAULT = max(
 SIN_OPERADOR_RPC_PUBLICO_TIMEOUT_DEFAULT = max(
     300,
     int(os.getenv("SATYS_SIN_OPERADOR_RPC_PUBLICO_TIMEOUT", "1800")),
+)
+TRIMESTRES_2026_TIMEOUT_DEFAULT = max(
+    300,
+    int(os.getenv("SATYS_TRIMESTRES_2026_TIMEOUT", "3600")),
 )
 
 
@@ -1315,6 +1320,36 @@ def ejecutar_reparacion_sin_operador_rpc_publico(
     )
 
 
+def ejecutar_organizacion_trimestres_2026(
+    *,
+    python_exe: Path,
+    script: Path,
+    excel: Path,
+    log_path: Path,
+    estado: EstadoEjecucion,
+    timeout_segundos: int = TRIMESTRES_2026_TIMEOUT_DEFAULT,
+) -> int:
+    """Conserva output normal, crea Q3/Q4 y actualiza Ruta Excel antes del correo."""
+    cmd = [
+        str(python_exe),
+        str(script),
+        "--excel", str(excel),
+        "--descargas", str(ruta_configurada("descargas", "descargas")),
+        "--output", str(ruta_configurada("output", "output")),
+        "--shared", str(carpeta_compartida()),
+        "--logs-dir", str(LOG_DIR_DEFAULT),
+    ]
+    return ejecutar_comando(
+        cmd,
+        PROJECT_DIR,
+        log_path,
+        "7) ORGANIZAR VENTANAS 2026Q3/2026Q4 ANTES DEL CORREO",
+        estado=estado,
+        etapa="organizando_trimestres_2026",
+        timeout_segundos=timeout_segundos,
+    )
+
+
 def ejecutar_reconciliacion_global(
     *,
     python_exe: Path,
@@ -1397,6 +1432,27 @@ def construir_parser() -> argparse.ArgumentParser:
             "Timeout duro de la reparación final RPC público. Si se excede, "
             "la etapa termina con código 124 y el correo/cierre continúan. "
             f"Default: {SIN_OPERADOR_RPC_PUBLICO_TIMEOUT_DEFAULT}."
+        ),
+    )
+    parser.add_argument(
+        "--organizar-trimestres-2026-script",
+        type=Path,
+        default=ORGANIZAR_TRIMESTRES_2026_SCRIPT_DEFAULT,
+        help="Ruta a organizar_trimestres_2026.py.",
+    )
+    parser.add_argument(
+        "--sin-organizar-trimestres-2026",
+        action="store_true",
+        help="Desactiva sólo la exportación adicional output/2026Q3 y output/2026Q4.",
+    )
+    parser.add_argument(
+        "--timeout-organizar-trimestres-2026",
+        type=int,
+        default=TRIMESTRES_2026_TIMEOUT_DEFAULT,
+        help=(
+            "Timeout duro de la organización adicional 2026. Si se excede, "
+            "la etapa termina con código 124 y el correo/cierre continúan. "
+            f"Default: {TRIMESTRES_2026_TIMEOUT_DEFAULT}."
         ),
     )
     parser.add_argument("--sin-reconciliacion-global", action="store_true",
@@ -2126,7 +2182,7 @@ def main() -> int:
                 origen="internos",
             )
 
-        # Única etapa adicional previa al correo: vuelve a intentar únicamente
+        # Primera etapa adicional previa al correo: vuelve a intentar únicamente
         # las filas cuya Ruta sigue en _sin_operador. Primero usa nombre_operador
         # de metadata_satys.json contra el buscador público RPC (nunca el Excel
         # oficial); después clasifica en _sin_operador/(correos) los pendientes
@@ -2160,6 +2216,33 @@ def main() -> int:
             "cambios_excel_correos": resumen_reparacion_sin_operador.get("cambios_excel_correos", 0),
         }
 
+        # Organización final solicitada. Se ejecuta después de RPC/(correos) y
+        # antes del correo: mantiene output/<Ruta base>, crea output/Q3-Q4/<Ruta base>,
+        # actualiza la columna Ruta al bucket y replica output + Excel a DEPI.
+        rc_trimestres_2026 = 0
+        if not args.solo_internos and not args.sin_organizar_trimestres_2026:
+            rc_trimestres_2026 = ejecutar_organizacion_trimestres_2026(
+                python_exe=args.python_exe,
+                script=args.organizar_trimestres_2026_script,
+                excel=args.excel,
+                log_path=log_path,
+                estado=estado,
+                timeout_segundos=args.timeout_organizar_trimestres_2026,
+            )
+        resumen["return_code_organizar_trimestres_2026"] = rc_trimestres_2026
+        # Las omisiones normales (sin fuente/ruta) no producen rc != 0. Si esta
+        # etapa reporta un error real de E/S/DEPI, sí forma parte del resultado
+        # final, aunque el correo se intenta de todos modos.
+        rc_final = rc_final or rc_trimestres_2026
+        resumen_trimestres_path = LOG_DIR_DEFAULT / "organizar_trimestres_2026_ultimo.json"
+        if resumen_trimestres_path.is_file():
+            try:
+                resumen["organizacion_trimestres_2026"] = json.loads(
+                    resumen_trimestres_path.read_text(encoding="utf-8")
+                )
+            except Exception as exc:
+                resumen["organizacion_trimestres_2026"] = {"error_lectura": str(exc)}
+
         conteos_email = (
             _email_mod.conteos_desde_resultados(resultados_email)
             if _EMAIL_DISPONIBLE
@@ -2182,6 +2265,7 @@ def main() -> int:
                 f"Reparación _sin_operador RPC público: {rc_reparacion_sin_operador} "
                 f"({resumen_reparacion_sin_operador.get('total_reparados', 0)} reparado(s); "
                 f"{resumen_reparacion_sin_operador.get('total_correos_confirmados', 0)} en (correos)). "
+                f"Organización adicional 2026Q3/2026Q4: {rc_trimestres_2026}. "
                 f"Fallidos controlados: {len(fallidos)}."
             )
 
@@ -2220,6 +2304,7 @@ def main() -> int:
             return_code_main=rc_main,
             return_code_main_internos=rc_main_internos,
             return_code_reconciliacion_global=rc_reconciliacion,
+            return_code_organizar_trimestres_2026=rc_trimestres_2026,
         )
         # ─────────────────────────────────────────────────────────────────────
         if args.folio_internos:

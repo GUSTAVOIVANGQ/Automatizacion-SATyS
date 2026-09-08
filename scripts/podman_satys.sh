@@ -24,7 +24,8 @@ ZIP_RUTA_RELATIVA_MAX="${SATYS_ZIP_RUTA_RELATIVA_MAX:-140}"
 REMITENTES_PDF_TIMEOUT="${SATYS_REMITENTES_PDF_TIMEOUT:-1800}"
 RECONCILIACION_GLOBAL_TIMEOUT="${SATYS_RECONCILIACION_GLOBAL_TIMEOUT:-1800}"
 SIN_OPERADOR_RPC_PUBLICO_TIMEOUT="${SATYS_SIN_OPERADOR_RPC_PUBLICO_TIMEOUT:-1800}"
-POSTPROCESO_FINAL_TIMEOUT="${SATYS_POSTPROCESO_FINAL_TIMEOUT:-7200}"
+TRIMESTRES_2026_TIMEOUT="${SATYS_TRIMESTRES_2026_TIMEOUT:-3600}"
+POSTPROCESO_FINAL_TIMEOUT="${SATYS_POSTPROCESO_FINAL_TIMEOUT:-10800}"
 SHM_SIZE="${SATYS_SHM_SIZE:-6g}"
 
 [[ "$INTERNOS_WORKERS" =~ ^[1-9][0-9]*$ ]] || {
@@ -37,6 +38,10 @@ SHM_SIZE="${SATYS_SHM_SIZE:-6g}"
 }
 [[ "$SIN_OPERADOR_RPC_PUBLICO_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || {
   echo "ERROR: SATYS_SIN_OPERADOR_RPC_PUBLICO_TIMEOUT debe ser un entero positivo" >&2
+  exit 2
+}
+[[ "$TRIMESTRES_2026_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || {
+  echo "ERROR: SATYS_TRIMESTRES_2026_TIMEOUT debe ser un entero positivo" >&2
   exit 2
 }
 [[ "$POSTPROCESO_FINAL_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || {
@@ -68,6 +73,7 @@ common=(
   -e "SATYS_REMITENTES_PDF_TIMEOUT=$REMITENTES_PDF_TIMEOUT"
   -e "SATYS_RECONCILIACION_GLOBAL_TIMEOUT=$RECONCILIACION_GLOBAL_TIMEOUT"
   -e "SATYS_SIN_OPERADOR_RPC_PUBLICO_TIMEOUT=$SIN_OPERADOR_RPC_PUBLICO_TIMEOUT"
+  -e "SATYS_TRIMESTRES_2026_TIMEOUT=$TRIMESTRES_2026_TIMEOUT"
   -e "SATYS_POSTPROCESO_FINAL_TIMEOUT=$POSTPROCESO_FINAL_TIMEOUT"
   -e SATYS_API_ALLOW_MANUAL=1
   -e SATYS_API_ALLOW_REPAIR=1
@@ -172,7 +178,7 @@ case "$cmd" in
   postproceso-final)
     [[ -f "$RUNTIME/TrámitesCRT.xlsx" ]] || { echo "ERROR: falta $RUNTIME/TrámitesCRT.xlsx" >&2; exit 3; }
     name="satys-postproceso-final-$(date +%Y%m%d-%H%M%S)"
-    echo "Ejecutando postproceso final: remitentes PDF -> reconciliación -> RPC público/(correos) -> output+Excel a DEPI -> correo (timeout global ${POSTPROCESO_FINAL_TIMEOUT}s)..."
+    echo "Ejecutando postproceso final: remitentes PDF -> reconciliación -> RPC público/(correos) -> 2026Q3/2026Q4 -> output+Excel a DEPI -> correo (timeout global ${POSTPROCESO_FINAL_TIMEOUT}s)..."
     set +e
     timeout --signal=TERM --kill-after=30s "${POSTPROCESO_FINAL_TIMEOUT}s" \
       podman run --rm --name "$name" "${common[@]}" \
@@ -182,6 +188,22 @@ case "$cmd" in
     if [[ $rc -eq 124 || $rc -eq 137 ]]; then
       podman rm -f "$name" >/dev/null 2>&1 || true
       echo "ERROR: postproceso final excedió ${POSTPROCESO_FINAL_TIMEOUT}s (rc=$rc)." >&2
+    fi
+    exit "$rc"
+    ;;
+  trimestres-2026)
+    [[ -f "$RUNTIME/TrámitesCRT.xlsx" ]] || { echo "ERROR: falta $RUNTIME/TrámitesCRT.xlsx" >&2; exit 3; }
+    name="satys-trimestres-2026-$(date +%Y%m%d-%H%M%S)"
+    echo "Ejecutando sólo organización adicional: 01-oct-2026..15-dic-2026 -> output/2026Q3; 01-ene-2027..31-mar-2027 -> output/2026Q4; conserva output normal; actualiza Ruta Excel; sync DEPI (timeout ${TRIMESTRES_2026_TIMEOUT}s)..."
+    set +e
+    timeout --signal=TERM --kill-after=30s "${TRIMESTRES_2026_TIMEOUT}s" \
+      podman run --rm --name "$name" "${common[@]}" \
+      "$IMAGE" python organizar_trimestres_2026.py "$@"
+    rc=$?
+    set -e
+    if [[ $rc -eq 124 || $rc -eq 137 ]]; then
+      podman rm -f "$name" >/dev/null 2>&1 || true
+      echo "ERROR: organización 2026Q3/2026Q4 excedió ${TRIMESTRES_2026_TIMEOUT}s (rc=$rc)." >&2
     fi
     exit "$rc"
     ;;
@@ -226,7 +248,9 @@ Uso: scripts/podman_satys.sh COMANDO
   remitentes-pdf    Completar Solicitante/Representante desde todos los PDF de descargas
                     (acepta --dry-run; no ejecuta la corrida diaria)
   postproceso-final Ejecutar desde el Excel final: remitentes PDF -> reconciliación -> RPC público/(correos)
-                    -> fusionar output -> sincronizar output+TrámitesCRT.xlsx a DEPI -> correo corregido
+                    -> 2026Q3/2026Q4 -> fusionar output -> sincronizar output+TrámitesCRT.xlsx a DEPI -> correo corregido
+  trimestres-2026    Doble organización normal+Q3/Q4, actualiza Ruta Excel y sincroniza DEPI
+                    (acepta --dry-run y --sin-sync-depi; no ejecuta la corrida diaria)
   sin-operador-rpc  Ejecutar reparación _sin_operador: RPC público + PDF tipo MEMORANDO/MEMORANDUM -> (correos)
                     (acepta args del módulo, por ejemplo --dry-run)
   test       Ejecutar tests dentro de la imagen

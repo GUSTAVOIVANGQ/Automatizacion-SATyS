@@ -106,6 +106,11 @@ class CorreoDiarioTests(unittest.TestCase):
             self.assertEqual(c["correos_clasificados"], 1)
             self.assertEqual(c["organizados_excel"], 1)
 
+    def test_conteo_revision_reconoce_rutas_con_prefijo_trimestral(self):
+        self.assertTrue(notificar_email._ruta_es_revision(r"2026Q4\_sin_operador\CRT27-000001"))
+        self.assertFalse(notificar_email._ruta_es_revision(r"2026Q4\_sin_operador\(correos)\CRT27-000002"))
+        self.assertTrue(notificar_email._ruta_es_correos(r"2026Q4\_sin_operador\(correos)\CRT27-000002"))
+
     def test_correo_clasificado_no_aparece_como_pendiente(self):
         item = {
             "registro": "CRT26-000003",
