@@ -674,6 +674,141 @@ def _buscar_fila(ws, folio: str, registro: str = None, col_registro: int = None)
 #  ACTUALIZACIÓN DEL EXCEL
 # ────────────────────────────────────────────────────────
 
+def normalizar_ruta_excel(valor) -> str:
+    """Normaliza una Ruta relativa del maestro sin alterar su semántica."""
+    return str(valor or "").strip().replace("/", "\\").strip("\\")
+
+
+def ruta_es_revision_manual(valor) -> bool:
+    """True para destinos _sin_operador, incluidos prefijos trimestrales."""
+    ruta = normalizar_ruta_excel(valor)
+    if not ruta:
+        return False
+    partes = [p for p in ruta.split("\\") if p]
+    if partes and re.fullmatch(r"2026Q[34]", partes[0], re.IGNORECASE):
+        partes = partes[1:]
+    if not partes:
+        return False
+    return partes[0].casefold() in {"_sin_operador", "sin_operador_correo"}
+
+
+def ruta_es_canonica_estable(valor) -> bool:
+    ruta = normalizar_ruta_excel(valor)
+    return bool(ruta) and not ruta_es_revision_manual(ruta)
+
+
+def _buscar_fila_identidad(
+    ws,
+    encabezados: dict[str, int],
+    *,
+    folio: str = "",
+    registro: str = "",
+    folio_internos: str = "",
+) -> int | None:
+    """Localiza una fila existente usando la misma prioridad del actualizador."""
+    col_1711 = _columna_encabezado(encabezados, "1711", default=4)
+    col_memo = _columna_encabezado(encabezados, "Memo/Volante", default=5)
+    col_folio_internos = _columna_encabezado(
+        encabezados, "Folio Internos", "Folio Interno", "Folio SATyS Internos"
+    )
+
+    def norm(v):
+        return str(v or "").strip().upper()
+
+    registro_norm = norm(registro)
+    folio_norm = norm(folio)
+    folio_internos_norm = norm(folio_internos)
+
+    if folio_internos_norm and col_folio_internos:
+        for r in range(2, ws.max_row + 1):
+            if norm(ws.cell(row=r, column=col_folio_internos).value) == folio_internos_norm:
+                return r
+
+    if registro_norm:
+        for r in range(2, ws.max_row + 1):
+            if norm(ws.cell(row=r, column=col_1711).value) != registro_norm:
+                continue
+            folio_interno_existente = (
+                norm(ws.cell(row=r, column=col_folio_internos).value)
+                if folio_internos_norm and col_folio_internos
+                else ""
+            )
+            if not folio_interno_existente:
+                return r
+
+    if folio_norm:
+        for r in range(2, ws.max_row + 1):
+            if norm(ws.cell(row=r, column=col_memo).value) != folio_norm:
+                continue
+            if folio_internos_norm and col_folio_internos:
+                if norm(ws.cell(row=r, column=col_folio_internos).value):
+                    continue
+            registro_existente = norm(ws.cell(row=r, column=col_1711).value)
+            if not registro_existente or registro_existente == registro_norm:
+                return r
+    return None
+
+
+def obtener_ruta_existente_excel(
+    *,
+    folio: str = "",
+    registro: str = "",
+    folio_internos: str = "",
+    excel_path: Path | None = None,
+    sheet_name: str | None = None,
+) -> str:
+    """Lee la Ruta actual de una fila sin modificar el libro, en una pasada."""
+    excel = Path(excel_path or EXCEL_PATH)
+    sheet = sheet_name or SHEET_NAME
+    if not excel.exists():
+        return ""
+    wb = openpyxl.load_workbook(excel, read_only=True, data_only=False)
+    try:
+        if sheet not in wb.sheetnames:
+            return ""
+        ws = wb[sheet]
+        header_values = next(ws.iter_rows(min_row=1, max_row=1, values_only=True), ())
+        encabezados = {
+            str(value).strip(): idx
+            for idx, value in enumerate(header_values, start=1)
+            if value not in (None, "")
+        }
+        col_1711 = _columna_encabezado(encabezados, "1711", default=4)
+        col_memo = _columna_encabezado(encabezados, "Memo/Volante", default=5)
+        col_ruta = _columna_encabezado(encabezados, "Ruta", default=13)
+        col_folio_internos = _columna_encabezado(
+            encabezados, "Folio Internos", "Folio Interno", "Folio SATyS Internos"
+        )
+
+        def norm(v):
+            return str(v or "").strip().upper()
+
+        registro_norm = norm(registro)
+        folio_norm = norm(folio)
+        folio_internos_norm = norm(folio_internos)
+        por_registro = ""
+        por_folio = ""
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            def value_at(col):
+                return row[col - 1] if col and col <= len(row) else None
+            ruta = normalizar_ruta_excel(value_at(col_ruta))
+            if folio_internos_norm and col_folio_internos:
+                if norm(value_at(col_folio_internos)) == folio_internos_norm:
+                    return ruta
+            if registro_norm and norm(value_at(col_1711)) == registro_norm and not por_registro:
+                # Para Internos sólo sirve una fila sin otra identidad dedicada.
+                if not folio_internos_norm or not norm(value_at(col_folio_internos)):
+                    por_registro = ruta
+            if folio_norm and norm(value_at(col_memo)) == folio_norm and not por_folio:
+                reg_exist = norm(value_at(col_1711))
+                folio_int_exist = norm(value_at(col_folio_internos)) if col_folio_internos else ""
+                if (not folio_internos_norm or not folio_int_exist) and (not reg_exist or reg_exist == registro_norm):
+                    por_folio = ruta
+        return por_registro or por_folio
+    finally:
+        wb.close()
+
+
 def _obtener_o_crear_hoja(wb, sheet: str):
     """Devuelve la hoja destino; si no existe, copia encabezados desde SHEET_NAME."""
     if sheet in wb.sheetnames:
@@ -724,6 +859,7 @@ def actualizar_excel(
     fecha_limite: str = "",
     folio_internos: str = "",
     ruta_salida: str = "",
+    forzar_ruta: bool = False,
 ) -> bool:
     """
     Actualiza la fila correspondiente al folio en el Excel.
@@ -783,111 +919,77 @@ def actualizar_excel(
             encabezados["Folio Internos"] = col_folio_internos
             log.info("➕ Columna 'Folio Internos' agregada a la hoja Internos.")
 
-        # Idempotencia: si el registro/folio ya existe, actualizar esa fila
-        # en lugar de duplicar. Esto permite reprocesar TODO descargas/ sin
-        # generar filas repetidas en TrámitesCRT.xlsx.
-        def _norm_excel(v):
-            return str(v or "").strip().upper()
-
-        fila = None
-        registro_norm = _norm_excel(registro)
-        folio_norm = _norm_excel(folio)
-        folio_internos_norm = _norm_excel(folio_internos)
-
-        # Internos uses the numeric dashboard Folio as its daily inventory key.
-        if folio_internos_norm and col_folio_internos:
-            for r in range(2, ws.max_row + 1):
-                if _norm_excel(ws.cell(row=r, column=col_folio_internos).value) == folio_internos_norm:
-                    fila = r
-                    break
-
-        # En una migracion puede haber filas de Internos previas a la columna
-        # dedicada. Solo se reutilizan si aun no tienen Folio Internos; dos
-        # folios distintos pueden compartir el mismo Registro CRT.
-        if fila is None and registro_norm:
-            for r in range(2, ws.max_row + 1):
-                if _norm_excel(ws.cell(row=r, column=col_1711).value) != registro_norm:
-                    continue
-                folio_interno_existente = (
-                    _norm_excel(ws.cell(row=r, column=col_folio_internos).value)
-                    if folio_internos_norm and col_folio_internos
-                    else ""
-                )
-                if not folio_interno_existente:
-                    fila = r
-                    break
-
-        # Prioridad 2: si el folio ya existe, solo reutilizar una fila SIN
-        # Registro. Si la fila tiene otro Registro, es un trámite distinto y se
-        # debe agregar una fila nueva. Esto evita sobrescribir casos como folio
-        # 1661 con CRT26-002479 y CRT26-020607.
-        if fila is None and folio_norm:
-            for r in range(2, ws.max_row + 1):
-                if _norm_excel(ws.cell(row=r, column=col_memo).value) != folio_norm:
-                    continue
-                if folio_internos_norm and col_folio_internos:
-                    folio_interno_existente = _norm_excel(
-                        ws.cell(row=r, column=col_folio_internos).value
-                    )
-                    if folio_interno_existente:
-                        continue
-                registro_existente = _norm_excel(ws.cell(row=r, column=col_1711).value)
-                if not registro_existente or registro_existente == registro_norm:
-                    fila = r
-                    break
-
-        if fila is None:
+        # Idempotencia: localizar por Folio Internos, Registro y Memo/Volante.
+        fila = _buscar_fila_identidad(
+            ws,
+            encabezados,
+            folio=folio,
+            registro=registro,
+            folio_internos=folio_internos,
+        )
+        fila_nueva = fila is None
+        if fila_nueva:
             fila = ws.max_row + 1
             log.info("➕ Agregando nueva fila %d para folio %s (registro %s)", fila, folio, registro or "N/A")
         else:
-            log.info("♻️  Actualizando fila existente %d para folio %s (registro %s)", fila, folio, registro or "N/A")
+            log.info("♻️  Actualizando fila existente %d para folio %s (registro %s) en modo conservador", fila, folio, registro or "N/A")
 
-        ws.cell(row=fila, column=col_memo, value=folio)
+        def escribir_si_vacio(columna: int | None, valor, *, nombre: str = "") -> None:
+            if not columna or valor in (None, ""):
+                return
+            actual = ws.cell(row=fila, column=columna).value
+            if fila_nueva or actual in (None, ""):
+                ws.cell(row=fila, column=columna, value=valor)
+            elif str(actual).strip() != str(valor).strip():
+                log.info("🛡️  Se preserva %s existente; la corrida diaria no lo sobrescribe.", nombre or f"columna {columna}")
+
+        escribir_si_vacio(col_memo, folio, nombre="Memo/Volante")
         if folio_internos and col_folio_internos:
-            ws.cell(row=fila, column=col_folio_internos, value=str(folio_internos).strip())
+            escribir_si_vacio(col_folio_internos, str(folio_internos).strip(), nombre="Folio Internos")
 
-        # Escribir datos
-        if registro:
-            ws.cell(row=fila, column=col_1711, value=registro)
-        if nombre_operador:
-            ws.cell(row=fila, column=col_solicitante, value=nombre_operador)
-        if representante_legal:
-            ws.cell(row=fila, column=col_rep, value=representante_legal)
+        # Campos automáticos: en filas existentes sólo completar vacíos. Esto
+        # impide que metadata parcial o una caída temporal del RPC borre/cambie
+        # información histórica ya validada.
+        escribir_si_vacio(col_1711, registro, nombre="1711")
+        escribir_si_vacio(col_solicitante, nombre_operador, nombre="Solicitante Promovente")
+        escribir_si_vacio(col_rep, representante_legal, nombre="Representante Legal")
         if fecha_sello:
             fecha_sello = fecha_sello.replace("-", "/")
-            ws.cell(row=fila, column=col_fecha, value=fecha_sello)
-            log.info("   📅 Fecha sello → col %s: %s", get_column_letter(col_fecha), fecha_sello)
-        ruta_final = ruta_salida or (
-            rpc_resultado.get("ruta", "")
-            if rpc_resultado and rpc_resultado.get("ok")
-            else ""
+            escribir_si_vacio(col_fecha, fecha_sello, nombre="Fecha de creación")
+
+        ruta_final = normalizar_ruta_excel(
+            ruta_salida or (
+                rpc_resultado.get("ruta", "")
+                if rpc_resultado and rpc_resultado.get("ok")
+                else ""
+            )
         )
         if ruta_final:
-            ws.cell(row=fila, column=col_ruta, value=str(ruta_final).replace("/", "\\"))
+            actual_ruta = normalizar_ruta_excel(ws.cell(row=fila, column=col_ruta).value)
+            actualizar_ruta = False
+            if fila_nueva or not actual_ruta or actual_ruta.casefold() == ruta_final.casefold():
+                actualizar_ruta = True
+            elif forzar_ruta:
+                actualizar_ruta = True
+            elif ruta_es_revision_manual(actual_ruta) and not ruta_es_revision_manual(ruta_final):
+                # Única promoción automática: pendiente -> operador resuelto.
+                actualizar_ruta = True
+            elif ruta_es_canonica_estable(actual_ruta) and ruta_es_revision_manual(ruta_final):
+                log.warning("🛡️  Ruta canónica preservada; no se degrada a _sin_operador: %s", actual_ruta)
+            else:
+                log.warning("🛡️  Ruta existente preservada ante cambio automático: %s -> %s", actual_ruta, ruta_final)
+            if actualizar_ruta:
+                ws.cell(row=fila, column=col_ruta, value=ruta_final)
 
-        # Asunto
-        if asunto and col_asunto:
-            ws.cell(row=fila, column=col_asunto, value=asunto)
-            log.info("   📝 Asunto → col %s", get_column_letter(col_asunto))
-
-        # Tipo Trámite
-        if tipo_tramite and col_tipo:
-            ws.cell(row=fila, column=col_tipo, value=tipo_tramite)
-            log.info("   📋 Tipo Trámite → col %s", get_column_letter(col_tipo))
-
-        # FECHA LÍMITE: solo si viene plazo_atencion de metadata_tramite_nuevo.json
+        escribir_si_vacio(col_asunto, asunto, nombre="Asunto")
+        escribir_si_vacio(col_tipo, tipo_tramite, nombre="Tipo Trámite")
         if fecha_limite and col_fecha_limite:
-            ws.cell(row=fila, column=col_fecha_limite, value=fecha_limite)
-            log.info("   🗓️ FECHA LÍMITE → col %s: %s", get_column_letter(col_fecha_limite), fecha_limite)
+            escribir_si_vacio(col_fecha_limite, fecha_limite, nombre="FECHA LÍMITE")
         elif fecha_limite and not col_fecha_limite:
             log.warning("⚠️  Se tiene plazo_atencion (%s) pero no se encontró columna 'FECHA LÍMITE' en el Excel.", fecha_limite)
 
-        # Formatos R001–R027. Primero limpiar la fila para no heredar marcas
-        # de un Registro distinto que antes compartía el mismo folio.
-        for numero in range(1, 28):
-            header_fmt = f"R{numero:03d}"
-            if header_fmt in encabezados:
-                ws.cell(row=fila, column=encabezados[header_fmt], value=None)
+        # Formatos R001–R027: una corrida diaria sólo agrega evidencia presente;
+        # nunca limpia marcas de una fila histórica existente.
         for fmt, presente in formatos.items():
             if presente and fmt in encabezados:
                 col = encabezados[fmt]

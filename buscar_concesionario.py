@@ -52,13 +52,20 @@ except ImportError:  # Fallback determinista con difflib.
 
 log = logging.getLogger("SATyS-BuscarConcesionario")
 
-RPC_AUTOCOMPLETE_URL = "https://rpc.ift.org.mx/vrpc/RpcServicesController/searchBP"
-RPC_RESULTADOS_URL = "https://rpc.ift.org.mx/vrpc/RpcSearchController/searchConcesiones"
+RPC_BASE_URL = os.getenv("SATYS_RPC_BASE_URL", "https://rpc.crt.gob.mx/vrpc").rstrip("/")
+RPC_AUTOCOMPLETE_URL = os.getenv(
+    "SATYS_RPC_AUTOCOMPLETE_URL",
+    f"{RPC_BASE_URL}/RpcServicesController/searchBP",
+)
+RPC_RESULTADOS_URL = os.getenv(
+    "SATYS_RPC_RESULTADOS_URL",
+    f"{RPC_BASE_URL}/RpcSearchController/searchConcesiones",
+)
 RPC_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0",
     "Accept": "application/json, text/html, */*",
     "Accept-Language": "es-MX,es;q=0.9",
-    "Referer": "https://rpc.ift.org.mx/vrpc/",
+    "Referer": f"{RPC_BASE_URL}/",
 }
 
 # Evita consultar repetidamente el RPC cuando varios registros pertenecen al
@@ -408,10 +415,21 @@ def _extraer_respuesta_rpc(data: Any) -> list[dict[str, str]]:
             item.get("concesionario")
             or item.get("nombre")
             or item.get("denominacion")
+            or item.get("denominacionSocial")
+            or item.get("razonSocial")
             or item.get("label")
+            or item.get("value")
+            or item.get("text")
             or ""
         ).strip()
-        id_bp = normalizar_id(item.get("idBp") or item.get("id") or item.get("id_bp"))
+        id_bp = normalizar_id(
+            item.get("idBp")
+            or item.get("idBP")
+            or item.get("idbp")
+            or item.get("id")
+            or item.get("id_bp")
+            or item.get("numeroRpc")
+        )
         if nombre and id_bp:
             items.append({"idBp": id_bp, "nombre_completo": nombre})
     return items
@@ -631,9 +649,14 @@ def _extraer_resultados_concesiones_html(html: str) -> list[dict[str, str]]:
         return []
     soup = BeautifulSoup(html or "", "html.parser")
     resultados: list[dict[str, str]] = []
-    for encabezado in soup.select(".strip_all_tour_list h3"):
+    encabezados = list(soup.select(".strip_all_tour_list h3"))
+    # El portal CRT ha cambiado de plantilla; si la clase histórica ya no está,
+    # buscamos encabezados semánticos sin depender de CSS específico.
+    if not encabezados:
+        encabezados = list(soup.find_all(["h2", "h3", "h4", "strong"]))
+    for encabezado in encabezados:
         texto = re.sub(r"\s+", " ", encabezado.get_text(" ", strip=True)).strip()
-        match = re.match(r"^([A-Z0-9]+)-(\d+)\s+-\s+(.+)$", texto, re.IGNORECASE)
+        match = re.match(r"^([A-Z0-9./_-]+)-(\d+)\s+-\s+(.+)$", texto, re.IGNORECASE)
         if not match:
             continue
         resultados.append({
@@ -689,10 +712,13 @@ def buscar_nombre_operador_rpc_resultados(
         try:
             respuesta = cliente.post(
                 RPC_RESULTADOS_URL,
-                data={**payload_base, "strConcesionario": nombre},
+                data={**payload_base, "strConcesionario": nombre, "txtBPConcesionario": nombre},
                 timeout=timeout,
             )
             respuesta.raise_for_status()
+            final_url = str(getattr(respuesta, "url", "") or "")
+            if final_url and "/vrpc" not in final_url.casefold():
+                raise RuntimeError(f"rpc_resultados_redirigido_fuera_vrpc:{final_url}")
             hubo_respuesta = True
             for item in _extraer_resultados_concesiones_html(respuesta.text):
                 item["consulta_rpc"] = nombre
@@ -840,6 +866,9 @@ def buscar_nombre_operador_rpc_online_exacto(
                 timeout=timeout,
             )
             respuesta.raise_for_status()
+            final_url = str(getattr(respuesta, "url", "") or "")
+            if final_url and "/vrpc" not in final_url.casefold():
+                raise RuntimeError(f"rpc_autocomplete_redirigido_fuera_vrpc:{final_url}")
             data = respuesta.json()
             hubo_respuesta = True
         except Exception as exc:

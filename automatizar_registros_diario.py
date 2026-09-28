@@ -87,7 +87,7 @@ SHEET_INTERNOS_DEFAULT = "Internos"
 HEADER_FOLIO_INTERNOS_DEFAULT = "Folio Internos"
 PROCESAMIENTO_CFG = configuracion_procesamiento()
 WORKERS_DEFAULT = int(PROCESAMIENTO_CFG.get("workers", 10))
-INTERNOS_WORKERS_DEFAULT = int(PROCESAMIENTO_CFG.get("internos_workers", 12))
+INTERNOS_WORKERS_DEFAULT = int(PROCESAMIENTO_CFG.get("internos_workers", 10))
 TIMEOUT_REGISTRO_DEFAULT = int(PROCESAMIENTO_CFG.get("timeout_registro", 900))
 REINTENTOS_REGISTRO_DEFAULT = int(PROCESAMIENTO_CFG.get("reintentos_registro", 2))
 WORKERS_REINTENTO_DEFAULT = int(PROCESAMIENTO_CFG.get("workers_reintento", 2))
@@ -104,11 +104,11 @@ REMITENTES_PDF_TIMEOUT_DEFAULT = max(
 )
 RECONCILIACION_GLOBAL_TIMEOUT_DEFAULT = max(
     300,
-    int(os.getenv("SATYS_RECONCILIACION_GLOBAL_TIMEOUT", "1800")),
+    int(os.getenv("SATYS_RECONCILIACION_GLOBAL_TIMEOUT", "3600")),
 )
 SIN_OPERADOR_RPC_PUBLICO_TIMEOUT_DEFAULT = max(
     300,
-    int(os.getenv("SATYS_SIN_OPERADOR_RPC_PUBLICO_TIMEOUT", "1800")),
+    int(os.getenv("SATYS_SIN_OPERADOR_RPC_PUBLICO_TIMEOUT", "3600")),
 )
 TRIMESTRES_2026_TIMEOUT_DEFAULT = max(
     300,
@@ -1151,15 +1151,19 @@ def enviar_resumen_email_diario(
     conteos = _email_mod.conteos_desde_resultados(resultados)
     conteos_excel = _email_mod.conteos_revision_desde_excel(excel_path)
     if conteos_excel.get("total_excel", 0):
+        conteos["total"] = int(conteos_excel["total_excel"])
+        conteos["turnados_excel"] = int(conteos_excel.get("turnados_excel", 0))
+        conteos["internos_excel"] = int(conteos_excel.get("internos_excel", 0))
         conteos["sin_operador"] = int(conteos_excel["en_revision"])
         conteos["revision_manual"] = int(conteos_excel["en_revision"])
         conteos["correos_clasificados_excel"] = int(conteos_excel["correos_clasificados"])
-        if conteos["total"] == 0:
-            conteos["total"] = int(conteos_excel["total_excel"])
-        conteos["exitosos"] = max(0, conteos["total"] - conteos["errores"] - conteos["sin_operador"])
     if error_general:
         conteos["errores"] = max(1, conteos["errores"])
         conteos["total"] = max(1, conteos["total"])
+    conteos["exitosos"] = max(
+        0,
+        int(conteos["total"]) - int(conteos["errores"]) - int(conteos["sin_operador"]),
+    )
 
     outputs = {
         "Carpeta output": str(output_base.resolve()),

@@ -26,7 +26,7 @@ def inspeccionar_bandeja(_context, page, bandeja, max_pasadas=3, folios_objetivo
 
     tab_id = satys.INTERNOS_BANDEJA_IDS[satys._normalizar_nombre_internos(bandeja)]
     estado_texto = page.evaluate(
-        """(id) => {
+        r"""(id) => {
             const tab = document.getElementById(id);
             const contadorTexto = (tab?.querySelector('span')?.textContent || '')
                 .replace(/[,\s]/g, '');
@@ -66,7 +66,7 @@ def inspeccionar_bandeja(_context, page, bandeja, max_pasadas=3, folios_objetivo
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--workers", type=int, default=12, help="Navegadores paralelos; default: 12.")
+    parser.add_argument("--workers", type=int, default=10, help="Navegadores paralelos; default: 10.")
     parser.add_argument("--visible", action="store_true", help="Muestra los navegadores.")
     args = parser.parse_args()
     if args.workers < 1:

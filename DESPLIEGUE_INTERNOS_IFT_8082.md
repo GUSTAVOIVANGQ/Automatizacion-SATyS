@@ -32,7 +32,7 @@ Después de copiar y extraer la release:
 ```bash
 cd /data/gustavo.garcia/satys/Automatizacion-SATyS
 sed -i 's|^SATYS_IMAGE=.*|SATYS_IMAGE=satys-api:2026.08.18-portable-oci-api-v1-8082-internos12|' .env
-sed -i 's|^SATYS_INTERNOS_WORKERS=.*|SATYS_INTERNOS_WORKERS=12|' .env
+sed -i 's|^SATYS_INTERNOS_WORKERS=.*|SATYS_INTERNOS_WORKERS=10|' .env
 sed -i 's|^SATYS_SHM_SIZE=.*|SATYS_SHM_SIZE=6gb|' .env
 bash scripts/preflight_despliegue.sh
 bash scripts/satys.sh build

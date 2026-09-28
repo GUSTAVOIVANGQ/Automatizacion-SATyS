@@ -94,7 +94,7 @@ _PROCESAMIENTO_CFG = configuracion_procesamiento()
 TIMEOUT_REGISTRO = int(_PROCESAMIENTO_CFG.get("timeout_registro", 900))
 REINTENTOS_REGISTRO = int(_PROCESAMIENTO_CFG.get("reintentos_registro", 2))  # 2 = 3 intentos totales
 WORKERS_REINTENTO_REGISTRO = int(_PROCESAMIENTO_CFG.get("workers_reintento", 2))
-INTERNOS_WORKERS_DEFAULT = int(_PROCESAMIENTO_CFG.get("internos_workers", 12))
+INTERNOS_WORKERS_DEFAULT = int(_PROCESAMIENTO_CFG.get("internos_workers", 10))
 INTERNOS_WORKER_REINTENTOS = max(
     0,
     int(os.getenv("SATYS_INTERNOS_WORKER_REINTENTOS", str(REINTENTOS_REGISTRO))),
@@ -4977,7 +4977,7 @@ def _esperar_estado_bandeja_internos(
         try:
             tab_expr = json.dumps(str(tab_id)) if tab_id else "null"
             ultimo_estado = page.evaluate(
-                f"""() => {{
+                fr"""() => {{
                     const ids = ['1', '2', '3', '4', '5', '6'];
                     if (!ids.every(id => document.getElementById(id))) return 'SIN_TABS';
                     const contador = id => {{
@@ -5039,7 +5039,7 @@ def _click_submenu_internos_dom(page) -> bool:
     """Pulsa el sub-menu exacto; evita el clic ambiguo del acordeon padre."""
     try:
         resultado = page.evaluate(
-            """() => {
+            r"""() => {
                 const norm = texto => (texto || '').normalize('NFD')
                     .replace(/[\u0300-\u036f]/g, '')
                     .replace(/\s+/g, ' ').trim().toLowerCase();

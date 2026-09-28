@@ -102,6 +102,8 @@ class CorreoDiarioTests(unittest.TestCase):
 
             c = notificar_email.conteos_revision_desde_excel(path)
             self.assertEqual(c["total_excel"], 4)
+            self.assertEqual(c["turnados_excel"], 3)
+            self.assertEqual(c["internos_excel"], 1)
             self.assertEqual(c["en_revision"], 2)
             self.assertEqual(c["correos_clasificados"], 1)
             self.assertEqual(c["organizados_excel"], 1)
@@ -179,6 +181,44 @@ class CorreoDiarioTests(unittest.TestCase):
             self.assertIn("Carpeta output", outputs)
             self.assertIn("Carpeta descargas", outputs)
             self.assertIn("Folios_Datos_Completos_Internos.xlsx", outputs)
+
+    def test_correo_consolidado_usa_total_completo_del_excel_maestro(self):
+        import openpyxl
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            excel = root / "TrámitesCRT.xlsx"
+            log = root / "monitor.log"
+            log.write_text("ok", encoding="utf-8")
+            wb = openpyxl.Workbook()
+            wt = wb.active
+            wt.title = "Turnados recibidos"
+            wt.append(["1711", "Ruta"])
+            for i in range(3):
+                wt.append([f"CRT26-{i:06d}", r"520001_demo\01 EN\VE" if i < 2 else r"_sin_operador\CRT26-000002"])
+            wi = wb.create_sheet("Internos")
+            wi.append(["1711", "Ruta"])
+            wi.append(["1001", r"520002_demo\01 EN\VE"])
+            wi.append(["1002", r"_sin_operador\(correos)\internos__Atendidos__1002"])
+            wb.save(excel)
+            wb.close()
+
+            resultados = [{"registro": "solo-uno", "rpc_ok": False, "output_dir": r"output\_sin_operador\solo-uno"}]
+            with (
+                patch.object(diario, "ruta_configurada", side_effect=lambda clave, default: root / default),
+                patch.object(diario, "carpeta_compartida", return_value=root / "depi"),
+                patch.object(diario._email_mod, "enviar_notificacion", return_value=True) as enviar,
+            ):
+                ok = diario.enviar_resumen_email_diario(
+                    resultados=resultados, log_path=log, excel_path=excel, error_general="error controlado"
+                )
+
+            self.assertTrue(ok)
+            kw = enviar.call_args.kwargs
+            self.assertEqual(kw["total_registros"], 5)
+            self.assertEqual(kw["sin_operador"], 1)
+            self.assertEqual(kw["errores"], 1)
+            self.assertEqual(kw["exitosos"], 3)
+
 
     def test_orden_final_corrige_pdf_antes_reconciliacion_y_carpetas_antes_correo(self):
         import inspect

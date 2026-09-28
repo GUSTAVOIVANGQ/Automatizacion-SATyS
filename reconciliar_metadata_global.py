@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Reconstruye TrámitesCRT.xlsx desde todos los metadatos locales.
+"""Reconciliación conservadora de Rutas desde metadatos locales.
 
-Este proceso es deliberadamente independiente de que SATyS tenga registros
-nuevos. Usa ``metadata_satys.json``/``metadata_tramite_nuevo.json`` como fuente
-de verdad, resuelve el operador por ID/nombre exacto (con respaldo RPC en línea)
-y sobrescribe los campos automáticos —incluida ``Ruta``— conservando columnas
-manuales del maestro.
+La corrida diaria nunca reconstruye ni sobrescribe masivamente TrámitesCRT.xlsx.
+Las Rutas canónicas existentes son inmutables; sólo se intenta promover filas
+vacías/_sin_operador cuando existe evidencia exacta del RPC.
 """
 
 from __future__ import annotations
@@ -14,20 +12,25 @@ import argparse
 import json
 import logging
 import re
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import buscar_concesionario as bc
+import openpyxl
 from Parte3_rpc import construir_ruta, construir_ruta_operadores
 from Parte4_excel import (
     organizar_archivos,
     organizar_correo_exclusivo,
+    normalizar_ruta_excel,
+    ruta_es_canonica_estable,
+    ruta_es_revision_manual,
 )
 from estado_descargas import iter_archivos_publicables_output
 from configuracion_local import ruta_configurada
 from generar_excel_metadata_json import generar_excel_metadata_json
-from reconciliar_tramites_desde_folios import reconciliar
+from guardado_seguro import reemplazar_desde_temporal
 from rutas_salida import (
     destino_sin_operador,
     es_folio_opc_correo,
@@ -148,40 +151,152 @@ def descubrir_metadata(descargas_base: Path) -> tuple[list[dict[str, Any]], list
     return [por_registro[k] for k in sorted(por_registro)], sorted(set(duplicados))
 
 
-def catalogo_rpc_mas_reciente(base_rpc: Path) -> Path:
-    archivos = sorted(
+def _catalogos_rpc_por_recencia(base_rpc: Path) -> list[Path]:
+    return sorted(
         base_rpc.glob("03_concesiones_permisos_autorizaciones_*.xlsx"),
         key=lambda p: p.stat().st_mtime,
         reverse=True,
     )
-    if not archivos:
-        raise FileNotFoundError(
-            f"No existe Excel RPC en {base_rpc}. No se sobrescribirá TrámitesCRT.xlsx con rutas indeterminadas."
-        )
-    return archivos[0]
 
 
 def cargar_indice_rpc(base_rpc: Path) -> tuple[dict[str, dict[str, Any]], Path | None]:
-    """Carga el Excel si es válido; el RPC en línea cubre el modo degradado."""
-    try:
-        excel_rpc = catalogo_rpc_mas_reciente(base_rpc)
-        catalogo = bc.cargar_catalogo_desde_excel(excel_rpc, "copeau", solo_vigentes=False)
-        preparado = bc.preparar_catalogo_para_matching(catalogo)
-        indice = {
-            bc.normalizar_id(item.get("idBp")): item
-            for item in preparado
-            if bc.normalizar_id(item.get("idBp"))
-        }
-        if not indice:
-            raise RuntimeError(f"El Excel RPC {excel_rpc} no produjo un catálogo válido.")
-        return indice, excel_rpc
-    except Exception as exc:
+    """Usa el catálogo RPC más reciente que sea realmente válido."""
+    errores: list[str] = []
+    for excel_rpc in _catalogos_rpc_por_recencia(base_rpc):
+        try:
+            catalogo = bc.cargar_catalogo_desde_excel(excel_rpc, "copeau", solo_vigentes=False)
+            preparado = bc.preparar_catalogo_para_matching(catalogo)
+            indice = {
+                bc.normalizar_id(item.get("idBp")): item
+                for item in preparado
+                if bc.normalizar_id(item.get("idBp"))
+            }
+            if not indice:
+                raise RuntimeError("catálogo vacío")
+            if errores:
+                log.warning(
+                    "Se ignoraron %d Excel RPC más nuevos inválidos; se usa %s.",
+                    len(errores), excel_rpc.name,
+                )
+            return indice, excel_rpc
+        except Exception as exc:
+            errores.append(f"{excel_rpc.name}: {exc}")
+            log.warning("Excel RPC inválido; se ignora %s: %s", excel_rpc.name, exc)
+    if errores:
         log.warning(
-            "Catálogo Excel RPC no disponible para reconciliación (%s); "
-            "se usará el RPC en línea por nombre exacto.",
-            exc,
+            "Ningún Excel RPC local es válido; sólo se intentará RPC en línea para pendientes: %s",
+            " | ".join(errores[:5]),
         )
-        return {}, None
+    else:
+        log.warning("No existe Excel RPC local; sólo se intentará RPC en línea para pendientes.")
+    return {}, None
+
+
+def cargar_rutas_maestro(excel_path: Path) -> dict[str, str]:
+    """Mapa Registro CRT -> Ruta actual, sin alterar el maestro."""
+    if not excel_path.exists():
+        return {}
+    wb = openpyxl.load_workbook(excel_path, read_only=True, data_only=False)
+    try:
+        if "Turnados recibidos" not in wb.sheetnames:
+            return {}
+        ws = wb["Turnados recibidos"]
+        header = next(ws.iter_rows(min_row=1, max_row=1, values_only=True), ())
+        cols = {str(v or "").strip(): i for i, v in enumerate(header) if v not in (None, "")}
+        col_reg = cols.get("1711")
+        col_ruta = cols.get("Ruta")
+        if col_reg is None or col_ruta is None:
+            return {}
+        out: dict[str, str] = {}
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            reg = str(row[col_reg] or "").strip().upper() if col_reg < len(row) else ""
+            if not REGISTRO_RE.fullmatch(reg):
+                continue
+            ruta = normalizar_ruta_excel(row[col_ruta] if col_ruta < len(row) else "")
+            out[reg] = ruta
+        return out
+    finally:
+        wb.close()
+
+
+def aplicar_rutas_conservadoras(
+    excel_path: Path,
+    resultados: list[dict[str, Any]],
+    *,
+    crear_backup: bool = True,
+) -> dict[str, Any]:
+    """Aplica únicamente promociones seguras de Ruta, sin reconstruir filas.
+
+    - vacío/_sin_operador -> ruta canónica: permitido;
+    - ruta canónica existente -> jamás se sustituye automáticamente;
+    - resultado no resuelto -> jamás degrada una ruta existente.
+    """
+    wb = openpyxl.load_workbook(excel_path)
+    try:
+        if "Turnados recibidos" not in wb.sheetnames:
+            raise KeyError("No existe hoja Turnados recibidos")
+        ws = wb["Turnados recibidos"]
+        headers = {
+            str(ws.cell(1, c).value or "").strip(): c
+            for c in range(1, ws.max_column + 1)
+            if ws.cell(1, c).value not in (None, "")
+        }
+        c_reg = headers.get("1711")
+        c_ruta = headers.get("Ruta")
+        if not c_reg or not c_ruta:
+            raise ValueError("Faltan encabezados 1711/Ruta")
+        filas = {}
+        for r in range(2, ws.max_row + 1):
+            reg = str(ws.cell(r, c_reg).value or "").strip().upper()
+            if REGISTRO_RE.fullmatch(reg):
+                filas.setdefault(reg, r)
+
+        cambios = 0
+        preservadas = 0
+        pendientes = 0
+        faltantes = 0
+        for item in resultados:
+            reg = str(item.get("registro") or "").strip().upper()
+            r = filas.get(reg)
+            if not r:
+                faltantes += 1
+                continue
+            actual = normalizar_ruta_excel(ws.cell(r, c_ruta).value)
+            nueva = normalizar_ruta_excel(
+                (item.get("rpc_resultado") or {}).get("ruta")
+                or item.get("ruta")
+                or ""
+            )
+            if ruta_es_canonica_estable(actual):
+                preservadas += 1
+                continue
+            if nueva and ruta_es_canonica_estable(nueva):
+                ws.cell(r, c_ruta).value = nueva
+                cambios += 1
+            else:
+                pendientes += 1
+
+        backup = ""
+        if cambios:
+            if crear_backup:
+                stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_path = excel_path.with_name(
+                    f"{excel_path.stem}_backup_pre_reconciliacion_segura_{stamp}{excel_path.suffix}"
+                )
+                shutil.copy2(excel_path, backup_path)
+                backup = str(backup_path)
+            temp = excel_path.with_name(f".{excel_path.name}.recon.tmp")
+            wb.save(temp)
+            reemplazar_desde_temporal(temp, excel_path)
+        return {
+            "routes_promoted": cambios,
+            "canonical_preserved": preservadas,
+            "still_pending": pendientes,
+            "records_missing_in_master": faltantes,
+            "backup": backup,
+        }
+    finally:
+        wb.close()
 
 
 def construir_resultados(
@@ -189,6 +304,7 @@ def construir_resultados(
     output_base: Path,
     indice_rpc: dict[str, dict[str, Any]],
     *,
+    rutas_existentes: dict[str, str] | None = None,
     migrar_correos: bool = True,
     reorganizar_output: bool = True,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -204,6 +320,7 @@ def construir_resultados(
         "metadata_duplicada": duplicados,
     }
     catalogo = list(indice_rpc.values())
+    rutas_existentes = rutas_existentes or {}
     total_items = len(items)
     log.info(
         "Reconciliación global: %d metadata(s); reorganizar_output=%s",
@@ -235,11 +352,24 @@ def construir_resultados(
             or meta_tn.get("concesionario")
             or ""
         )
-        resolucion = bc.resolver_operador_seguro(
-            id_solicitante,
-            nombre_satys,
-            catalogo,
-        )
+        ruta_existente = normalizar_ruta_excel(rutas_existentes.get(registro, ""))
+        if ruta_es_canonica_estable(ruta_existente):
+            # La reconciliación diaria no vuelve a resolver ni toca registros
+            # históricos que ya tienen una Ruta canónica validada.
+            resolucion = {
+                "ok": True,
+                "metodo": "ruta_excel_preservada",
+                "ruta": ruta_existente,
+                "nombre_completo": nombre_satys,
+                "idBp": id_solicitante,
+                "score": 1.0,
+            }
+        else:
+            resolucion = bc.resolver_operador_seguro(
+                id_solicitante,
+                nombre_satys,
+                catalogo,
+            )
 
         resultado: dict[str, Any] = {
             "folio": folio,
@@ -319,7 +449,9 @@ def construir_resultados(
                 organizacion["archivos_copiados"]
             )
         elif resolucion.get("ok"):
-            if resolucion.get("operadores"):
+            if resolucion.get("metodo") == "ruta_excel_preservada":
+                ruta = ruta_existente
+            elif resolucion.get("operadores"):
                 ruta = construir_ruta_operadores(
                     resolucion["operadores"],
                     registro or identificador,
@@ -409,10 +541,12 @@ def ejecutar(
     crear_backup: bool = True,
 ) -> dict[str, Any]:
     indice_rpc, excel_rpc = cargar_indice_rpc(base_rpc)
+    rutas_existentes = cargar_rutas_maestro(excel_path)
     resultados, stats = construir_resultados(
         descargas_base,
         output_base,
         indice_rpc,
+        rutas_existentes=rutas_existentes,
         migrar_correos=migrar_correos,
         reorganizar_output=reorganizar_output,
     )
@@ -434,11 +568,15 @@ def ejecutar(
         excel_salida=output_base / "Folios_Datos_Completos.xlsx",
         project_root=project_root,
     )
-    reconciliacion = reconciliar(excel_path, consolidado, crear_backup=crear_backup)
-    if reconciliacion.get("routes_blank"):
-        raise RuntimeError(
-            f"La reconciliación dejó {reconciliacion['routes_blank']} Ruta(s) vacía(s); no se acepta como completa."
-        )
+    reconciliacion = aplicar_rutas_conservadoras(
+        excel_path, resultados, crear_backup=crear_backup
+    )
+    log.info(
+        "Reconciliación conservadora: %d Ruta(s) promovidas; %d canónicas preservadas; %d pendientes.",
+        reconciliacion["routes_promoted"],
+        reconciliacion["canonical_preserved"],
+        reconciliacion["still_pending"],
+    )
 
     return {
         "ok": True,
@@ -455,7 +593,7 @@ def ejecutar(
 def construir_parser() -> argparse.ArgumentParser:
     project_root = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(
-        description="Sobrescribe campos automáticos de TrámitesCRT.xlsx desde todos los metadata JSON."
+        description="Promueve de forma conservadora Rutas pendientes sin sobrescribir el histórico validado."
     )
     parser.add_argument("--descargas", type=Path, default=ruta_configurada("descargas", "descargas"))
     parser.add_argument("--output", type=Path, default=ruta_configurada("output", "output"))

@@ -231,6 +231,8 @@ def conteos_revision_desde_excel(excel_path: str | Path) -> dict[str, int]:
     path = Path(excel_path)
     salida = {
         "total_excel": 0,
+        "turnados_excel": 0,
+        "internos_excel": 0,
         "en_revision": 0,
         "correos_clasificados": 0,
         "organizados_excel": 0,
@@ -270,6 +272,10 @@ def conteos_revision_desde_excel(excel_path: str | Path) -> dict[str, int]:
                 if not identificador and not str(ruta or "").strip():
                     continue
                 salida["total_excel"] += 1
+                if sheet == "Turnados recibidos":
+                    salida["turnados_excel"] += 1
+                elif sheet == "Internos":
+                    salida["internos_excel"] += 1
                 if _ruta_es_correos(ruta):
                     salida["correos_clasificados"] += 1
                 elif _ruta_es_revision(ruta):
@@ -479,6 +485,8 @@ def construir_html(fecha_ejecucion: str,
     rpc_excel = int(conteos.get("rpc_excel", 0) or 0)
     rpc_online = int(conteos.get("rpc_online", 0) or 0)
     correos_clasificados = int(conteos.get("correos_clasificados_excel", 0) or 0)
+    turnados_excel = int(conteos.get("turnados_excel", 0) or 0)
+    internos_excel = int(conteos.get("internos_excel", 0) or 0)
     pct = lambda n: round((n / total) * 100) if total else 0
 
     fecha_fmt = fecha_ejecucion
@@ -513,7 +521,7 @@ def construir_html(fecha_ejecucion: str,
           <table width="100%" cellpadding="0" cellspacing="10">
             <tr>
               <td style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;padding:18px;text-align:center;">
-                <div style="font-size:30px;font-weight:800;color:#1d4ed8;">{total:,}</div><div style="font-size:12px;color:#2563eb;font-weight:700;">TOTAL</div>
+                <div style="font-size:30px;font-weight:800;color:#1d4ed8;">{total:,}</div><div style="font-size:12px;color:#2563eb;font-weight:700;">TOTAL EXCEL MAESTRO</div>
               </td>
               <td style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:14px;padding:18px;text-align:center;">
                 <div style="font-size:30px;font-weight:800;color:#16a34a;">{exitosos:,}</div><div style="font-size:12px;color:#15803d;font-weight:700;">EXITOSOS ({pct(exitosos)}%)</div>
@@ -527,7 +535,8 @@ def construir_html(fecha_ejecucion: str,
             </tr>
           </table>
           <div style="margin:4px 10px 0;background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;color:#334155;font-size:13px;">
-            <b>Tipos:</b> Internos {internos:,} &nbsp;|&nbsp; Oficialía/otros {oficialia_otros:,} &nbsp;|&nbsp; Folio OPC CORREO {correos:,}<br>
+            <b>Excel maestro:</b> Turnados recibidos {turnados_excel:,} &nbsp;+&nbsp; Internos {internos_excel:,} &nbsp;=&nbsp; {total:,}<br>
+            <b>Resultados de esta corrida:</b> Internos {internos:,} &nbsp;|&nbsp; Oficialía/otros {oficialia_otros:,} &nbsp;|&nbsp; Folio OPC CORREO {correos:,}<br>
             <b>Operadores resueltos:</b> Excel RPC {rpc_excel:,} &nbsp;|&nbsp; buscador web RPC {rpc_online:,}<br>
             <b>Correos clasificados fuera de revisión:</b> {correos_clasificados:,}
           </div>
@@ -668,12 +677,11 @@ def enviar_notificacion(total_registros: int | None = None,
             conteos["sin_operador"] = int(final_excel["en_revision"])
             conteos["revision_manual"] = int(final_excel["en_revision"])
             conteos["correos_clasificados_excel"] = int(final_excel["correos_clasificados"])
-            # Si no hay resultados de worker (por ejemplo postproceso manual),
-            # el Excel final es también la fuente del total. En una corrida
-            # diaria se conserva el total de resultados, pero el bloque verde
-            # se recalcula como complemento para que las tarjetas sumen 100%.
-            if conteos["total"] == 0:
-                conteos["total"] = int(final_excel["total_excel"])
+            # El correo consolidado representa el estado final del Excel maestro,
+            # no sólo el subconjunto procesado por workers en esta corrida.
+            conteos["total"] = int(final_excel["total_excel"])
+            conteos["turnados_excel"] = int(final_excel.get("turnados_excel", 0))
+            conteos["internos_excel"] = int(final_excel.get("internos_excel", 0))
             conteos["exitosos"] = max(
                 0,
                 int(conteos["total"]) - int(conteos["errores"]) - int(conteos["sin_operador"]),

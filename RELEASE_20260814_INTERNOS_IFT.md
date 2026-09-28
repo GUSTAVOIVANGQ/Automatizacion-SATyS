@@ -28,7 +28,7 @@ El despliegue preserva desde la instalación productiva anterior:
 - `descargas/`, `output/`, `logs/`, `runs/` y datos RPC;
 - registros históricos y fallidos.
 
-La migración usa `procesamiento.internos_workers: 12` para instalaciones nuevas
+Histórico: esta release de agosto usaba `procesamiento.internos_workers: 12`; la configuración vigente desde septiembre usa 10 workers
 y actualiza únicamente el antiguo valor predeterminado `6`. Cualquier otro
 valor configurado por el operador se conserva sin imponer un máximo. También
 alinea `rutas.carpeta_compartida` con el `--depi-dir` indicado y no reemplaza

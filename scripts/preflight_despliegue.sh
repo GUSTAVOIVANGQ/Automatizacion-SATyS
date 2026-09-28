@@ -188,12 +188,12 @@ from pathlib import Path
 path = Path(sys.argv[1])
 data = json.loads(path.read_text(encoding="utf-8"))
 workers = data.get("procesamiento", {}).get("internos_workers")
-if workers != 12:
-    raise SystemExit(f"internos_workers esperado=12, recibido={workers!r}")
+if workers != 10:
+    raise SystemExit(f"internos_workers esperado=10, recibido={workers!r}")
 PY_RELEASE
 
 echo "OK release: $(cat "$RELEASE_DIR/VERSION")"
-echo "OK sintaxis Python, Bash, manifest y configuracion de doce workers Internos"
+echo "OK sintaxis Python, Bash, manifest y configuracion de 10 workers Internos"
 
 if (( CHECK_SERVER == 0 )); then
   exit 0
@@ -232,7 +232,7 @@ if not excel.is_absolute():
     excel = project_dir / excel
 if not excel.exists():
     raise SystemExit(f"No existe el Excel productivo configurado: {excel}")
-workers = data.get("procesamiento", {}).get("internos_workers", 12)
+workers = data.get("procesamiento", {}).get("internos_workers", 10)
 if not isinstance(workers, int) or workers < 1:
     raise SystemExit(f"internos_workers invalido: {workers!r}")
 print(f"OK configuracion productiva; internos_workers efectivo={workers}")

@@ -117,6 +117,10 @@ REQUIRED_MEMBERS = {
     "scripts/instalar_container_systemd.sh",
     "scripts/satys.ps1",
     "tests/test_portable_deployment.py",
+    "scripts/desplegar_inplace_seguro_20260925.sh",
+    "DESPLIEGUE_SEGURO_INPLACE_20260925.md",
+    "RELEASE_20260925_REDEPLOY_SEGURO.md",
+    "tests/test_seguridad_reprocesamiento_20260925.py",
 }
 
 

@@ -181,14 +181,11 @@ def reconciliar(
     wb_f.close()
     print(f"[RECON-EXCEL] Fuente consolidada: {len(source_rows)} registro(s) CRT único(s)")
 
-    # Indexar filas existentes por Registro. Las duplicadas se consolidan usando
-    # la primera; sus valores manuales se combinan cuando la primera está vacía.
-    existing_by_record: dict[str, list[Any]] = {}
+    # Indexar filas existentes por Registro sin reconstruir/reordenar el libro.
+    existing_by_record: dict[str, int] = {}
     target_duplicates: list[str] = []
-    manual_rows: list[list[Any]] = []
-    phantom_removed = 0
-    # Sólo las columnas con encabezado forman parte del maestro. Evita usar
-    # ws.max_column, que puede quedar inflado por formato residual lejano.
+    manual_rows = 0
+    phantom_detected = 0
     max_col = max(headers_t.values())
 
     cells_t = getattr(ws_t, "_cells", {})
@@ -207,16 +204,13 @@ def reconciliar(
         if registro:
             if registro in existing_by_record:
                 target_duplicates.append(registro)
-                current = existing_by_record[registro]
-                for i, value in enumerate(values):
-                    if current[i] in (None, "") and value not in (None, ""):
-                        current[i] = value
             else:
-                existing_by_record[registro] = values
+                existing_by_record[registro] = row_num
         elif _es_fila_fantasma(values, headers_t):
-            phantom_removed += 1
+            # Fail-safe: se reporta, pero una reconciliación automática no borra filas.
+            phantom_detected += 1
         elif any(value not in (None, "") for value in values):
-            manual_rows.append(values)
+            manual_rows += 1
 
     print(
         f"[RECON-EXCEL] Maestro real: {len(filas_con_datos)} fila(s) con datos, "
@@ -224,34 +218,42 @@ def reconciliar(
         f"{ws_t.max_row}x{ws_t.max_column}"
     )
 
-    output_rows: list[list[Any]] = []
     appended = 0
     updated = 0
     format_headers = [f"R{i:03d}" for i in range(1, 28)]
+    source_records = {item["registro"] for item in source_rows}
+
+    def ruta_revision(value: Any) -> bool:
+        ruta = _ruta_desde_output(value)
+        partes = [p for p in ruta.split("\\") if p]
+        if partes and re.fullmatch(r"2026Q[34]", partes[0], re.IGNORECASE):
+            partes = partes[1:]
+        return bool(partes) and partes[0].casefold() in {"_sin_operador", "sin_operador_correo"}
 
     for item in source_rows:
         registro = item["registro"]
-        values = list(existing_by_record.pop(registro, [None] * max_col))
-        if all(value in (None, "") for value in values):
+        fila = existing_by_record.get(registro)
+        fila_nueva = fila is None
+        if fila_nueva:
+            fila = ws_t.max_row + 1
+            existing_by_record[registro] = fila
             appended += 1
         else:
             updated += 1
 
-        def setv(header: str, value: Any) -> None:
+        def actual(header: str) -> Any:
             col = headers_t.get(header)
-            if col:
-                values[col - 1] = value if value not in (None, "") else None
+            return ws_t.cell(fila, col).value if col else None
 
-        asunto = _primero(
-            item,
-            "metadata_satys.asunto",
-            "metadata_tramite_nuevo.asunto",
-        )
-        tipo = _primero(
-            item,
-            "metadata_satys.tipo_tramite",
-            "metadata_tramite_nuevo.tipo_tramite",
-        )
+        def set_if_blank(header: str, value: Any) -> None:
+            col = headers_t.get(header)
+            if not col or value in (None, ""):
+                return
+            if fila_nueva or ws_t.cell(fila, col).value in (None, ""):
+                ws_t.cell(fila, col).value = value
+
+        asunto = _primero(item, "metadata_satys.asunto", "metadata_tramite_nuevo.asunto")
+        tipo = _primero(item, "metadata_satys.tipo_tramite", "metadata_tramite_nuevo.tipo_tramite")
         fecha = _primero(
             item,
             "metadata_satys.fecha_registro",
@@ -264,13 +266,9 @@ def reconciliar(
             "metadata_satys.plazo_atencion",
         )
 
-        setv("1711", registro)
-        setv("Memo/Volante", _primero(item, "folio", "metadata_satys.folio", "metadata_tramite_nuevo.folio"))
-        # Estos dos campos pueden haber sido reparados minutos antes desde los
-        # PDF originales de descargas. La reconciliación global NO debe borrar
-        # ni reemplazar un valor válido ya presente en el maestro. Sólo rellena
-        # cuando el Excel sigue vacío/SIN REMITENTE y la fuente trae valor válido.
-        col_sol = headers_t.get("Solicitante Promovente")
+        set_if_blank("1711", registro)
+        set_if_blank("Memo/Volante", _primero(item, "folio", "metadata_satys.folio", "metadata_tramite_nuevo.folio"))
+
         sol_fuente = _primero(
             item,
             "metadata_satys.solicitante",
@@ -279,55 +277,52 @@ def reconciliar(
             "metadata_satys.nombre_operador",
             "metadata_tramite_nuevo.nombre_operador",
         )
-        if col_sol and _valor_remitente_faltante(values[col_sol - 1]) and not _valor_remitente_faltante(sol_fuente):
-            setv("Solicitante Promovente", sol_fuente)
+        if _valor_remitente_faltante(actual("Solicitante Promovente")) and not _valor_remitente_faltante(sol_fuente):
+            set_if_blank("Solicitante Promovente", sol_fuente)
 
-        col_rep = headers_t.get("Representante Legal")
         rep_fuente = _primero(
             item,
             "representante_legal",
             "metadata_satys.representante_legal",
             "metadata_tramite_nuevo.representante_legal",
         )
-        if col_rep and _valor_remitente_faltante(values[col_rep - 1]) and not _valor_remitente_faltante(rep_fuente):
-            setv("Representante Legal", rep_fuente)
-        setv("Asunto", asunto)
-        setv("Tipo Trámite", tipo)
-        setv("Fecha de creación", fecha)
-        setv("FECHA LÍMITE", fecha_limite)
-        setv("Ruta", _ruta_desde_output(item.get("output")))
+        if _valor_remitente_faltante(actual("Representante Legal")) and not _valor_remitente_faltante(rep_fuente):
+            set_if_blank("Representante Legal", rep_fuente)
 
-        # Recalcular banderas de formato; evita marcas heredadas cuando antes se
-        # sobrescribía una fila de otro registro con el mismo folio.
-        for header in format_headers:
-            setv(header, None)
+        set_if_blank("Asunto", asunto)
+        set_if_blank("Tipo Trámite", tipo)
+        set_if_blank("Fecha de creación", fecha)
+        set_if_blank("FECHA LÍMITE", fecha_limite)
+
+        # Ruta: sólo completar vacío o promover _sin_operador -> canónica.
+        nueva_ruta = _ruta_desde_output(item.get("output"))
+        col_ruta = headers_t.get("Ruta")
+        if col_ruta and nueva_ruta:
+            ruta_actual = _ruta_desde_output(ws_t.cell(fila, col_ruta).value)
+            if not ruta_actual:
+                ws_t.cell(fila, col_ruta).value = nueva_ruta
+            elif ruta_revision(ruta_actual) and not ruta_revision(nueva_ruta):
+                ws_t.cell(fila, col_ruta).value = nueva_ruta
+            elif ruta_actual.casefold() != nueva_ruta.casefold():
+                print(
+                    f"[RECON-EXCEL] Ruta preservada para {registro}: "
+                    f"{ruta_actual} (propuesta ignorada: {nueva_ruta})"
+                )
+
+        # Formatos: sólo agregar marcas confirmadas; nunca limpiar histórico.
         formatos = {match.group(0).upper() for match in FORMATO_RE.finditer(_texto(asunto))}
-        for header in formatos:
-            setv(header, 1)
+        for header in format_headers:
+            if header in formatos and header in headers_t:
+                ws_t.cell(fila, headers_t[header]).value = 1
 
-        output_rows.append(values)
-
-    # Conservar registros válidos que solo existan en el maestro y filas manuales
-    # no clasificadas como fantasmas. Actualmente no debería haber extras, pero
-    # esta medida evita pérdida de datos ante una fuente parcial.
-    target_only = sorted(existing_by_record)
-    output_rows.extend(existing_by_record[key] for key in target_only)
-    output_rows.extend(manual_rows)
-
-    old_data_rows = list(filas_con_datos)
-    for r_offset, values in enumerate(output_rows, start=2):
-        for col, value in enumerate(values, start=1):
-            ws_t.cell(r_offset, col).value = value
-
-    new_last = len(output_rows) + 1
-    # No usar delete_rows() contra ws.max_row: un solo formato fantasma en la
-    # fila 1,048,576 hace que OpenPyXL intente desplazar cientos de miles de
-    # filas. Se limpian únicamente filas que realmente contenían datos.
-    for row_num in old_data_rows:
-        if row_num <= new_last:
-            continue
-        for col in range(1, max_col + 1):
-            ws_t.cell(row_num, col).value = None
+    target_only = sorted(set(existing_by_record) - source_records)
+    routes_blank = 0
+    col_ruta = headers_t.get("Ruta")
+    if col_ruta:
+        for registro in source_records:
+            fila = existing_by_record.get(registro)
+            if fila and not _ruta_desde_output(ws_t.cell(fila, col_ruta).value):
+                routes_blank += 1
 
     # Guardado atómico y respaldo antes de sustituir el maestro.
     backup_path = None
@@ -337,26 +332,26 @@ def reconciliar(
         shutil.copy2(tramites_path, backup_path)
 
     temp_path = tramites_path.with_name(f".{tramites_path.name}.tmp")
-    print(f"[RECON-EXCEL] Guardando {len(output_rows)} fila(s) en temporal atómico...")
+    print(f"[RECON-EXCEL] Guardando cambios conservadores en temporal atómico...")
     wb_t.save(temp_path)
     wb_t.close()
     reemplazar_desde_temporal(temp_path, tramites_path)
     print("[RECON-EXCEL] Reconciliación terminada y maestro sustituido correctamente.")
 
-    valid_final = len(source_rows) + len(target_only)
-    routes_blank = sum(1 for item in source_rows if not _ruta_desde_output(item.get("output")))
+    valid_final = len(existing_by_record)
     return {
         "source_records": len(source_rows),
         "updated": updated,
         "appended": appended,
-        "phantom_removed": phantom_removed,
+        "phantom_removed": 0,
+        "phantom_detected_preserved": phantom_detected,
         "target_only_preserved": len(target_only),
-        "manual_rows_preserved": len(manual_rows),
+        "manual_rows_preserved": manual_rows,
         "source_duplicates": sorted(set(source_duplicates)),
         "target_duplicates": sorted(set(target_duplicates)),
         "valid_final": valid_final,
         "routes_blank": routes_blank,
-        "target_rows_scanned": len(old_data_rows),
+        "target_rows_scanned": len(filas_con_datos),
         "target_columns_scanned": max_col,
         "backup": str(backup_path) if backup_path else "",
         "output": str(tramites_path),

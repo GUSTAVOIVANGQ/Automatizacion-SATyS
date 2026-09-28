@@ -78,7 +78,7 @@ ORGANIZAR_DESCARGAS = True
 
 _PROCESAMIENTO_CFG = configuracion_procesamiento()
 WORKERS_DEFAULT = int(_PROCESAMIENTO_CFG.get("workers", 10))
-INTERNOS_WORKERS_DEFAULT = int(_PROCESAMIENTO_CFG.get("internos_workers", 12))
+INTERNOS_WORKERS_DEFAULT = int(_PROCESAMIENTO_CFG.get("internos_workers", 10))
 TIMEOUT_REGISTRO_DEFAULT = int(_PROCESAMIENTO_CFG.get("timeout_registro", 900))
 REINTENTOS_REGISTRO_DEFAULT = int(_PROCESAMIENTO_CFG.get("reintentos_registro", 2))
 WORKERS_REINTENTO_DEFAULT = int(_PROCESAMIENTO_CFG.get("workers_reintento", 2))
@@ -95,6 +95,8 @@ from Parte4_excel import (
     organizar_archivos,
     organizar_correo_exclusivo,
     obtener_nota_victor,
+    obtener_ruta_existente_excel,
+    ruta_es_canonica_estable,
 )
 from proceso_lock import ProcesoLock, LockOcupadoError
 
@@ -382,6 +384,47 @@ def descubrir_descargas_internos() -> list[tuple[Path, str, str]]:
     return candidatos
 
 
+def filtrar_descargas_por_registros(
+    candidatos: list[tuple[Path, str, str]],
+    registros_autorizados: list[str] | set[str],
+) -> tuple[list[tuple[Path, str, str]], set[str]]:
+    """Limita Partes 3-4 a los Registros expresamente autorizados."""
+    objetivos = {normalizar_registro_satys(v) for v in registros_autorizados if normalizar_registro_satys(v)}
+    filtrados = [
+        candidato for candidato in candidatos
+        if normalizar_registro_satys(candidato[2]) in objetivos
+    ]
+    encontrados = {normalizar_registro_satys(c[2]) for c in filtrados}
+    return filtrados, encontrados
+
+
+def clave_objetivo_interno(candidato: tuple[Path, str, str]) -> tuple[str, str]:
+    carpeta = candidato[0]
+    meta = leer_metadata_descarga(carpeta)
+    folio_tabla = str(
+        meta.get("folio_tabla_internos") or meta.get("folio") or carpeta.name or ""
+    ).strip()
+    bandeja = slug_bandeja_internos(
+        str(meta.get("bandeja_internos") or carpeta.parent.name or "")
+    )
+    return bandeja, folio_tabla
+
+
+def filtrar_descargas_internos_por_objetivos(
+    candidatos: list[tuple[Path, str, str]],
+    claves_objetivo: set[tuple[str, str]],
+) -> tuple[list[tuple[Path, str, str]], set[tuple[str, str]]]:
+    """Conserva sólo pares exactos bandeja+folio de la corrida diaria."""
+    filtrados = []
+    encontrados: set[tuple[str, str]] = set()
+    for candidato in candidatos:
+        clave = clave_objetivo_interno(candidato)
+        if clave in claves_objetivo:
+            filtrados.append(candidato)
+            encontrados.add(clave)
+    return filtrados, encontrados
+
+
 def cargar_objetivos_internos(path: str | Path) -> list[dict]:
     """Load and validate the daily [{bandeja, folio}] Internos target list."""
     archivo = Path(path)
@@ -405,7 +448,11 @@ def cargar_objetivos_internos(path: str | Path) -> list[dict]:
 
 
 def cargar_catalogo_rpc_exacto(force_rebuild: bool = False) -> list:
-    """Carga el catalogo oficial RPC desde Excel para cruces exactos."""
+    """Carga el Excel RPC más reciente *válido*, con fallback seguro.
+
+    El portal RPC ha publicado XLSX truncados/corruptos. Nunca se permite que
+    el archivo más nuevo invalide un catálogo anterior que sí abre.
+    """
     log.info("🗂️  Cargando catálogo RPC exacto desde Excel oficial...")
     try:
         sys.path.append(os.path.join(str(_script_dir), "buscar_concesionario"))
@@ -415,35 +462,50 @@ def cargar_catalogo_rpc_exacto(force_rebuild: bool = False) -> list:
         bd_dir = Path(_script_dir) / "base_de_datos_rpc"
         bd_dir.mkdir(exist_ok=True)
 
-        def _cat_reciente(bd: Path):
-            archivos = sorted(
-                bd.glob("03_concesiones_permisos_autorizaciones_*.xlsx"),
-                key=lambda p: p.stat().st_mtime,
-                reverse=True,
-            )
-            return archivos[0] if archivos else None
-
-        # El portal ha publicado archivos dañados en ocasiones. Para que una
-        # corrida reproducible no sustituya un catálogo local que sí abre, sólo
-        # se descarga cuando no existe ninguno o el usuario lo pide con
-        # --rebuild-catalogo. La actualidad se cubre con el RPC en línea.
-        xlsx = _cat_reciente(bd_dir)
-        if force_rebuild or xlsx is None:
+        if force_rebuild or not list(bd_dir.glob("03_concesiones_permisos_autorizaciones_*.xlsx")):
             log.info("⬇️  Descargando la base RPC por solicitud o ausencia local...")
-            descargado = descargar_bd(str(bd_dir))
-            if descargado:
-                xlsx = Path(descargado)
-        if not xlsx or not xlsx.exists():
-            raise FileNotFoundError("No se encontró Excel oficial RPC en base_de_datos_rpc")
+            try:
+                descargar_bd(str(bd_dir))
+            except Exception as exc_descarga:
+                log.warning("⚠️  No se pudo descargar un RPC nuevo: %s", exc_descarga)
 
-        cat_excel = bc.cargar_catalogo_desde_excel(str(xlsx), "copeau", solo_vigentes=False)
-        catalogo = bc.preparar_catalogo_para_matching(cat_excel)
-        log.info("✅ Catálogo RPC exacto listo: %d concesionarios", len(catalogo))
-        return catalogo
+        archivos = sorted(
+            bd_dir.glob("03_concesiones_permisos_autorizaciones_*.xlsx"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        errores: list[str] = []
+        for xlsx in archivos:
+            try:
+                cat_excel = bc.cargar_catalogo_desde_excel(
+                    str(xlsx), "copeau", solo_vigentes=False
+                )
+                catalogo = bc.preparar_catalogo_para_matching(cat_excel)
+                if not catalogo:
+                    raise RuntimeError("catálogo vacío")
+                log.info(
+                    "✅ Catálogo RPC exacto válido: %s (%d concesionarios)",
+                    xlsx.name,
+                    len(catalogo),
+                )
+                if errores:
+                    log.warning(
+                        "🛡️  Se ignoraron %d catálogo(s) RPC más nuevos inválidos; se usó el último válido.",
+                        len(errores),
+                    )
+                return catalogo
+            except Exception as exc:
+                errores.append(f"{xlsx.name}: {exc}")
+                log.warning("⚠️  Catálogo RPC inválido; se ignora %s: %s", xlsx.name, exc)
+
+        if not archivos:
+            raise FileNotFoundError("No se encontró Excel oficial RPC en base_de_datos_rpc")
+        raise RuntimeError("Ningún Excel RPC local es válido: " + " | ".join(errores[:5]))
     except Exception as exc:
         log.error(
             "❌ Catálogo Excel RPC no disponible: %s. "
-            "Los registros con nombre usarán el RPC en línea exacto.",
+            "Los objetivos sin Ruta histórica usarán el RPC en línea exacto; "
+            "las Rutas canónicas existentes se preservarán.",
             exc,
         )
         return []
@@ -970,6 +1032,27 @@ def procesar_folio(
             ruta_revision_manual,
         )
 
+    ruta_existente_preservada = ""
+    if not resultado["es_correo"] and not rpc_resultado.get("ok"):
+        ruta_actual = obtener_ruta_existente_excel(
+            folio=folio,
+            registro=datos_pdf.get("registro", ""),
+            folio_internos=folio_tabla_internos if modo_internos else "",
+            excel_path=EXCEL_PATH,
+            sheet_name=sheet_name,
+        )
+        if ruta_es_canonica_estable(ruta_actual):
+            ruta_existente_preservada = ruta_actual
+            resultado["ruta_preservada_por_seguridad"] = True
+            resultado["ruta_existente"] = ruta_actual
+            # Una caída temporal del catálogo/RPC jamás degrada un expediente
+            # histórico ya resuelto. Se considera estable para el cierre diario.
+            resultado["rpc_ok"] = True
+            log.warning(
+                "🛡️  RPC no disponible/no concluyente; se preserva Ruta canónica existente: %s",
+                ruta_actual,
+            )
+
     # ──── PARTE 4: Actualizar Excel ────
     log.info("📊 [PARTE 4] Actualizando Excel...")
     excel_ok = actualizar_excel(
@@ -994,9 +1077,12 @@ def procesar_folio(
             else (
                 rpc_resultado.get("ruta", "")
                 if rpc_resultado and rpc_resultado.get("ok")
-                else ruta_revision_manual
+                else (ruta_existente_preservada or ruta_revision_manual)
             )
         ),
+        # CORREO es una excepción de negocio explícita y sí puede reclasificar
+        # una Ruta histórica. El resto de la corrida diaria es conservador.
+        forzar_ruta=bool(resultado["es_correo"]),
     )
     resultado["excel_ok"] = excel_ok
 
@@ -1034,6 +1120,12 @@ def procesar_folio(
                     folio_opc,
                     " | ".join(organizacion_correo["errores"]),
                 )
+        elif ruta_existente_preservada:
+            # Fail-safe: una indisponibilidad de RPC no mueve un expediente
+            # histórico resuelto a _sin_operador ni elimina/copias de output.
+            resultado["organizado_ok"] = True
+            resultado["output_dir"] = str(OUTPUT_BASE / Path(ruta_existente_preservada.replace("\\", "/")))
+            log.info("🛡️  Organización omitida; se conserva la salida histórica validada.")
         elif rpc_resultado and rpc_resultado.get("ok"):
             # RPC exitoso → carpeta estandarizada del concesionario
             ruta_destino = f"{rpc_resultado['ruta']}"
@@ -1537,27 +1629,9 @@ Ejemplos:
 
             carpetas_internos = descubrir_descargas_internos()
             if claves_objetivo_i:
-                claves_encontradas_i = set()
-                for candidato in carpetas_internos:
-                    meta_candidato = leer_metadata_descarga(candidato[0])
-                    folio_tabla = str(
-                        meta_candidato.get("folio_tabla_internos")
-                        or meta_candidato.get("folio")
-                        or candidato[0].name
-                        or ""
-                    ).strip()
-                    clave = (
-                        slug_bandeja_internos(
-                            str(
-                                meta_candidato.get("bandeja_internos")
-                                or candidato[0].parent.name
-                                or ""
-                            )
-                        ),
-                        folio_tabla,
-                    )
-                    if clave in claves_objetivo_i:
-                        claves_encontradas_i.add(clave)
+                carpetas_internos, claves_encontradas_i = filtrar_descargas_internos_por_objetivos(
+                    carpetas_internos, claves_objetivo_i
+                )
                 faltantes_i = claves_objetivo_i - claves_encontradas_i
                 if faltantes_i:
                     rc_descarga_internos = rc_descarga_internos or 1
@@ -1567,7 +1641,7 @@ Ejemplos:
                         ", ".join(f"{b}/{f}" for b, f in sorted(faltantes_i)[:30]),
                     )
                 log.info(
-                    "✅ Objetivos de descarga verificados; Partes 3-4 conservarán las %d carpeta(s) Internos locales.",
+                    "✅ Filtro seguro --internos-objetivos: Partes 3-4 procesarán sólo %d carpeta(s) objetivo; histórico excluido.",
                     len(carpetas_internos),
                 )
             if folios_objetivo_i:
@@ -1721,9 +1795,8 @@ Ejemplos:
                 log.error("❌ El archivo de registros está vacío o no contiene registros con formato CRT26-000000")
                 return 1
 
-            # Guardar la lista original solo como referencia.
-            # Las Partes 3-4 no se limitarán a lo descargado en este intento;
-            # al terminar Parte1 se escaneará descargas/ completo.
+            # Lista exacta autorizada para esta corrida diaria. Las Partes 3-4
+            # no pueden tocar registros históricos ajenos a este archivo.
             registros_archivo_original = list(registros)
 
             # ── Filtrar registros pendientes ─────────────────────────────────
@@ -1749,9 +1822,9 @@ Ejemplos:
 
             rc_descarga_registros = 0
             if registros_pendientes:
-                # Usar solo los registros pendientes para la descarga.
-                # Los ya completos NO se descargan de nuevo, pero SÍ se procesarán
-                # después porque las Partes 3-4 escanearán descargas/ completo.
+                # Usar solo los registros pendientes para la descarga. Los ya
+                # completos de ESTA lista sí podrán pasar por Partes 3-4, pero
+                # nunca se incorpora el resto del histórico de descargas/.
                 registros = registros_pendientes
 
                 # ── Ejecutar Parte 1 en modo registro ───────────────────────────
@@ -1792,14 +1865,22 @@ Ejemplos:
                 finally:
                     sys.argv = original_argv
             else:
-                log.info("✅ No hay registros pendientes para descargar. Se omite Parte 1 y se procesará descargas/ completo.")
+                log.info("✅ No hay registros pendientes para descargar. Se omite Parte 1.")
 
-            # Después de Parte1, procesar en Partes 3-4 TODO lo que está realmente
-            # descargado en descargas/. Esto incluye:
-            #   - registros que ya estaban completos antes de esta corrida,
-            #   - registros recuperados en esta corrida,
-            #   - carpetas cuyo nombre real es folio/VE aunque hayan venido de un registro CRT.
-            carpetas_para_procesar = descubrir_descargas_procesables()
+            # Descubrir localmente y FILTRAR por la lista diaria autorizada.
+            # Este filtro evita que una falla RPC reprocesse/modifique miles de
+            # filas históricas que no pertenecen a la ejecución actual.
+            todas_carpetas = descubrir_descargas_procesables()
+            objetivos_registro = {normalizar_registro_satys(r) for r in registros_archivo_original}
+            carpetas_para_procesar, encontrados_registro = filtrar_descargas_por_registros(
+                todas_carpetas, objetivos_registro
+            )
+            faltantes_locales = sorted(objetivos_registro - encontrados_registro)
+            if faltantes_locales:
+                log.warning(
+                    "⚠️  %d registro(s) diarios no tienen carpeta local procesable: %s",
+                    len(faltantes_locales), ", ".join(faltantes_locales[:30]),
+                )
 
             if not carpetas_para_procesar:
                 log.error("❌ No se encontraron carpetas procesables en %s. No se ejecutan Partes 3-4.", DESCARGA_BASE)
@@ -1807,57 +1888,14 @@ Ejemplos:
                 return 1
 
             log.info(
-                "✅ Partes 3-4 procesarán %d carpeta(s) descargada(s) detectada(s) en %s, no solo las de esta ejecución.",
-                len(carpetas_para_procesar), DESCARGA_BASE,
+                "✅ Filtro seguro diario: Partes 3-4 procesarán %d carpeta(s) de %d registro(s) autorizados; histórico excluido.",
+                len(carpetas_para_procesar), len(objetivos_registro),
             )
 
             # ── Cargar catálogo RPC para Partes 3-4 ──────────────────────
-            log.info("🗂️  Cargando catálogo RPC exacto desde Excel oficial...")
-            catalogo_r = []
-            try:
-                sys.path.append(os.path.join(str(_script_dir), "buscar_concesionario"))
-                import buscar_concesionario as bc_r
-                from descargar_concesiones_rpc import descargar_bd as descargar_bd_r
-
-                bd_dir_r = Path(_script_dir) / "base_de_datos_rpc"
-                bd_dir_r.mkdir(exist_ok=True)
-
-                def _cat_reciente_r(bd):
-                    archivos = sorted(
-                        bd.glob("03_concesiones_permisos_autorizaciones_*.xlsx"),
-                        key=lambda p: p.stat().st_mtime, reverse=True,
-                    )
-                    return archivos[0] if archivos else None
-
-                def _cat_necesita_actualizacion_r(bd, max_dias: int = 7) -> bool:
-                    reciente = _cat_reciente_r(bd)
-                    if reciente is None:
-                        return True
-                    edad_dias = (datetime.now().timestamp() - reciente.stat().st_mtime) / 86400
-                    return edad_dias > max_dias
-
-                xlsx_r = None
-                if args.rebuild_catalogo or _cat_necesita_actualizacion_r(bd_dir_r):
-                    log.info("⬇️  Verificando/Descargando la base RPC más reciente...")
-                    descargado_r = descargar_bd_r(str(bd_dir_r))
-                    if descargado_r:
-                        xlsx_r = Path(descargado_r)
-                if xlsx_r is None:
-                    xlsx_r = _cat_reciente_r(bd_dir_r)
-
-                if xlsx_r and xlsx_r.exists():
-                    cat_excel_r = bc_r.cargar_catalogo_desde_excel(str(xlsx_r), "copeau", solo_vigentes=False)
-                    catalogo_r = bc_r.preparar_catalogo_para_matching(cat_excel_r)
-                    log.info("✅ Catálogo RPC exacto listo: %d concesionarios", len(catalogo_r))
-                else:
-                    raise FileNotFoundError("No se encontró Excel oficial RPC en base_de_datos_rpc")
-            except Exception as e_cat:
-                log.error(
-                    "❌ Catálogo RPC exacto no disponible: %s. "
-                    "Se intentará nombre exacto en el RPC en línea; nunca fuzzy.",
-                    e_cat,
-                )
-                catalogo_r = []
+            # Selecciona el Excel RPC más reciente que realmente sea válido;
+            # un archivo nuevo corrupto no invalida el último catálogo bueno.
+            catalogo_r = cargar_catalogo_rpc_exacto(force_rebuild=args.rebuild_catalogo)
 
             # ── Verificar Excel ──────────────────────────────────────────
             if not EXCEL_PATH.exists():
@@ -1924,15 +1962,8 @@ Ejemplos:
                     project_root=Path.cwd(),
                 )
                 log.info("📘 Excel consolidado JSON guardado en: %s", excel_metadata_r)
-
-                from reconciliar_tramites_desde_folios import reconciliar
-                resumen_reconciliacion = reconciliar(EXCEL_PATH, excel_metadata_r)
                 log.info(
-                    "✅ TrámitesCRT reconciliado: %d registros, %d agregados, %d filas fantasma eliminadas, %d rutas vacías",
-                    resumen_reconciliacion["source_records"],
-                    resumen_reconciliacion["appended"],
-                    resumen_reconciliacion["phantom_removed"],
-                    resumen_reconciliacion["routes_blank"],
+                    "🛡️  Reconciliación masiva omitida en modo diario: TrámitesCRT.xlsx ya fue actualizado únicamente por los objetivos de esta corrida."
                 )
             except Exception as e_meta_r:
                 log.error("❌ Error al generar/reconciliar Excel consolidado JSON: %s", e_meta_r)
@@ -2048,74 +2079,8 @@ Ejemplos:
             log.error("❌ No se encontró el Excel: %s", EXCEL_PATH)
             return
 
-        # ──── Cargar catálogo RPC (usando buscar_concesionario si es posible) ────
-        log.info("🗂️  Cargando catálogo RPC (buscando Excel de concesionarios)...")
-        catalogo = []
-        try:
-            sys.path.append(os.path.join(str(_script_dir), "buscar_concesionario"))
-            import buscar_concesionario as bc
-            from descargar_concesiones_rpc import descargar_bd
-        
-            bd_dir = Path(_script_dir) / "base_de_datos_rpc"
-            bd_dir.mkdir(exist_ok=True)
-
-            def _catalogo_existente_mas_reciente(bd_dir: Path):
-                archivos = sorted(
-                    bd_dir.glob("03_concesiones_permisos_autorizaciones_*.xlsx"),
-                    key=lambda p: p.stat().st_mtime, reverse=True,
-                )
-                return archivos[0] if archivos else None
-
-            def _catalogo_necesita_actualizacion(bd_dir: Path, max_dias: int = 7) -> bool:
-                mas_reciente = _catalogo_existente_mas_reciente(bd_dir)
-                if mas_reciente is None:
-                    return True
-                edad_dias = (datetime.now().timestamp() - mas_reciente.stat().st_mtime) / 86400
-                return edad_dias > max_dias
-
-            excel_path_full = None
-            if args.rebuild_catalogo or _catalogo_necesita_actualizacion(bd_dir):
-                log.info("⬇️  Verificando/Descargando la base de datos más reciente...")
-                descargado_path = descargar_bd(str(bd_dir))
-                if descargado_path:
-                    excel_path_full = Path(descargado_path)
-            else:
-                mas_reciente = _catalogo_existente_mas_reciente(bd_dir)
-                excel_path_full = mas_reciente
-                log.info("✅ Catálogo reciente (%s), se omite la descarga.", mas_reciente.name)
-
-            if excel_path_full is None:
-                # Fallback a buscar el xlsx más reciente en la carpeta si falló la descarga
-                mas_reciente = _catalogo_existente_mas_reciente(bd_dir)
-                if mas_reciente is not None:
-                    excel_path_full = mas_reciente
-                    log.info("Usando archivo existente (offline fallback): %s", excel_path_full.name)
-                else:
-                    # Fallback final a la antigua carpeta si base_de_datos_rpc está vacío
-                    excel_path_full = Path(_script_dir) / "buscar_concesionario" / "Area _de_descargas" / "03_concesiones_permisos_autorizaciones_250326.xlsx"
-        
-            if excel_path_full.exists():
-                cat_excel = bc.cargar_catalogo_desde_excel(str(excel_path_full), "copeau", solo_vigentes=False)
-                catalogo = bc.preparar_catalogo_para_matching(cat_excel)
-                log.info("✅ Catálogo CSV/Excel listo: %d concesionarios", len(catalogo))
-            else:
-                log.warning("⚠️  Excel de buscar_concesionario no encontrado en: %s", excel_path_full)
-                raise FileNotFoundError("Excel no encontrado")
-        except Exception as e:
-            if os.getenv("SATYS_RPC_PERMITIR_FUZZY", "0").strip() == "1":
-                log.warning("⚠️  Falló carga exacta desde buscar_concesionario (%s). Usando Parte3_rpc por nombre/API porque SATYS_RPC_PERMITIR_FUZZY=1.", e)
-                catalogo = cargar_catalogo(force_rebuild=args.rebuild_catalogo)
-                if catalogo:
-                    log.info("✅ Catálogo Parte3_rpc listo: %d concesionarios", len(catalogo))
-                else:
-                    log.warning("⚠️  Sin catálogo — se usará sólo el RPC en línea con igualdad canónica")
-            else:
-                log.error(
-                    "❌ No se pudo cargar el catálogo RPC exacto desde Excel (%s). "
-                    "Se intentará el RPC en línea por nombre exacto; nunca fuzzy.",
-                    e,
-                )
-                catalogo = []
+        # ──── Cargar catálogo RPC seguro ────
+        catalogo = cargar_catalogo_rpc_exacto(force_rebuild=args.rebuild_catalogo)
 
         # ──── Procesar cada folio (Partes 3-4) ────
         resultados = []
@@ -2186,16 +2151,7 @@ Ejemplos:
                 project_root=Path.cwd(),
             )
             log.info("📘 Excel consolidado JSON guardado en: %s", excel_metadata)
-
-            from reconciliar_tramites_desde_folios import reconciliar
-            resumen_reconciliacion = reconciliar(EXCEL_PATH, excel_metadata)
-            log.info(
-                "✅ TrámitesCRT reconciliado: %d registros, %d agregados, %d filas fantasma eliminadas, %d rutas vacías",
-                resumen_reconciliacion["source_records"],
-                resumen_reconciliacion["appended"],
-                resumen_reconciliacion["phantom_removed"],
-                resumen_reconciliacion["routes_blank"],
-            )
+            log.info("🛡️  Reconciliación masiva omitida; sólo se modificaron los folios solicitados.")
         except Exception as e:
             log.error("❌ Error al generar/reconciliar el Excel consolidado de metadatos JSON: %s", e)
 

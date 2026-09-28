@@ -9,7 +9,7 @@ set -a
 # shellcheck disable=SC1091
 source .env
 set +a
-INTERNOS_WORKERS="${SATYS_INTERNOS_WORKERS:-12}"
+INTERNOS_WORKERS="${SATYS_INTERNOS_WORKERS:-10}"
 [[ "$INTERNOS_WORKERS" =~ ^[1-9][0-9]*$ ]] || {
   echo "ERROR: SATYS_INTERNOS_WORKERS debe ser un entero positivo" >&2
   exit 2

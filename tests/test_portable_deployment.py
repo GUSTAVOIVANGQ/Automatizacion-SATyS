@@ -21,7 +21,7 @@ class PortableDeploymentTests(unittest.TestCase):
         self.assertIn("SATYS_SHARED_HOST_DIR", text)
         self.assertIn("SATYS_CONFIG_HOST_FILE", text)
         self.assertIn('${SATYS_API_BIND:-127.0.0.1}:${SATYS_API_PORT:-8082}:8082', text)
-        self.assertIn('${SATYS_INTERNOS_WORKERS:-12}', text)
+        self.assertIn('${SATYS_INTERNOS_WORKERS:-10}', text)
         self.assertIn('${SATYS_INTERNOS_WORKER_REINTENTOS:-2}', text)
         self.assertIn('${SATYS_ZIP_MAX_ITERACIONES:-32}', text)
         self.assertIn('${SATYS_ZIP_RUTA_RELATIVA_MAX:-140}', text)
@@ -31,7 +31,7 @@ class PortableDeploymentTests(unittest.TestCase):
         data = json.loads((ROOT / "config" / "configuracion_local.example.json").read_text(encoding="utf-8"))
         self.assertEqual(data["rutas"]["carpeta_compartida"], "shared")
         self.assertEqual(data["rutas"]["excel"], "TrámitesCRT.xlsx")
-        self.assertEqual(data["procesamiento"]["internos_workers"], 12)
+        self.assertEqual(data["procesamiento"]["internos_workers"], 10)
 
     def test_environment_can_override_shared_path_and_credentials(self):
         code = r'''
@@ -62,7 +62,7 @@ print("OK")
         self.assertIn("SATYS_SHARED_HOST_DIR=/depi/dgp/DEI_DATOS/SATyS", text)
         self.assertIn("SATYS_API_BIND=0.0.0.0", text)
         self.assertIn("SATYS_API_NETWORK=slirp4netns:enable_ipv6=false", text)
-        self.assertIn("SATYS_INTERNOS_WORKERS=12", text)
+        self.assertIn("SATYS_INTERNOS_WORKERS=10", text)
         self.assertIn("SATYS_INTERNOS_WORKER_REINTENTOS=2", text)
         self.assertIn("SATYS_ZIP_MAX_ITERACIONES=32", text)
         self.assertIn("SATYS_ZIP_RUTA_RELATIVA_MAX=140", text)

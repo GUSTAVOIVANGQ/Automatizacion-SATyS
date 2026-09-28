@@ -158,6 +158,7 @@ class Reparacion:
     fuente_rpc: str = ""
     metodo_rpc: str = ""
     score_rpc: float = 0.0
+    rpc_diagnostico: list[dict[str, Any]] = field(default_factory=list)
     memorandums_fuente: list[str] = field(default_factory=list)
     ruta_correo: str = ""
 
@@ -181,6 +182,7 @@ class Reparacion:
             "fuente_rpc": self.fuente_rpc,
             "metodo_rpc": self.metodo_rpc,
             "score_rpc": self.score_rpc,
+            "rpc_diagnostico": self.rpc_diagnostico,
             "memorandums_fuente": self.memorandums_fuente,
             "ruta_correo": self.ruta_correo,
         }
@@ -875,6 +877,7 @@ def reparar(
             continue
 
         rpc = resolver_rpc_publico(nombres_unicos_legibles, timeout_rpc)
+        item.rpc_diagnostico = list(rpc.get("resultados") or [])
         if not rpc.get("ok"):
             item.estado = "sin_coincidencia_rpc_publico"
             item.motivo = _texto(rpc.get("motivo"))
@@ -978,6 +981,7 @@ def reparar(
         "output": str(output_base),
         "shared_output": str(shared_root / "output"),
         "fuente_rpc": "buscador_publico_rpc_exclusivamente",
+        "rpc_base_url": bc.RPC_BASE_URL,
         "usa_excel_oficial_rpc": False,
         "total_sin_operador_excel": len(pendientes),
         "total_reparados": reparados,

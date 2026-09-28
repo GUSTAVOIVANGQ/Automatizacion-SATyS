@@ -31,4 +31,4 @@ bash scripts/podman_satys.sh sin-operador-rpc --dry-run
 La ejecución independiente adquiere el mismo `ProcesoLock` global que el
 monitor diario. Si existe una corrida SATyS activa, termina con código 3 y no
 toca `TrámitesCRT.xlsx`, `descargas`, `output` ni DEPI. El wrapper Podman aplica
-también `SATYS_SIN_OPERADOR_RPC_PUBLICO_TIMEOUT` (1800 s por defecto).
+también `SATYS_SIN_OPERADOR_RPC_PUBLICO_TIMEOUT` (3600 s por defecto).

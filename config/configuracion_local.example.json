@@ -20,7 +20,7 @@
   },
   "procesamiento": {
     "workers": 10,
-    "internos_workers": 12,
+    "internos_workers": 10,
     "timeout_registro": 900,
     "reintentos_registro": 2,
     "workers_reintento": 2,

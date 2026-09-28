@@ -288,7 +288,7 @@ El flujo `venv + systemd` sigue disponible mediante `scripts/instalar_linux_1am.
   },
   "procesamiento": {
     "workers": 10,
-    "internos_workers": 12,
+    "internos_workers": 10,
     "timeout_registro": 900,
     "reintentos_registro": 2,
     "workers_reintento": 2
@@ -313,10 +313,10 @@ python main_procesar.py --archivo-folios folios.txt --headless --workers 10
 python main_procesar.py --archivo-registro registros.txt --headless --workers 10
 
 # Ejecutar exclusivamente todos los Folios de las seis bandejas de Internos IFT:
-python main_procesar.py --todos-internos --headless --internos-workers 12
+python main_procesar.py --todos-internos --headless --internos-workers 10
 
 # El mismo recorrido mediante el lanzador Linux:
-SATYS_INTERNOS_WORKERS=12 bash scripts/run_satys_internos.sh
+SATYS_INTERNOS_WORKERS=10 bash scripts/run_satys_internos.sh
 
 # En Windows PowerShell:
 powershell -ExecutionPolicy Bypass -File .\scripts\run_satys_internos.ps1 -Workers 12
@@ -402,7 +402,7 @@ su segundo `VER DOCUMENTO`, captura la pestaña emergente y descarga el archivo.
 | `--archivo-folios`             | Ruta a`.txt` con folios, uno por línea                                               |
 | `--archivo-registro`           | Ruta a`.txt` con números de Registro; activa el modo de búsqueda por Registro       |
 | `--todos-internos`             | Solo Internos IFT: recorre las seis bandejas, descarga, procesa y actualiza`Internos` |
-| `--internos-workers N`         | Navegadores paralelos para Internos (default: 12; sin máximo artificial; `0` usa uno por bandeja) |
+| `--internos-workers N`         | Navegadores paralelos para Internos (default: 10; sin máximo artificial; `0` usa uno por bandeja) |
 | `--solo-procesar`              | Omite la descarga (Parte 1) y procesa solo archivos ya locales                          |
 | `--headless`                   | Oculta el navegador de Playwright                                                       |
 | `--workers N`                  | Ventanas de navegador en paralelo (default: 10)                                         |

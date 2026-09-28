@@ -1,3 +1,13 @@
+
+## 2026.09.25-redeploy-seguro-rutas-q3q4-2
+
+- Limita Partes 3-4 a objetivos diarios exactos de Turnados e Internos.
+- Evita degradar Rutas canónicas a `_sin_operador` durante fallos RPC.
+- Reconciliación global conservadora, sin reconstrucción masiva del maestro.
+- Fallback al último Excel RPC válido cuando el más reciente está corrupto.
+- Actualización de Excel conservadora: no borra campos ni marcas R históricas.
+- Estandariza Internos en 10 workers.
+- Conserva reglas 2026Q3/2026Q4 y publicación normal + bucket.
 # 2026.09.08-trimestres-2026q3q4-antes-correo1
 
 ## 2026.09.08-trimestres-q3-2026-q4-2027-ruta-excel1
